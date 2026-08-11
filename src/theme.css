@@ -1,0 +1,252 @@
+/* Design tokens, ported verbatim from the Claude Design source. */
+
+:root {
+  --wrgb: 255, 255, 255;
+  --trgb: 233, 235, 238;
+  --accrgb: 201, 244, 90;
+  --danrgb: 255, 122, 107;
+  --coolrgb: 122, 162, 255;
+  --bg: #0e1013;
+  --t0: #e9ebee;
+  --acc: #c9f45a;
+  --accTx: #dcff8a;
+  --danTx: #ff9d91;
+  --danTx2: #ffb3a9;
+  --warnTx: #ffd479;
+  --term: #07080a;
+  --elev: #12151a;
+  --noteBg: rgba(26, 30, 35, 0.92);
+  --toastBg: rgba(18, 21, 26, 0.92);
+  --backdrop: rgba(6, 7, 9, 0.72);
+  --deskSolid: #08090b;
+  --sheen: linear-gradient(rgba(255, 255, 255, 0.045), transparent);
+  --shWin: 0 50px 90px -30px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(0, 0, 0, 0.5);
+  --shNote: 0 14px 30px -10px rgba(0, 0, 0, 0.6);
+  --shDlg: 0 40px 80px -20px rgba(0, 0, 0, 0.8);
+  --shToast: 0 24px 50px -14px rgba(0, 0, 0, 0.8);
+}
+
+[data-theme="light"] {
+  --wrgb: 16, 18, 22;
+  --trgb: 22, 24, 28;
+  --accrgb: 118, 156, 18;
+  --danrgb: 206, 64, 44;
+  --coolrgb: 60, 100, 220;
+  --bg: #fbfbfc;
+  --t0: #16181c;
+  --acc: #a9d92c;
+  --accTx: #4a6a06;
+  --danTx: #c0392b;
+  --danTx2: #a83226;
+  --warnTx: #8a5a00;
+  --term: #ffffff;
+  --elev: #ffffff;
+  --noteBg: #ffffff;
+  --toastBg: rgba(255, 255, 255, 0.96);
+  --backdrop: rgba(226, 227, 231, 0.72);
+  --deskSolid: #e7e7ea;
+  --sheen: linear-gradient(rgba(255, 255, 255, 0.85), transparent);
+  --shWin: 0 40px 80px -30px rgba(20, 24, 32, 0.35), 0 0 0 1px rgba(20, 24, 32, 0.07);
+  --shNote: 0 10px 24px -10px rgba(20, 24, 32, 0.22);
+  --shDlg: 0 40px 80px -20px rgba(20, 24, 32, 0.3);
+  --shToast: 0 20px 44px -14px rgba(20, 24, 32, 0.28);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--deskSolid);
+  color: var(--t0);
+  font-family: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.005em;
+  overflow: hidden;
+}
+
+a {
+  color: var(--acc);
+  text-decoration: none;
+}
+a:hover {
+  color: var(--accTx);
+}
+
+:focus {
+  outline: none;
+}
+:focus-visible {
+  outline: 2px solid var(--acc);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: rgba(var(--accrgb), 0.25);
+}
+
+input,
+button,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(var(--trgb), 0.13);
+  border-radius: 99px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(var(--trgb), 0.26);
+  background-clip: padding-box;
+}
+
+@keyframes upaPulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.2;
+  }
+}
+
+@keyframes upaSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Hover and focus states. The design expressed these as `style-hover`  */
+/* attributes; in React they live here as classes.                      */
+/* ------------------------------------------------------------------ */
+
+.h-ghost:hover {
+  background: rgba(var(--wrgb), 0.07);
+  color: var(--t0);
+}
+
+.h-close:hover {
+  background: #ff5f52;
+  color: #fff;
+}
+
+.h-nav:hover {
+  background: rgba(var(--wrgb), 0.05);
+}
+
+.h-nav-toggle:hover {
+  background: rgba(var(--wrgb), 0.05);
+  color: var(--t0);
+}
+
+.h-accent:hover {
+  background: rgba(var(--accrgb), 0.12);
+  border-color: rgba(var(--accrgb), 0.4);
+  color: var(--accTx);
+}
+
+.h-row:hover {
+  background: rgba(var(--wrgb), 0.04);
+  border-color: rgba(var(--wrgb), 0.07) !important;
+}
+
+.h-soft:hover {
+  background: rgba(var(--wrgb), 0.05);
+}
+
+.h-soft-3:hover {
+  background: rgba(var(--wrgb), 0.03);
+}
+
+.h-accent-soft:hover {
+  background: rgba(var(--accrgb), 0.24) !important;
+}
+
+.h-accent-strong:hover {
+  background: rgba(var(--accrgb), 0.26) !important;
+}
+
+.h-danger:hover {
+  background: rgba(var(--danrgb), 0.3) !important;
+}
+
+.h-link:hover {
+  color: var(--accTx);
+}
+
+.h-addfeat:hover {
+  background: rgba(var(--accrgb), 0.08);
+  color: var(--accTx);
+}
+
+.h-addgoal:hover {
+  background: rgba(var(--accrgb), 0.07);
+  border-color: rgba(var(--accrgb), 0.45);
+  color: var(--accTx);
+}
+
+.h-fade {
+  opacity: 0.35;
+}
+.h-fade:hover {
+  opacity: 1;
+}
+
+.h-fade-4 {
+  opacity: 0.4;
+}
+.h-fade-4:hover {
+  opacity: 1;
+}
+
+.h-rule-x:hover {
+  color: var(--danTx);
+  background: rgba(var(--danrgb), 0.12);
+}
+
+.h-folder-x:hover {
+  border-color: rgba(var(--danrgb), 0.5) !important;
+  color: var(--danTx);
+}
+
+.field:focus-within {
+  border-color: rgba(var(--accrgb), 0.5) !important;
+}
+
+.input:focus {
+  border-color: rgba(var(--accrgb), 0.5) !important;
+}
+
+.note-text {
+  background: transparent;
+  border: 0;
+  resize: none;
+  outline: none;
+  width: 100%;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  overflow: hidden;
+}

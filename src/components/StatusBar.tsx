@@ -1,0 +1,53 @@
+import { size } from "../format";
+import type { App } from "../useApp";
+
+export function StatusBar({ app }: { app: App }) {
+  const { t, projects, running, settings, scanning, scanNote, elapsedMs, rss } = app;
+
+  const scanLabel = scanning
+    ? `${t.scanning} ${scanNote}`
+    : elapsedMs
+      ? `${t.statScan} · ${(elapsedMs / 1000).toFixed(1)} s`
+      : t.statScan;
+
+  return (
+    <div
+      style={{
+        flex: "0 0 30px",
+        height: 30,
+        borderTop: "1px solid rgba(var(--wrgb),.07)",
+        display: "flex",
+        alignItems: "center",
+        gap: 16,
+        padding: "0 16px",
+        fontFamily: "'JetBrains Mono',monospace",
+        fontSize: 10,
+        color: "rgba(var(--trgb),.56)",
+      }}
+    >
+      <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <span
+          style={{
+            width: 5,
+            height: 5,
+            borderRadius: 99,
+            background: "var(--acc)",
+            boxShadow: "0 0 8px rgba(var(--accrgb),.8)",
+            animation: scanning ? "upaPulse 1.2s infinite" : undefined,
+          }}
+        />
+        {scanLabel}
+      </span>
+      <span>
+        {projects.length} {t.statProjects}
+      </span>
+      <span>
+        {running.size} {t.runningL}
+      </span>
+      <span style={{ marginLeft: "auto" }}>
+        {size(settings?.freedBytes ?? 0)} {t.statFreed}
+      </span>
+      <span style={{ color: "rgba(var(--trgb),.44)" }}>rss {size(rss)}</span>
+    </div>
+  );
+}

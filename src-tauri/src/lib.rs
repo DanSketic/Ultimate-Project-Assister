@@ -1,0 +1,67 @@
+//! Ultimate Project Assister - Tauri application entry point.
+
+mod clean;
+mod cmds;
+mod commands;
+mod geometry;
+mod git;
+mod model;
+mod platform;
+mod runner;
+mod scan;
+mod store;
+mod watcher;
+
+use tauri::Manager;
+
+use commands::AppState;
+use store::Store;
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .setup(|app| {
+            let dir = app
+                .path()
+                .app_config_dir()
+                .unwrap_or_else(|_| std::env::temp_dir().join("ultimate-project-assister"));
+            app.manage(AppState::new(Store::load(dir)));
+            geometry::watch(app.handle().clone());
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            commands::get_settings,
+            commands::save_settings,
+            commands::set_window_context,
+            commands::get_goals,
+            commands::save_goals,
+            commands::get_notes,
+            commands::save_notes,
+            commands::cached_projects,
+            commands::scan_projects,
+            commands::rescan_project,
+            commands::delete_targets,
+            commands::docker_usage,
+            commands::run_command,
+            commands::stop_command,
+            commands::running_commands,
+            commands::open_editor,
+            commands::open_terminal,
+            commands::reveal,
+            commands::sys_stats,
+        ])
+        .build(tauri::generate_context!())
+        .expect("failed to build the Tauri application")
+        .run(|app, event| {
+            // Never leave a dev server or compose stack running behind us, and
+            // record where the window ended up.
+            if let tauri::RunEvent::Exit = event {
+                geometry::flush(app);
+                if let Some(state) = app.try_state::<AppState>() {
+                    state.runner.stop_all();
+                    state.watcher.stop();
+                }
+            }
+        });
+}

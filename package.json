@@ -1,0 +1,42 @@
+{
+  "name": "ultimate-project-assister",
+  "private": true,
+  "version": "0.5.0",
+  "type": "module",
+  "description": "Project radar, cleaner, goals and board in one place.",
+  "license": "MIT",
+  "author": "DanSketic",
+  "homepage": "https://github.com/DanSketic/Ultimate-Project-Assister#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DanSketic/Ultimate-Project-Assister.git"
+  },
+  "bugs": {
+    "url": "https://github.com/DanSketic/Ultimate-Project-Assister/issues"
+  },
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "dev:vite": "vite",
+    "build:vite": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "icons": "node scripts/gen-icons.mjs"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/plugin-dialog": "^2.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0",
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.0"
+  }
+}
