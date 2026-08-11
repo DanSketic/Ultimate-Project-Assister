@@ -49,16 +49,28 @@ export function GoalsView({ app }: { app: App }) {
   };
 
   return (
+    // Two independent scroll panes: running down the project rail must not drag
+    // the goal cards along with it.
     <div
       style={{
         display: "grid",
         gridTemplateColumns: "258px 1fr",
         gap: 16,
-        alignItems: "start",
-        padding: "0 20px 24px",
+        height: "100%",
+        minHeight: 0,
+        padding: "0 20px 20px",
       }}
     >
-      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 2,
+          overflow: "auto",
+          minHeight: 0,
+          paddingBottom: 8,
+        }}
+      >
         {groups.map((group) => (
           <div key={group.key}>
             {showHeaders && (
@@ -147,7 +159,16 @@ export function GoalsView({ app }: { app: App }) {
         ))}
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 14,
+          overflow: "auto",
+          minHeight: 0,
+          paddingBottom: 8,
+        }}
+      >
         {goals.length === 0 && (
           <div style={{ fontSize: 12.5, color: "rgba(var(--trgb),.5)", padding: "4px 2px" }}>
             {t.emptyGoals}
@@ -166,6 +187,10 @@ export function GoalsView({ app }: { app: App }) {
                 borderRadius: 14,
                 background: "rgba(var(--wrgb),.022)",
                 overflow: "hidden",
+                // `overflow: hidden` switches off the automatic minimum size of
+                // a flex item, so without this the cards compress to fit the
+                // pane and clip their features instead of scrolling.
+                flexShrink: 0,
               }}
             >
               <div
@@ -390,6 +415,7 @@ export function GoalsView({ app }: { app: App }) {
               fontSize: 12.5,
               fontWeight: 500,
               color: "rgba(var(--trgb),.5)",
+              flexShrink: 0,
             }}
           >
             <Plus size={14} />

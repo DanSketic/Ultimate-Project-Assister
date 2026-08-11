@@ -7,6 +7,18 @@ the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 
 Every change bumps the version — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## [0.7.1] - 2026-08-11
+
+### Fixed
+
+- **The Goals view scrolled as one page**, so running down the project rail
+  carried the goal cards away with it. The two panes now scroll independently,
+  matching the Commands view.
+- Goal cards no longer compress to fit the pane. Their `overflow: hidden`
+  switches off a flex item's automatic minimum size, so once the pane had a
+  bounded height the cards shrank and clipped their own features instead of
+  letting the pane scroll.
+
 ## [0.7.0] - 2026-08-11
 
 ### Added
@@ -126,6 +138,7 @@ Hungarian interface, light and dark themes, per-view window sizing, project
 scanning with git analysis, guarded cleanup, and a process runner with live log
 streaming. Never published.
 
+[0.7.1]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v0.7.1
 [0.7.0]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v0.7.0
 [0.6.0]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v0.6.0
 [0.5.0]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v0.5.0
