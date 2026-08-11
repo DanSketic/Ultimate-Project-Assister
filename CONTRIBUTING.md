@@ -53,6 +53,21 @@ Add a [CHANGELOG.md](CHANGELOG.md) entry in the same commit, under `Added`,
 `Changed`, `Fixed` or `Removed`. Write what changed for the person using the
 app, not which function you edited.
 
+## Regenerating the screenshots
+
+The README images are captured from the browser build against the sample
+dataset, so they need no real projects on disk. Start the dev server, then:
+
+```bash
+npm run dev:vite
+node scripts/shoot.mjs
+```
+
+`scripts/shoot.mjs` drives headless Edge or Chrome over `?view=<name>&lang=en`.
+Those two query parameters seed the initial view and language when the UI runs
+in a browser; a packaged app is loaded without a query string, so they have no
+effect in production.
+
 ## Documentation language
 
 The interface is bilingual — English and Hungarian, both in `src/i18n.ts`. A new

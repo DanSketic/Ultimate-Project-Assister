@@ -1,14 +1,19 @@
-import { size } from "../format";
+import { since, size } from "../format";
 import type { App } from "../useApp";
 
 export function StatusBar({ app }: { app: App }) {
-  const { t, projects, running, settings, scanning, scanNote, elapsedMs, rss } = app;
+  const { t, lang, projects, running, settings, scanning, scanNote, elapsedMs, rss } = app;
 
+  // Before the first scan of this session finishes, whatever is on screen came
+  // out of the previous session's cache - say so rather than claiming a scan.
+  const cachedAt = projects.reduce((newest, p) => Math.max(newest, p.scannedAt), 0);
   const scanLabel = scanning
     ? `${t.scanning} ${scanNote}`
     : elapsedMs
       ? `${t.statScan} · ${(elapsedMs / 1000).toFixed(1)} s`
-      : t.statScan;
+      : cachedAt
+        ? `${t.cachedL} · ${since(cachedAt, lang)}`
+        : t.statScan;
 
   return (
     <div

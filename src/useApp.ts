@@ -50,6 +50,18 @@ function widthFor(view: View, navOpen: boolean, settings: Settings | null): numb
   return content + (navOpen ? NAV_OPEN : NAV_CLOSED);
 }
 
+/**
+ * Startup overrides read from the query string, used when the UI is opened in a
+ * browser: `?view=clean&lang=en`. They only seed the initial state and are
+ * never written back to the settings file. A packaged app is loaded without a
+ * query string, so this is inert in production - it exists so the documentation
+ * screenshots can be regenerated without hand-driving the app.
+ */
+function startupParam(name: string): string | null {
+  if (typeof location === "undefined") return null;
+  return new URLSearchParams(location.search).get(name);
+}
+
 export interface LogEntry {
   time: string;
   text: string;
@@ -79,7 +91,7 @@ export function useApp() {
   const [notes, setNotes] = useState<Note[]>([]);
 
   // --- view state ---------------------------------------------------------
-  const [view, setViewRaw] = useState<View>("projects");
+  const [view, setViewRaw] = useState<View>(startupParam("view") as View ?? "projects");
   const [selId, setSelId] = useState<string>("");
   const [q, setQ] = useState("");
   const [stack, setStack] = useState("all");
@@ -154,7 +166,11 @@ export function useApp() {
       await api.restoreWindow(loaded.window, widthFor("projects", navOpenAtBoot, loaded));
       setMaxed(loaded.window.maximized);
 
-      setSettings(loaded);
+      const langParam = startupParam("lang");
+      const seeded: Settings =
+        langParam === "en" || langParam === "hu" ? { ...loaded, lang: langParam } : loaded;
+
+      setSettings(seeded);
       setGoals(loadedGoals);
       setNotes(loadedNotes);
       setProjects(cached);

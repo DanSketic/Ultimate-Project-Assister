@@ -103,8 +103,10 @@ pub struct ProjectPart {
     pub source_bytes: u64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+/// `default` lets a cache written by an older build still load: a field added
+/// since then simply comes back empty instead of discarding the whole file.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
 pub struct Project {
     pub id: String,
     pub name: String,

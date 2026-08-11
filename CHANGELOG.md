@@ -7,6 +7,32 @@ the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 
 Every change bumps the version — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## [0.6.0] - 2026-08-11
+
+### Added
+
+- **The last scan is cached and shown at startup.** The window opens on the
+  previous session's projects instead of an empty list while the rescan runs.
+  The status bar reads `From last scan · 2 h ago` until fresh results arrive.
+  Projects whose folder has disappeared since are dropped from the cache, and a
+  cache written by an incompatible build is discarded rather than half-read.
+- **Documentation screenshots**, and the app icon in the README.
+- **`?view=` and `?lang=` startup overrides** when the UI is opened in a browser,
+  so the documentation screenshots can be regenerated without hand-driving the
+  app. Inert in the packaged app, which loads no query string.
+
+### Changed
+
+- `Project` now tolerates fields added by a newer build when read back from the
+  cache, instead of discarding the whole file.
+
+### Fixed
+
+- `src/format.ts` contained two literal NUL bytes, left over from a placeholder
+  used while expanding glob patterns. Git treated the file as binary, so its
+  diffs were unreadable. The glob expansion now runs in a single pass and needs
+  no placeholder.
+
 ## [0.5.0] - 2026-08-11
 
 The first published release. Everything below landed on top of the initial
@@ -75,4 +101,5 @@ Hungarian interface, light and dark themes, per-view window sizing, project
 scanning with git analysis, guarded cleanup, and a process runner with live log
 streaming. Never published.
 
+[0.6.0]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v0.6.0
 [0.5.0]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v0.5.0

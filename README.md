@@ -1,13 +1,19 @@
+<img src="src-tauri/icons/icon.png" width="88" align="left" alt="" hspace="16" />
+
 # Ultimate Project Assister
 
 A desktop dashboard for a folder full of side projects: see what you have, find
 out what is eating your disk, keep track of what you meant to finish, and run
 the project's own commands without leaving the window.
 
+<br clear="left" />
+
 **Rust (Tauri 2) backend · TypeScript + React frontend · Windows, macOS, Linux**
 
 The interface is available in **English and Hungarian**; the documentation is
 English only.
+
+![The projects list](docs/screenshots/projects.png)
 
 ---
 
@@ -21,6 +27,34 @@ English only.
 | **Board** | A free canvas of draggable notes with a project tag, a deadline and three colours. |
 | **Commands** | Runnable commands read out of the manifests — npm/pnpm/yarn/bun scripts, Makefile targets, cargo, compose. Start and stop them, with output streamed live. |
 | **Settings** | Watched folders, scanning options, cleanup age threshold, window anchoring, language. |
+
+---
+
+## Screenshots
+
+### Cleanup
+
+Grouped by project, biggest first, with per-project totals and a tri-state group
+checkbox. Category badges turn red for directories that regenerate on the next
+build. The blue chips mark which package of a monorepo a directory belongs to.
+
+![The cleanup view](docs/screenshots/clean.png)
+
+### Project detail
+
+![The project detail view](docs/screenshots/detail.png)
+
+### Goals
+
+![The goals view](docs/screenshots/goals.png)
+
+### Board
+
+![The notes board](docs/screenshots/board.png)
+
+### Commands
+
+![The commands view](docs/screenshots/cmd.png)
 
 ---
 
@@ -69,6 +103,12 @@ restored on the next launch. Width is remembered *per view*: widen the board and
 it opens wide next time, while the projects list keeps its own width. If the
 saved position lands on a monitor that is no longer attached, the window opens
 centred and keeps only the size.
+
+**It opens on last session's results.** The scan is cached, so the window shows
+your projects immediately instead of an empty list, and the status bar says
+`From last scan · 2 h ago` until the fresh scan replaces it. Projects whose
+folder has since disappeared are dropped from the cache rather than shown as
+ghosts.
 
 ---
 
@@ -157,10 +197,11 @@ scripts/gen-icons.mjs    icon generation (PNG + ICO, no external tooling)
 ### Where your data lives
 
 `%APPDATA%\dev.upa.ultimate-project-assister\` on Windows, the equivalent config
-directory elsewhere: `settings.json`, `goals.json`, `notes.json`. Plain,
-hand-editable JSON — missing keys fall back to defaults, a UTF-8 BOM is
-tolerated, and a corrupt file makes the app fall back to defaults rather than
-crash.
+directory elsewhere: `settings.json`, `goals.json`, `notes.json` and the scan
+cache `projects.json`. Plain, hand-editable JSON — missing keys fall back to
+defaults, a UTF-8 BOM is tolerated, and a corrupt file makes the app fall back
+to defaults rather than crash. Deleting `projects.json` costs nothing; the next
+scan rebuilds it.
 
 ---
 

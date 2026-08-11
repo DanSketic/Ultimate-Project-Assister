@@ -11,6 +11,20 @@ use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
 
+use crate::model::Project;
+
+/// Bumped whenever `Project` changes shape. A cache written by an older build
+/// is discarded rather than half-read.
+const CACHE_VERSION: u32 = 1;
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ProjectCache {
+    version: u32,
+    saved_at: i64,
+    projects: Vec<Project>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Toggles {
@@ -206,6 +220,34 @@ impl Store {
         write_json(&self.dir.join("notes.json"), &next)
     }
 
+    /// Last session's scan results, so the window has something to show the
+    /// moment it opens instead of an empty list.
+    ///
+    /// Projects whose directory has since disappeared are dropped here rather
+    /// than shown as ghosts until the rescan catches up.
+    pub fn load_projects(&self) -> Vec<Project> {
+        let Some(cache) = read_json::<ProjectCache>(&self.dir.join("projects.json")) else {
+            return Vec::new();
+        };
+        if cache.version != CACHE_VERSION {
+            return Vec::new();
+        }
+        cache
+            .projects
+            .into_iter()
+            .filter(|p| Path::new(&p.path).is_dir())
+            .collect()
+    }
+
+    pub fn save_projects(&self, projects: &[Project]) -> Result<(), String> {
+        let cache = ProjectCache {
+            version: CACHE_VERSION,
+            saved_at: crate::scan::now_secs(),
+            projects: projects.to_vec(),
+        };
+        write_json(&self.dir.join("projects.json"), &cache)
+    }
+
     /// Adds to the running "freed today" counter, rolling it over at midnight.
     pub fn add_freed(&self, bytes: u64, today: &str) -> Settings {
         let mut s = self.settings.lock().unwrap();
@@ -335,6 +377,46 @@ mod tests {
         let reloaded = Store::load(tmp.path().to_path_buf()).settings();
         assert_eq!(reloaded.lang, "en", "the real change must still apply");
         assert_eq!(reloaded.window, placed(), "geometry must survive untouched");
+    }
+
+    fn project_at(path: &str) -> Project {
+        Project { id: "x".into(), name: "demo".into(), path: path.into(), ..Default::default() }
+    }
+
+    #[test]
+    fn the_last_scan_is_available_on_the_next_launch() {
+        let dir = tempfile::tempdir().unwrap();
+        let live = tempfile::tempdir().unwrap(); // a directory that still exists
+
+        Store::load(dir.path().to_path_buf())
+            .save_projects(&[project_at(&live.path().to_string_lossy())])
+            .unwrap();
+
+        let reloaded = Store::load(dir.path().to_path_buf()).load_projects();
+
+        assert_eq!(reloaded.len(), 1);
+        assert_eq!(reloaded[0].name, "demo");
+    }
+
+    #[test]
+    fn a_cached_project_whose_folder_is_gone_is_dropped() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::load(dir.path().to_path_buf());
+        store.save_projects(&[project_at("Z:\\definitely\\not\\here")]).unwrap();
+
+        assert!(Store::load(dir.path().to_path_buf()).load_projects().is_empty());
+    }
+
+    #[test]
+    fn a_cache_from_an_older_format_is_ignored() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(
+            dir.path().join("projects.json"),
+            r#"{"version": 0, "savedAt": 1, "projects": [{"id":"x","name":"old"}]}"#,
+        )
+        .unwrap();
+
+        assert!(Store::load(dir.path().to_path_buf()).load_projects().is_empty());
     }
 
     #[test]

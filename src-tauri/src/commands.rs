@@ -34,9 +34,11 @@ pub struct AppState {
 
 impl AppState {
     pub fn new(store: Store) -> Self {
+        // Seed from the previous session so the first paint is not an empty list.
+        let cached = store.load_projects();
         Self {
             store,
-            projects: Mutex::new(Vec::new()),
+            projects: Mutex::new(cached),
             runner: Runner::new(),
             watcher: Watcher::new(),
             view: Mutex::new("projects".into()),
@@ -141,6 +143,7 @@ pub async fn scan_projects(
     .map_err(|e| e.to_string())?;
 
     *state.projects.lock().unwrap() = projects.clone();
+    let _ = state.store.save_projects(&projects);
 
     if state.store.settings().toggles.watch_fs {
         let pairs = projects
@@ -169,10 +172,14 @@ pub async fn rescan_project(state: State<'_, AppState>, id: String) -> Result<Op
         .map_err(|e| e.to_string())?;
 
     if let Some(ref project) = updated {
-        let mut cache = state.projects.lock().unwrap();
-        if let Some(slot) = cache.iter_mut().find(|p| p.id == id) {
-            *slot = project.clone();
-        }
+        let snapshot = {
+            let mut cache = state.projects.lock().unwrap();
+            if let Some(slot) = cache.iter_mut().find(|p| p.id == id) {
+                *slot = project.clone();
+            }
+            cache.clone()
+        };
+        let _ = state.store.save_projects(&snapshot);
     }
 
     Ok(updated)
@@ -264,14 +271,16 @@ pub async fn delete_targets(
 
     progress(&app, "done", rescan_total, rescan_total, "", freed);
 
-    {
+    let snapshot = {
         let mut cache = state.projects.lock().unwrap();
         for project in refreshed {
             if let Some(slot) = cache.iter_mut().find(|p| p.id == project.id) {
                 *slot = project;
             }
         }
-    }
+        cache.clone()
+    };
+    let _ = state.store.save_projects(&snapshot);
 
     Ok(report)
 }
