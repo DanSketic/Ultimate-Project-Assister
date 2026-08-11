@@ -1,7 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
+import { RailHeader } from "../components/GroupHeader";
 import { Play, Stop } from "../components/Icons";
 import { cmdKey, manifestLabel } from "../format";
+import { groupByFolder } from "../grouping";
 import type { App } from "../useApp";
 
 export function CommandsView({ app }: { app: App }) {
@@ -15,6 +17,19 @@ export function CommandsView({ app }: { app: App }) {
 
   const runnable = projects.filter((p) => p.commands.length > 0);
   const selected = runnable.find((p) => p.name === cmdSel) ?? runnable[0];
+
+  // Folders with something running float to the top, then the busiest ones.
+  const groups = useMemo(
+    () =>
+      groupByFolder(runnable, (items) => {
+        const active = items.filter((p) =>
+          p.commands.some((c) => running.has(cmdKey(p.name, c))),
+        ).length;
+        return active * 1000 + items.length;
+      }),
+    [runnable, running],
+  );
+  const showHeaders = groups.length > 1;
 
   const runningLabel = [...running]
     .map((k) => {
@@ -36,7 +51,26 @@ export function CommandsView({ app }: { app: App }) {
       }}
     >
       <div style={{ overflow: "auto", minHeight: 0, display: "flex", flexDirection: "column", gap: 2 }}>
-        {runnable.map((p) => {
+        {groups.map((group) => (
+          <div key={group.key}>
+            {showHeaders && (
+              <RailHeader
+                label={group.label}
+                title={group.key}
+                meta={
+                  <span
+                    style={{
+                      fontFamily: "'JetBrains Mono',monospace",
+                      fontSize: 9.5,
+                      color: "rgba(var(--trgb),.42)",
+                    }}
+                  >
+                    {group.items.length}
+                  </span>
+                }
+              />
+            )}
+            {group.items.map((p) => {
           const on = p.name === selected?.name;
           const hasRunning = p.commands.some((c) => running.has(cmdKey(p.name, c)));
           return (
@@ -102,7 +136,9 @@ export function CommandsView({ app }: { app: App }) {
               )}
             </button>
           );
-        })}
+            })}
+          </div>
+        ))}
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", minHeight: 0, gap: 14 }}>

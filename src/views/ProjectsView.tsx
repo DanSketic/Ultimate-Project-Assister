@@ -1,12 +1,33 @@
 import { useMemo } from "react";
 
 import { ChipGroup } from "../components/Chips";
+import { FolderHeader } from "../components/GroupHeader";
 import { ChevronRight, GitBranch, Search } from "../components/Icons";
-import { size } from "../format";
+import { projectCount, size } from "../format";
+import { groupByFolder } from "../grouping";
 import type { App } from "../useApp";
 import type { Project } from "../types";
 
 const GRID = "minmax(200px,1fr) 104px 116px 146px 108px 58px 22px";
+
+type Sort = "recent" | "name" | "size" | "dirty";
+
+const SORTERS: Record<Sort, (a: Project, b: Project) => number> = {
+  name: (a, b) => a.name.localeCompare(b.name),
+  size: (a, b) => b.sizeBytes - a.sizeBytes,
+  dirty: (a, b) => b.git.dirty - a.git.dirty,
+  recent: (a, b) => a.git.days - b.git.days,
+};
+
+/** A folder's weight for ordering, matching the active sort. Higher comes first. */
+const GROUP_WEIGHT: Record<Sort, (items: Project[]) => number> = {
+  // Fewest days since the last commit wins, so the sign is flipped.
+  recent: (items) => -Math.min(...items.map((p) => p.git.days)),
+  // Equal weight leaves the alphabetical tie-break to decide.
+  name: () => 0,
+  size: (items) => items.reduce((total, p) => total + p.sizeBytes, 0),
+  dirty: (items) => items.reduce((total, p) => total + p.git.dirty, 0),
+};
 
 function badge(stack: string) {
   return stack === "Rust"
@@ -53,14 +74,13 @@ export function ProjectsView({ app }: { app: App }) {
       return (!needle || haystack.includes(needle)) && stackOk;
     });
 
-    const sorters: Record<typeof sort, (a: Project, b: Project) => number> = {
-      name: (a, b) => a.name.localeCompare(b.name),
-      size: (a, b) => b.sizeBytes - a.sizeBytes,
-      dirty: (a, b) => b.git.dirty - a.git.dirty,
-      recent: (a, b) => a.git.days - b.git.days,
-    };
-    return [...filtered].sort(sorters[sort]);
+    return [...filtered].sort(SORTERS[sort]);
   }, [projects, q, stack, sort]);
+
+  // Folders are ordered by the same measure the rows are sorted by, so the
+  // chips still drive what comes first.
+  const groups = useMemo(() => groupByFolder(rows, GROUP_WEIGHT[sort]), [rows, sort]);
+  const showHeaders = groups.length > 1;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", padding: "0 12px 16px" }}>
@@ -161,7 +181,45 @@ export function ProjectsView({ app }: { app: App }) {
         </div>
       )}
 
-      {rows.map((p) => {
+      {groups.map((group) => (
+        <div key={group.key}>
+          {showHeaders && (
+            <FolderHeader label={group.label} title={group.key}>
+              <span
+                style={{
+                  fontFamily: "'JetBrains Mono',monospace",
+                  fontSize: 10.5,
+                  color: "rgba(var(--trgb),.45)",
+                }}
+              >
+                {projectCount(group.items.length, t)}
+              </span>
+              <span
+                style={{
+                  fontFamily: "'JetBrains Mono',monospace",
+                  fontSize: 11,
+                  fontWeight: 500,
+                  color: "rgba(var(--trgb),.7)",
+                }}
+              >
+                {size(group.items.reduce((total, p) => total + p.sizeBytes, 0))}
+              </span>
+              <span
+                style={{
+                  fontFamily: "'JetBrains Mono',monospace",
+                  fontSize: 11,
+                  fontWeight: 500,
+                  color: "var(--danTx)",
+                  minWidth: 62,
+                  textAlign: "right",
+                }}
+              >
+                −{size(group.items.reduce((total, p) => total + p.reclaimBytes, 0))}
+              </span>
+            </FolderHeader>
+          )}
+
+          {group.items.map((p) => {
         const ratio = app.goalRatio(p.name);
         const gitState = p.git.isRepo
           ? `${p.git.dirty ? `±${p.git.dirty} ` : `${lang === "hu" ? "tiszta" : "clean"} `}↑${p.git.ahead} ↓${p.git.behind}`
@@ -282,7 +340,9 @@ export function ProjectsView({ app }: { app: App }) {
             </div>
           </div>
         );
-      })}
+          })}
+        </div>
+      ))}
     </div>
   );
 }

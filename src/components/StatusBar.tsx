@@ -1,4 +1,4 @@
-import { since, size } from "../format";
+import { projectCount, since, size } from "../format";
 import type { App } from "../useApp";
 
 export function StatusBar({ app }: { app: App }) {
@@ -43,9 +43,7 @@ export function StatusBar({ app }: { app: App }) {
         />
         {scanLabel}
       </span>
-      <span>
-        {projects.length} {t.statProjects}
-      </span>
+      <span>{projectCount(projects.length, t)}</span>
       <span>
         {running.size} {t.runningL}
       </span>

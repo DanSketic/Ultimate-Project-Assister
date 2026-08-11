@@ -7,6 +7,31 @@ the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 
 Every change bumps the version — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## [0.7.0] - 2026-08-11
+
+### Added
+
+- **Projects, Goals and Commands group by folder**, the way the cleanup list
+  already grouped by project. Projects that sit in the same directory are shown
+  together under a heading; in the projects list that heading carries the
+  project count, the total size and the total reclaimable.
+- Folder headings drop the path prefix every group shares, so
+  `C:\dev\_GIT\_GITHUB\OWN` and `C:\dev\_TEST` read as `_GIT\_GITHUB\OWN` and
+  `_TEST` rather than repeating the common root.
+- Folder order follows the active sort chip in the projects list — by newest
+  commit, name, total size or dirty count. In Goals the folders with the most
+  unfinished features come first; in Commands the folders with something
+  running do.
+
+### Changed
+
+- Headings are hidden when every project sits in the same folder, since a
+  single heading over the whole list carries no information.
+
+### Fixed
+
+- "1 projects" now reads "1 project". Hungarian keeps the single form.
+
 ## [0.6.0] - 2026-08-11
 
 ### Added
@@ -101,5 +126,6 @@ Hungarian interface, light and dark themes, per-view window sizing, project
 scanning with git analysis, guarded cleanup, and a process runner with live log
 streaming. Never published.
 
+[0.7.0]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v0.7.0
 [0.6.0]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v0.6.0
 [0.5.0]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v0.5.0

@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
+import { RailHeader } from "../components/GroupHeader";
 import { Check, Close, Plus } from "../components/Icons";
+import { groupByFolder } from "../grouping";
 import type { App } from "../useApp";
 
 const inputStyle = {
@@ -23,6 +25,19 @@ export function GoalsView({ app }: { app: App }) {
   const selected = projects.find((p) => p.name === goalSel) ?? projects[0];
   const goals = selected ? app.goalsFor(selected.name) : [];
 
+  // Folders with the most unfinished features first - that is where the work is.
+  const groups = useMemo(
+    () =>
+      groupByFolder(projects, (items) =>
+        items.reduce((open, p) => {
+          const r = app.goalRatio(p.name);
+          return open + (r.all - r.done);
+        }, 0),
+      ),
+    [projects, app],
+  );
+  const showHeaders = groups.length > 1;
+
   const submitGoal = () => {
     if (goalDraft?.trim() && selected) app.addGoal(selected.name, goalDraft);
     setGoalDraft(null);
@@ -44,7 +59,26 @@ export function GoalsView({ app }: { app: App }) {
       }}
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        {projects.map((p) => {
+        {groups.map((group) => (
+          <div key={group.key}>
+            {showHeaders && (
+              <RailHeader
+                label={group.label}
+                title={group.key}
+                meta={
+                  <span
+                    style={{
+                      fontFamily: "'JetBrains Mono',monospace",
+                      fontSize: 9.5,
+                      color: "rgba(var(--trgb),.42)",
+                    }}
+                  >
+                    {group.items.length}
+                  </span>
+                }
+              />
+            )}
+            {group.items.map((p) => {
           const r = app.goalRatio(p.name);
           const on = p.name === selected?.name;
           return (
@@ -108,7 +142,9 @@ export function GoalsView({ app }: { app: App }) {
               </div>
             </button>
           );
-        })}
+            })}
+          </div>
+        ))}
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>

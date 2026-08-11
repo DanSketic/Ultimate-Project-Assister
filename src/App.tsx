@@ -5,7 +5,7 @@ import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
 import { TitleBar } from "./components/TitleBar";
 import { Toast } from "./components/Toast";
-import { isOverdue, size } from "./format";
+import { isOverdue, projectCount, size } from "./format";
 import { BoardView } from "./views/BoardView";
 import { CleanView } from "./views/CleanView";
 import { CommandsView } from "./views/CommandsView";
@@ -57,7 +57,7 @@ export function App() {
     projects: {
       kicker: t.navProjects,
       title: t.navProjects,
-      meta: `${projects.length} ${t.statProjects} · ${size(totalSize)} · ${size(totalReclaim)} ${t.reclaimable}`,
+      meta: `${projectCount(projects.length, t)} · ${size(totalSize)} · ${size(totalReclaim)} ${t.reclaimable}`,
     },
     detail: {
       kicker: app.current ? `${app.current.stack} · ${app.current.git.branch || "—"}` : "",

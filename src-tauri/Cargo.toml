@@ -1,6 +1,6 @@
 [package]
 name = "ultimate-project-assister"
-version = "0.6.0"
+version = "0.7.0"
 description = "Project radar, cleaner, goals and board in one place."
 authors = ["DanSketic"]
 edition = "2021"

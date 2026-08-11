@@ -1,6 +1,7 @@
 import * as api from "../api";
 import { ChipGroup } from "../components/Chips";
 import { Folder, Plus } from "../components/Icons";
+import { projectCount } from "../format";
 import type { App } from "../useApp";
 import type { Anchor, Lang, Toggles } from "../types";
 
@@ -99,7 +100,7 @@ export function SettingsView({ app }: { app: App }) {
                 color: "rgba(var(--trgb),.56)",
               }}
             >
-              {projectsIn(folder)} {t.statProjects}
+              {projectCount(projectsIn(folder), t)}
             </span>
             <button
               type="button"

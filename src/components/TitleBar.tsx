@@ -1,4 +1,5 @@
 import * as api from "../api";
+import { projectCount } from "../format";
 import { Chevron, Close, Minus, Monitor, Moon, Square, Sun } from "./Icons";
 import type { App } from "../useApp";
 import type { Theme } from "../types";
@@ -13,7 +14,7 @@ export function TitleBar({ app }: { app: App }) {
   const crumb =
     view === "detail" && current
       ? current.path
-      : `${app.settings?.folders[0] ?? "—"} · ${projects.length} ${t.statProjects}`;
+      : `${app.settings?.folders[0] ?? "—"} · ${projectCount(projects.length, t)}`;
 
   const setTheme = (next: Theme) => app.patchSettings({ theme: next });
 

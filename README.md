@@ -21,7 +21,7 @@ English only.
 
 | View | What actually happens |
 | --- | --- |
-| **Projects** | Walks your watched folders and recognises projects by their manifests (`Cargo.toml`, `package.json`, `pyproject.toml`, `go.mod`, `pubspec.yaml`, `composer.json`, `mix.exs`, `CMakeLists.txt`, compose files, `Makefile`). Reports size on disk, file and line counts, language breakdown and git state. A monorepo stays one row with several parts. |
+| **Projects** | Grouped by the folder they live in. Walks your watched folders and recognises projects by their manifests (`Cargo.toml`, `package.json`, `pyproject.toml`, `go.mod`, `pubspec.yaml`, `composer.json`, `mix.exs`, `CMakeLists.txt`, compose files, `Makefile`). Reports size on disk, file and line counts, language breakdown and git state. A monorepo stays one row with several parts. |
 | **Cleanup** | Measures build junk per category (`target/debug`, `node_modules`, `.venv`, `__pycache__`, `vendor`, `_build`, …) together with its age, grouped by project. Nothing is removed without confirmation, and the removal is guarded three ways. |
 | **Goals** | Goals and features per project with progress bars. Stored as plain JSON. |
 | **Board** | A free canvas of draggable notes with a project tag, a deadline and three colours. |
@@ -31,6 +31,10 @@ English only.
 ---
 
 ## Screenshots
+
+Every list groups things that belong together. Projects, Goals and Commands
+group by the folder the projects live in; Cleanup groups by project. Headings
+carry the totals for the block, and disappear when there is only one of them.
 
 ### Cleanup
 

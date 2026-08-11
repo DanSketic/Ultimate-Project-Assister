@@ -119,6 +119,11 @@ export function cmdKey(project: string, cmd: { cwd: string; cmd: string }): stri
   return `${project}|${cmd.cwd}|${cmd.cmd}`;
 }
 
+/** "1 project" / "25 projects" - Hungarian uses the same word for both. */
+export function projectCount(n: number, t: T): string {
+  return `${n} ${n === 1 ? t.statProject : t.statProjects}`;
+}
+
 /** Short manifest list shown next to a project in the Commands view. */
 export function manifestLabel(manifests: string[]): string {
   return manifests.length ? manifests.slice(0, 3).join(" · ") : "—";

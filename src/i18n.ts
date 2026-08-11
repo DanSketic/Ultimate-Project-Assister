@@ -118,6 +118,7 @@ const hu = {
   statScan: "Olvasás kész",
   cachedL: "Előző olvasásból",
   statProjects: "projekt",
+  statProject: "projekt",
   statRun: "futó parancs",
   statFreed: "felszabadítva ma",
 
@@ -279,6 +280,7 @@ const en: Dict = {
   statScan: "Scan complete",
   cachedL: "From last scan",
   statProjects: "projects",
+  statProject: "project",
   statRun: "running",
   statFreed: "freed today",
 
