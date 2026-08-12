@@ -225,6 +225,23 @@ export const Tag = ({ size = 10, style }: IconProps) => (
   </svg>
 );
 
+export const Star = ({ size = 13, strokeWidth = 1.8, style, filled = false }: IconProps & { filled?: boolean }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill={filled ? "currentColor" : "none"}
+    stroke="currentColor"
+    strokeWidth={strokeWidth}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    style={style}
+    aria-hidden="true"
+  >
+    <path d="m12 3.6 2.6 5.3 5.8.9-4.2 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8L3.6 9.8l5.8-.9z" />
+  </svg>
+);
+
 export const Info = (p: IconProps) => (
   <Svg strokeWidth={1.9} {...p}>
     <circle cx="12" cy="12" r="9.5" />

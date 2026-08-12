@@ -460,6 +460,20 @@ export function useApp() {
     [patchSettings, navOpen],
   );
 
+  const favourites = useMemo(
+    () => new Set(settings?.favourites ?? []),
+    [settings?.favourites],
+  );
+
+  const toggleFavourite = useCallback(
+    (projectId: string) => {
+      const next = new Set(favourites);
+      if (!next.delete(projectId)) next.add(projectId);
+      patchSettings({ favourites: [...next] });
+    },
+    [favourites, patchSettings],
+  );
+
   const toggleMax = useCallback(async () => {
     setMaxed(await api.toggleMaximizeWindow());
   }, []);
@@ -674,6 +688,8 @@ export function useApp() {
     openProject,
     navOpen,
     toggleNav,
+    favourites,
+    toggleFavourite,
     maxed,
     toggleMax,
     // list controls

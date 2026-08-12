@@ -169,6 +169,8 @@ export interface Settings {
   toggles: Toggles;
   ageDays: number;
   rules: Rule[];
+  /** Project ids the user pinned; shown first in the lists. */
+  favourites: string[];
   freedBytes: number;
   freedDate: string;
   window: WindowState;

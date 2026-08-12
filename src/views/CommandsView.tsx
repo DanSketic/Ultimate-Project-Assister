@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef } from "react";
 
-import { RailHeader } from "../components/GroupHeader";
+import { FavouriteButton, RailHeader } from "../components/GroupHeader";
 import { Play, Stop } from "../components/Icons";
 import { cmdKey, manifestLabel } from "../format";
-import { groupByFolder } from "../grouping";
+import { groupWithFavourites } from "../grouping";
 import type { App } from "../useApp";
 
 export function CommandsView({ app }: { app: App }) {
@@ -21,13 +21,18 @@ export function CommandsView({ app }: { app: App }) {
   // Folders with something running float to the top, then the busiest ones.
   const groups = useMemo(
     () =>
-      groupByFolder(runnable, (items) => {
-        const active = items.filter((p) =>
-          p.commands.some((c) => running.has(cmdKey(p.id, c))),
-        ).length;
-        return active * 1000 + items.length;
-      }),
-    [runnable, running],
+      groupWithFavourites(
+        runnable,
+        app.favourites,
+        (items) => {
+          const active = items.filter((p) =>
+            p.commands.some((c) => running.has(cmdKey(p.id, c))),
+          ).length;
+          return active * 1000 + items.length;
+        },
+        t.favourites,
+      ),
+    [runnable, running, app.favourites, t.favourites],
   );
   const showHeaders = groups.length > 1;
 
@@ -56,7 +61,8 @@ export function CommandsView({ app }: { app: App }) {
             {showHeaders && (
               <RailHeader
                 label={group.label}
-                title={group.key}
+                title={group.favourite ? t.favourites : group.key}
+                pinned={group.favourite}
                 meta={
                   <span
                     style={{
@@ -74,11 +80,21 @@ export function CommandsView({ app }: { app: App }) {
           const on = p.id === selected?.id;
           const hasRunning = p.commands.some((c) => running.has(cmdKey(p.id, c)));
           return (
-            <button
+            // A div, not a button: it carries the favourite toggle, and a
+            // button may not be nested inside another button.
+            <div
               key={p.id}
-              type="button"
+              role="button"
+              tabIndex={0}
+              aria-pressed={on}
               className="h-soft"
               onClick={() => app.setCmdSel(p.id)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  app.setCmdSel(p.id);
+                }
+              }}
               style={{
                 width: "100%",
                 display: "flex",
@@ -134,7 +150,12 @@ export function CommandsView({ app }: { app: App }) {
                   }}
                 />
               )}
-            </button>
+              <FavouriteButton
+                on={app.favourites.has(p.id)}
+                onClick={() => app.toggleFavourite(p.id)}
+                title={app.favourites.has(p.id) ? t.removeFav : t.addFav}
+              />
+            </div>
           );
             })}
           </div>

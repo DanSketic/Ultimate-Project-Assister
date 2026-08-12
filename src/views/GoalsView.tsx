@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 
-import { RailHeader } from "../components/GroupHeader";
+import { FavouriteButton, RailHeader } from "../components/GroupHeader";
 import { Check, Close, Plus } from "../components/Icons";
-import { groupByFolder } from "../grouping";
+import { groupWithFavourites } from "../grouping";
 import type { App } from "../useApp";
 
 const inputStyle = {
@@ -28,13 +28,17 @@ export function GoalsView({ app }: { app: App }) {
   // Folders with the most unfinished features first - that is where the work is.
   const groups = useMemo(
     () =>
-      groupByFolder(projects, (items) =>
-        items.reduce((open, p) => {
-          const r = app.goalRatio(p.id);
-          return open + (r.all - r.done);
-        }, 0),
+      groupWithFavourites(
+        projects,
+        app.favourites,
+        (items) =>
+          items.reduce((open, p) => {
+            const r = app.goalRatio(p.id);
+            return open + (r.all - r.done);
+          }, 0),
+        t.favourites,
       ),
-    [projects, app],
+    [projects, app, t.favourites],
   );
   const showHeaders = groups.length > 1;
 
@@ -76,7 +80,8 @@ export function GoalsView({ app }: { app: App }) {
             {showHeaders && (
               <RailHeader
                 label={group.label}
-                title={group.key}
+                title={group.favourite ? t.favourites : group.key}
+                pinned={group.favourite}
                 meta={
                   <span
                     style={{
@@ -94,11 +99,21 @@ export function GoalsView({ app }: { app: App }) {
           const r = app.goalRatio(p.id);
           const on = p.id === selected?.id;
           return (
-            <button
+            // A div, not a button: it carries the favourite toggle, and a
+            // button may not be nested inside another button.
+            <div
               key={p.id}
-              type="button"
+              role="button"
+              tabIndex={0}
+              aria-pressed={on}
               className="h-soft"
               onClick={() => app.setGoalSel(p.id)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  app.setGoalSel(p.id);
+                }
+              }}
               style={{
                 width: "100%",
                 display: "block",
@@ -110,7 +125,7 @@ export function GoalsView({ app }: { app: App }) {
                 cursor: "pointer",
               }}
             >
-              <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span
                   style={{
                     fontSize: 12.5,
@@ -124,6 +139,11 @@ export function GoalsView({ app }: { app: App }) {
                 >
                   {p.name}
                 </span>
+                <FavouriteButton
+                  on={app.favourites.has(p.id)}
+                  onClick={() => app.toggleFavourite(p.id)}
+                  title={app.favourites.has(p.id) ? t.removeFav : t.addFav}
+                />
                 <span
                   style={{
                     fontFamily: "'JetBrains Mono',monospace",
@@ -152,7 +172,7 @@ export function GoalsView({ app }: { app: App }) {
                   }}
                 />
               </div>
-            </button>
+            </div>
           );
             })}
           </div>

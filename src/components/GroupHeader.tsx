@@ -1,6 +1,45 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
-import { Folder } from "./Icons";
+import { Folder, Star } from "./Icons";
+
+/** Toggles a project in and out of the pinned block. */
+export function FavouriteButton({
+  on,
+  onClick,
+  title,
+  style,
+}: {
+  on: boolean;
+  onClick: () => void;
+  title: string;
+  style?: CSSProperties;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={on}
+      title={title}
+      onClick={(e) => {
+        // The whole row is clickable; pinning must not also open the project.
+        e.stopPropagation();
+        onClick();
+      }}
+      className={on ? undefined : "h-fade-4"}
+      style={{
+        border: 0,
+        background: "transparent",
+        padding: 2,
+        cursor: "pointer",
+        display: "flex",
+        alignItems: "center",
+        color: on ? "var(--acc)" : "rgba(var(--trgb),.55)",
+        ...style,
+      }}
+    >
+      <Star size={13} filled={on} />
+    </button>
+  );
+}
 
 /**
  * Folder heading above a block of projects in the projects list. Mirrors the
@@ -9,10 +48,12 @@ import { Folder } from "./Icons";
 export function FolderHeader({
   label,
   title,
+  pinned = false,
   children,
 }: {
   label: string;
   title: string;
+  pinned?: boolean;
   children?: ReactNode;
 }) {
   return (
@@ -27,7 +68,11 @@ export function FolderHeader({
       }}
       title={title}
     >
-      <Folder size={13} style={{ flex: "0 0 13px", color: "rgba(var(--trgb),.4)" }} />
+      {pinned ? (
+        <Star size={13} filled style={{ flex: "0 0 13px", color: "var(--acc)" }} />
+      ) : (
+        <Folder size={13} style={{ flex: "0 0 13px", color: "rgba(var(--trgb),.4)" }} />
+      )}
       <span
         style={{
           fontFamily: "'JetBrains Mono',monospace",
@@ -49,7 +94,17 @@ export function FolderHeader({
 }
 
 /** Compact folder heading for the narrow rails in Goals and Commands. */
-export function RailHeader({ label, title, meta }: { label: string; title: string; meta?: ReactNode }) {
+export function RailHeader({
+  label,
+  title,
+  meta,
+  pinned = false,
+}: {
+  label: string;
+  title: string;
+  meta?: ReactNode;
+  pinned?: boolean;
+}) {
   return (
     <div
       title={title}
@@ -60,13 +115,14 @@ export function RailHeader({ label, title, meta }: { label: string; title: strin
         padding: "10px 11px 5px",
       }}
     >
+      {pinned && <Star size={10} filled style={{ flex: "0 0 10px", color: "var(--acc)" }} />}
       <span
         style={{
           fontFamily: "'JetBrains Mono',monospace",
           fontSize: 9.5,
           letterSpacing: ".06em",
           textTransform: "uppercase",
-          color: "rgba(var(--trgb),.42)",
+          color: pinned ? "var(--accTx)" : "rgba(var(--trgb),.42)",
           whiteSpace: "nowrap",
           overflow: "hidden",
           textOverflow: "ellipsis",

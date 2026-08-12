@@ -1,14 +1,14 @@
 import { useMemo } from "react";
 
 import { ChipGroup } from "../components/Chips";
-import { FolderHeader } from "../components/GroupHeader";
+import { FavouriteButton, FolderHeader } from "../components/GroupHeader";
 import { ChevronRight, GitBranch, Search } from "../components/Icons";
 import { projectCount, size } from "../format";
-import { groupByFolder } from "../grouping";
+import { groupWithFavourites } from "../grouping";
 import type { App } from "../useApp";
 import type { Project } from "../types";
 
-const GRID = "minmax(200px,1fr) 104px 116px 146px 108px 58px 22px";
+const GRID = "minmax(200px,1fr) 104px 116px 146px 108px 58px 46px";
 
 type Sort = "recent" | "name" | "size" | "dirty";
 
@@ -79,24 +79,27 @@ export function ProjectsView({ app }: { app: App }) {
 
   // Folders are ordered by the same measure the rows are sorted by, so the
   // chips still drive what comes first.
-  const groups = useMemo(() => groupByFolder(rows, GROUP_WEIGHT[sort]), [rows, sort]);
+  const groups = useMemo(
+    () => groupWithFavourites(rows, app.favourites, GROUP_WEIGHT[sort], t.favourites),
+    [rows, sort, app.favourites, t.favourites],
+  );
   const showHeaders = groups.length > 1;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", padding: "0 12px 16px" }}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 9,
-          padding: "2px 8px 12px",
-          flexWrap: "wrap",
-          position: "sticky",
-          top: 0,
-          background: "var(--bg)",
-          zIndex: 5,
-        }}
-      >
+      {/* Toolbar and column titles pin as one block. Pinning them separately
+          needs the second to know the first's exact height, and any mismatch
+          leaves a slot for rows to scroll through. */}
+      <div style={{ position: "sticky", top: 0, zIndex: 5, background: "var(--bg)" }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 9,
+            padding: "2px 8px 12px",
+            flexWrap: "wrap",
+          }}
+        >
         <div
           className="field"
           style={{
@@ -143,31 +146,28 @@ export function ProjectsView({ app }: { app: App }) {
             onPick={(k) => app.setSort(k as typeof sort)}
           />
         </div>
-      </div>
+        </div>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: GRID,
-          gap: 12,
-          padding: "0 12px 8px",
-          fontSize: 10.5,
-          letterSpacing: ".07em",
-          textTransform: "uppercase",
-          color: "rgba(var(--trgb),.52)",
-          position: "sticky",
-          top: 57,
-          background: "var(--bg)",
-          zIndex: 4,
-        }}
-      >
-        <div>{t.colProject}</div>
-        <div>{t.colStack}</div>
-        <div>{t.colVer}</div>
-        <div>{t.colGit}</div>
-        <div style={{ textAlign: "right" }}>{t.colSize}</div>
-        <div style={{ textAlign: "right" }}>{t.colGoals}</div>
-        <div />
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: GRID,
+            gap: 12,
+            padding: "0 12px 8px",
+            fontSize: 10.5,
+            letterSpacing: ".07em",
+            textTransform: "uppercase",
+            color: "rgba(var(--trgb),.52)",
+          }}
+        >
+          <div>{t.colProject}</div>
+          <div>{t.colStack}</div>
+          <div>{t.colVer}</div>
+          <div>{t.colGit}</div>
+          <div style={{ textAlign: "right" }}>{t.colSize}</div>
+          <div style={{ textAlign: "right" }}>{t.colGoals}</div>
+          <div />
+        </div>
       </div>
 
       {rows.length === 0 && (
@@ -184,7 +184,11 @@ export function ProjectsView({ app }: { app: App }) {
       {groups.map((group) => (
         <div key={group.key}>
           {showHeaders && (
-            <FolderHeader label={group.label} title={group.key}>
+            <FolderHeader
+              label={group.label}
+              title={group.favourite ? t.favourites : group.key}
+              pinned={group.favourite}
+            >
               <span
                 style={{
                   fontFamily: "'JetBrains Mono',monospace",
@@ -335,8 +339,15 @@ export function ProjectsView({ app }: { app: App }) {
               {ratio.all ? `${ratio.done}/${ratio.all}` : "—"}
             </div>
 
-            <div style={{ display: "flex", justifyContent: "flex-end", color: "rgba(var(--trgb),.25)" }}>
-              <ChevronRight size={14} />
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2 }}>
+              <FavouriteButton
+                on={app.favourites.has(p.id)}
+                onClick={() => app.toggleFavourite(p.id)}
+                title={app.favourites.has(p.id) ? t.removeFav : t.addFav}
+              />
+              <span style={{ color: "rgba(var(--trgb),.25)", display: "flex" }}>
+                <ChevronRight size={14} />
+              </span>
             </div>
           </div>
         );

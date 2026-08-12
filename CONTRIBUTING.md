@@ -18,12 +18,16 @@ work on layout and interaction.
 ## Before you open a pull request
 
 ```bash
+npm run check                     # stray control characters in sources
 npm run typecheck                 # frontend
 cd src-tauri && cargo test        # backend
 cd src-tauri && cargo clippy      # backend lints
 ```
 
-All three must be clean. The backend currently builds with zero warnings; please
+All four must be clean. `npm run check` also runs as part of `npm run build`:
+a NUL byte in a `.ts` or `.rs` file is invisible in an editor but makes git
+treat the file as binary, so its diffs stop being reviewable. That has happened
+twice, both times from a mistyped placeholder character. The backend currently builds with zero warnings; please
 keep it that way.
 
 ## Versioning

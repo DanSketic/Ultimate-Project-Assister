@@ -355,6 +355,7 @@ export function settings(): Settings {
       { pattern: "target/release", scope: "only after 90 days" },
       { pattern: ".venv", scope: "keep: hu-nyelvtan-api" },
     ],
+    favourites: ["mock0", "mock8"],
     freedBytes: 0,
     freedDate: "",
     window: { x: null, y: null, height: null, maximized: false, widths: {} },

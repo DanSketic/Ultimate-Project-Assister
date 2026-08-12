@@ -78,6 +78,8 @@ pub struct Settings {
     /// Build dirs newer than this are never auto-selected in the cleaner.
     pub age_days: i64,
     pub rules: Vec<Rule>,
+    /// Project ids the user pinned. Shown first in Projects, Goals and Commands.
+    pub favourites: Vec<String>,
     pub freed_bytes: u64,
     /// `YYYY-MM-DD` - `freed_bytes` resets when the date rolls over.
     pub freed_date: String,
@@ -95,6 +97,7 @@ impl Default for Settings {
             toggles: Toggles::default(),
             age_days: 30,
             rules: Vec::new(),
+            favourites: Vec::new(),
             freed_bytes: 0,
             freed_date: String::new(),
             window: WindowState::default(),

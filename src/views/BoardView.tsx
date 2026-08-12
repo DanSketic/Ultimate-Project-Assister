@@ -1,6 +1,7 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { ChipGroup } from "../components/Chips";
+import { ProjectPicker } from "../components/ProjectPicker";
 import { Clock, Close, Plus } from "../components/Icons";
 import { dueInfo } from "../format";
 import type { App } from "../useApp";
@@ -66,6 +67,8 @@ export function BoardView({ app }: { app: App }) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [drag, setDrag] = useState<{ id: string; x: number; y: number } | null>(null);
   const [editingDue, setEditingDue] = useState<string | null>(null);
+  const [picking, setPicking] = useState(false);
+  const [reassigning, setReassigning] = useState<string | null>(null);
 
   // Notes are filed by project id; the chip shows that project's name.
   const nameOf = useCallback(
@@ -155,10 +158,17 @@ export function BoardView({ app }: { app: App }) {
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "0 0 12px", flexWrap: "wrap" }}>
+        <div style={{ position: "relative" }}>
         <button
           type="button"
           className="h-accent-strong"
-          onClick={() => app.addNote(boardFilter !== "all" ? boardFilter : (app.current?.id ?? ""))}
+          onClick={() => {
+            // Arriving from a project pins the board to it, so a new note has
+            // an obvious owner. With no filter there is nothing to infer from
+            // and the project is asked for instead of guessed.
+            if (boardFilter !== "all") app.addNote(boardFilter);
+            else setPicking(true);
+          }}
           style={{
             display: "flex",
             alignItems: "center",
@@ -176,6 +186,17 @@ export function BoardView({ app }: { app: App }) {
           <Plus size={13} />
           {t.newNote}
         </button>
+        {picking && (
+          <ProjectPicker
+            projects={app.projects}
+            favourites={app.favourites}
+            title={t.pickProject}
+            searchPlaceholder={t.search}
+            onPick={(id) => app.addNote(id)}
+            onClose={() => setPicking(false)}
+          />
+        )}
+        </div>
 
         <ChipGroup items={chips} active={boardFilter} onPick={app.setBoardFilter} mono wrap />
 
@@ -238,19 +259,40 @@ export function BoardView({ app }: { app: App }) {
                       opacity: 0.45,
                     }}
                   />
-                  <span
-                    style={{
-                      fontFamily: "'JetBrains Mono',monospace",
-                      fontSize: 9.5,
-                      flex: 1,
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      opacity: 0.62,
-                    }}
-                    title={nameOf(n.project)}
-                  >
-                    {n.project ? nameOf(n.project) : "—"}
+                  <span style={{ flex: 1, minWidth: 0, position: "relative" }}>
+                    <button
+                      type="button"
+                      onClick={() => setReassigning(reassigning === n.id ? null : n.id)}
+                      title={t.changeProject}
+                      style={{
+                        border: 0,
+                        background: "transparent",
+                        color: "inherit",
+                        padding: 0,
+                        cursor: "pointer",
+                        fontFamily: "'JetBrains Mono',monospace",
+                        fontSize: 9.5,
+                        opacity: 0.62,
+                        maxWidth: "100%",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        display: "block",
+                        textAlign: "left",
+                      }}
+                    >
+                      {n.project ? nameOf(n.project) : t.noProject}
+                    </button>
+                    {reassigning === n.id && (
+                      <ProjectPicker
+                        projects={app.projects}
+                        favourites={app.favourites}
+                        title={t.changeProject}
+                        searchPlaceholder={t.search}
+                        onPick={(id) => app.patchNote(n.id, { project: id }, true)}
+                        onClose={() => setReassigning(null)}
+                      />
+                    )}
                   </span>
                   <button
                     type="button"

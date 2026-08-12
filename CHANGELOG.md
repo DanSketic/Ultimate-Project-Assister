@@ -7,6 +7,35 @@ the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 
 Every change bumps the version — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## [0.8.0] - 2026-08-12
+
+### Added
+
+- **Favourites, handled the same way in Projects, Goals and Commands.** A star
+  on any project pins it, and pinned projects gather in a block above the folder
+  groups in all three lists, so a favourite is in the same place whichever list
+  you are looking at. Stored with the settings.
+- **The board asks which project a new note belongs to.** Opening the board from
+  a project still pins it there, and new notes take that project without asking.
+  With no project filter there is nothing to infer from, so a picker offers the
+  projects — searchable, grouped by folder, favourites first — instead of
+  quietly attaching the note to whichever project happened to be open last.
+- **A note's project can be changed afterwards** by clicking its label.
+
+### Fixed
+
+- **A sliver of the project list showed above the pinned header while
+  scrolling.** The toolbar and the column titles were pinned separately, the
+  second offset by a hard-coded 57 pixels. The toolbar is not exactly that
+  tall, so the difference left a strip for rows to scroll through. They are now
+  pinned as one block, which cannot drift apart.
+- The project rows in the Goals and Commands rails were `<button>` elements, so
+  the new favourite toggle would have nested a button inside a button. They are
+  now focusable rows with the same keyboard behaviour.
+- `src/grouping.ts` had picked up a stray NUL byte, the second time that has
+  happened. `npm run check` now fails the build on any stray control character
+  in a tracked source file.
+
 ## [0.7.2] - 2026-08-12
 
 ### Fixed
@@ -161,6 +190,7 @@ Hungarian interface, light and dark themes, per-view window sizing, project
 scanning with git analysis, guarded cleanup, and a process runner with live log
 streaming. Never published.
 
+[0.8.0]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v0.8.0
 [0.7.2]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v0.7.2
 [0.7.1]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v0.7.1
 [0.7.0]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v0.7.0
