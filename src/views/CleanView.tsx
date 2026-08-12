@@ -106,16 +106,19 @@ export function CleanView({ app }: { app: App }) {
    * together instead of being scattered by size across the whole list.
    */
   const groups = useMemo(() => {
+    // Keyed by project id: two checkouts can both be called `server`, and their
+    // junk must not end up in one block.
     const byProject = new Map<string, typeof rows>();
     for (const row of rows) {
-      const list = byProject.get(row.project);
+      const list = byProject.get(row.projectId);
       if (list) list.push(row);
-      else byProject.set(row.project, [row]);
+      else byProject.set(row.projectId, [row]);
     }
 
     return [...byProject.entries()]
-      .map(([project, items]) => ({
-        project,
+      .map(([projectId, items]) => ({
+        key: projectId,
+        project: items[0]!.project,
         items: items
           .slice()
           .sort((a, b) => a.part.localeCompare(b.part) || b.bytes - a.bytes),
@@ -296,7 +299,7 @@ export function CleanView({ app }: { app: App }) {
           const groupSome = !groupOn && group.items.some((r) => pickedSet[r.key]);
 
           return (
-            <div key={group.project} style={{ marginBottom: 10 }}>
+            <div key={group.key} style={{ marginBottom: 10 }}>
               <div
                 className="h-soft-3"
                 onClick={() => app.setCleanSelection(group.items, !groupOn)}

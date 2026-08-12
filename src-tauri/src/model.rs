@@ -56,6 +56,10 @@ pub struct GitInfo {
 pub struct CleanTarget {
     /// `<project name>|<category>` - stable across rescans, used as a selection key.
     pub key: String,
+    /// Identity of the owning project. Two projects can share a name, so
+    /// anything that groups or selects must use this rather than `project`.
+    pub project_id: String,
+    /// Display name of the owning project.
     pub project: String,
     /// Package this directory belongs to, relative to the project root. Empty
     /// for a single-package project.

@@ -43,6 +43,8 @@ export interface GitInfo {
 
 export interface CleanTarget {
   key: string;
+  /** Identity of the owning project; two projects can share a name. */
+  projectId: string;
   project: string;
   /** Package this directory belongs to; empty for a single-package project. */
   part: string;
@@ -181,6 +183,10 @@ export interface Feature {
 
 export interface Goal {
   id: string;
+  /**
+   * Project id. Files written before 0.7.2 hold the project *name* here;
+   * `bindToProjects` rewrites those once the projects are known.
+   */
   project: string;
   title: string;
   sub: string;
@@ -191,6 +197,7 @@ export interface Note {
   id: string;
   x: number;
   y: number;
+  /** Project id; legacy files hold the project name - see `bindToProjects`. */
   project: string;
   text: string;
   /** `YYYY-MM-DD`, or empty for "no deadline". */

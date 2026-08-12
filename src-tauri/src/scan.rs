@@ -851,6 +851,7 @@ fn parts_of(root: &Path, project_name: &str) -> Vec<PartSpec> {
 /// Measures one already-discovered project root.
 pub fn measure(root: &Path, settings: &Settings) -> Option<Project> {
     let name = root.file_name()?.to_string_lossy().to_string();
+    let id = project_id(root);
     let specs = parts_of(root, &name);
     let part_comps: Vec<Vec<String>> = specs.iter().map(|p| components(&p.rel)).collect();
 
@@ -862,7 +863,8 @@ pub fn measure(root: &Path, settings: &Settings) -> Option<Project> {
         .enumerate()
         .filter(|(i, _)| walked.bucket_bytes[*i] > 0)
         .map(|(i, b)| CleanTarget {
-            key: format!("{name}|{}|{}", b.cat, b.path.display()),
+            key: format!("{id}|{}|{}", b.cat, b.path.display()),
+            project_id: id.clone(),
             project: name.clone(),
             part: specs[b.part].rel.to_string_lossy().replace('\\', "/"),
             cat: b.cat.clone(),
@@ -931,7 +933,7 @@ pub fn measure(root: &Path, settings: &Settings) -> Option<Project> {
     };
 
     Some(Project {
-        id: project_id(root),
+        id,
         name,
         path: root.to_string_lossy().to_string(),
         stack: lead_spec.stack.clone(),
@@ -1184,6 +1186,33 @@ mod tests {
         assert_eq!(project.parts[0].rel, "");
         assert_eq!(project.parts[0].name, "fixture");
         assert!(project.commands.iter().all(|c| c.cwd.is_empty()));
+    }
+
+    /// Two checkouts can easily hold a `server` each. Nothing that selects or
+    /// groups may treat them as the same project.
+    #[test]
+    fn projects_sharing_a_name_stay_distinct() {
+        let tmp = tempfile::tempdir().unwrap();
+        let first = tmp.path().join("alpha/server");
+        let second = tmp.path().join("beta/server");
+        fixture(&first);
+        fixture(&second);
+
+        let a = measure(&first, &Settings::default()).unwrap();
+        let b = measure(&second, &Settings::default()).unwrap();
+
+        assert_eq!(a.name, b.name, "the fixture is only interesting if the names collide");
+        assert_ne!(a.id, b.id, "identity must come from the path, not the name");
+
+        // Cleanup rows must not collapse into one another either.
+        let keys_a: Vec<&str> = a.clean_targets.iter().map(|t| t.key.as_str()).collect();
+        assert!(!a.clean_targets.is_empty());
+        assert!(
+            b.clean_targets.iter().all(|t| !keys_a.contains(&t.key.as_str())),
+            "clean target keys collided between same-named projects",
+        );
+        assert!(a.clean_targets.iter().all(|t| t.project_id == a.id));
+        assert!(b.clean_targets.iter().all(|t| t.project_id == b.id));
     }
 
     #[test]

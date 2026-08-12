@@ -17,10 +17,14 @@ use crate::model::LogLine;
 pub const LOG_EVENT: &str = "upa://log";
 pub const EXIT_EVENT: &str = "upa://cmd-exit";
 
-/// Identifies a running command. The working directory is part of the key so
-/// that `npm run dev` in a monorepo's `frontend` and `backend` are distinct.
-pub fn key_of(project: &str, cwd: &str, cmd: &str) -> String {
-    format!("{project}|{cwd}|{cmd}")
+/// Identifies a running command.
+///
+/// Keyed by project *id*, not name: two checkouts can both be called `server`,
+/// and starting a command in one must not mark the other as running. The
+/// working directory is part of the key too, so a monorepo's `frontend` and
+/// `backend` stay distinct.
+pub fn key_of(project_id: &str, cwd: &str, cmd: &str) -> String {
+    format!("{project_id}|{cwd}|{cmd}")
 }
 
 fn now_hms() -> String {
@@ -90,12 +94,13 @@ impl Runner {
     pub fn start(
         &self,
         app: &AppHandle,
+        project_id: &str,
         project: &str,
         dir: &Path,
         rel: &str,
         cmd: &str,
     ) -> Result<(), String> {
-        let key = key_of(project, rel, cmd);
+        let key = key_of(project_id, rel, cmd);
         if self.is_running(&key) {
             return Err("already running".into());
         }
@@ -147,8 +152,8 @@ impl Runner {
         Ok(())
     }
 
-    pub fn stop(&self, project: &str, rel: &str, cmd: &str) -> Result<(), String> {
-        let key = key_of(project, rel, cmd);
+    pub fn stop(&self, project_id: &str, rel: &str, cmd: &str) -> Result<(), String> {
+        let key = key_of(project_id, rel, cmd);
         let pid = self.procs.lock().unwrap().get(&key).copied();
         match pid {
             Some(pid) => kill_tree(pid),

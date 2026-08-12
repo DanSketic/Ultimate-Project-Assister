@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import * as api from "./api";
 import { dict, type T } from "./i18n";
-import { cmdKey, isExcluded, newId, size, todayIso } from "./format";
+import { bindToProjects, cmdKey, isExcluded, newId, size, todayIso } from "./format";
 import type {
   CleanProgress,
   CommandDef,
@@ -174,6 +174,9 @@ export function useApp() {
       setGoals(loadedGoals);
       setNotes(loadedNotes);
       setProjects(cached);
+      // The cache is enough to rebind against, so goals and notes resolve
+      // before the first scan finishes.
+      rebindSavedData(cached);
       await api.showWindow();
 
       const keys = await api.runningCommands();
@@ -339,6 +342,26 @@ export function useApp() {
     }
   }, []);
 
+  /**
+   * Goals and notes used to be filed under a project name. Once a scan tells
+   * us which projects exist, rewrite those to ids - otherwise two projects
+   * sharing a name would share each other's goals.
+   */
+  const rebindSavedData = useCallback((scanned: Project[]) => {
+    if (scanned.length === 0) return;
+
+    setGoals((prev) => {
+      const bound = bindToProjects(prev, scanned);
+      if (bound) void api.saveGoals(bound);
+      return bound ?? prev;
+    });
+    setNotes((prev) => {
+      const bound = bindToProjects(prev, scanned);
+      if (bound) void api.saveNotes(bound);
+      return bound ?? prev;
+    });
+  }, []);
+
   // --- scanning -----------------------------------------------------------
   const rescan = useCallback(
     async (using?: Settings) => {
@@ -356,6 +379,7 @@ export function useApp() {
         setProjects(result.projects);
         setElapsedMs(result.elapsedMs);
         setPicked(null);
+        rebindSavedData(result.projects);
         const d = dict(active.lang);
         flash(
           `${d.rescanToast} ${result.projects.length} ${d.rescanIn} · ${(result.elapsedMs / 1000).toFixed(1)} s`,
@@ -376,14 +400,15 @@ export function useApp() {
     [projects, selId],
   );
 
+  // Projects are addressed by id throughout: two checkouts can share a name.
   const goalsFor = useCallback(
-    (project: string) => goals.filter((g) => g.project === project),
+    (projectId: string) => goals.filter((g) => g.project === projectId),
     [goals],
   );
 
   const goalRatio = useCallback(
-    (project: string): GoalRatio => {
-      const mine = goals.filter((g) => g.project === project);
+    (projectId: string): GoalRatio => {
+      const mine = goals.filter((g) => g.project === projectId);
       const all = mine.reduce((a, g) => a + g.features.length, 0);
       const done = mine.reduce((a, g) => a + g.features.filter((f) => f.done).length, 0);
       return { all, done, pct: all ? Math.round((done / all) * 100) : 0 };
@@ -425,8 +450,8 @@ export function useApp() {
 
   const openProject = useCallback((project: Project) => {
     setSelId(project.id);
-    setGoalSel(project.name);
-    setCmdSel(project.name);
+    setGoalSel(project.id);
+    setCmdSel(project.id);
     setViewRaw("detail");
   }, []);
 
@@ -504,7 +529,7 @@ export function useApp() {
 
   const toggleCommand = useCallback(
     async (project: Project, command: CommandDef) => {
-      const key = cmdKey(project.name, command);
+      const key = cmdKey(project.id, command);
       const isRunning = running.has(key);
       try {
         if (isRunning) {

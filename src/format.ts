@@ -112,11 +112,44 @@ export function tailPath(path: string, max = 46): string {
 }
 
 /**
- * Identifies a running command. The working directory is part of the key so
- * `npm run dev` in a monorepo's frontend and backend stay independent.
+ * Identifies a running command. Must match `runner::key_of` on the Rust side.
+ *
+ * Keyed by project *id*: two checkouts can both be called `server`, and running
+ * a command in one must not light up the other. The working directory is part
+ * of the key too, so a monorepo's frontend and backend stay independent.
  */
-export function cmdKey(project: string, cmd: { cwd: string; cmd: string }): string {
-  return `${project}|${cmd.cwd}|${cmd.cmd}`;
+export function cmdKey(projectId: string, cmd: { cwd: string; cmd: string }): string {
+  return `${projectId}|${cmd.cwd}|${cmd.cmd}`;
+}
+
+/**
+ * Rebinds goals and notes saved against a project *name* to that project's id.
+ *
+ * Returns null when nothing needed changing, so a launch with no legacy data
+ * costs one pass and no write. A name shared by several projects can only be
+ * resolved to one of them - the first by path - which is the best that can be
+ * recovered from data that never recorded which one it meant.
+ */
+export function bindToProjects<T extends { project: string }>(
+  items: T[],
+  projects: { id: string; name: string; path: string }[],
+): T[] | null {
+  const ids = new Set(projects.map((p) => p.id));
+  const byName = new Map<string, string>();
+  for (const p of [...projects].sort((a, b) => a.path.localeCompare(b.path))) {
+    if (!byName.has(p.name)) byName.set(p.name, p.id);
+  }
+
+  let changed = false;
+  const bound = items.map((item) => {
+    if (ids.has(item.project)) return item;
+    const id = byName.get(item.project);
+    if (!id) return item;
+    changed = true;
+    return { ...item, project: id };
+  });
+
+  return changed ? bound : null;
 }
 
 /** "1 project" / "25 projects" - Hungarian uses the same word for both. */

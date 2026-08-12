@@ -7,6 +7,29 @@ the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 
 Every change bumps the version — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## [0.7.2] - 2026-08-12
+
+### Fixed
+
+- **Projects that share a name were treated as the same project.** Two
+  checkouts each holding a `server` is ordinary — one per monorepo — but the
+  app identified projects by name, so selecting one selected the other. The
+  same root cause meant they also shared goals and notes, a command started in
+  one showed as running in the other, and their build junk was merged into a
+  single cleanup block. Projects are now identified by path everywhere:
+  selection, goals, notes, running commands and cleanup grouping.
+- Goals and notes saved before this release were filed under a project name.
+  They are rebound to the owning project the first time the projects are known,
+  and written back once. A name shared by several projects can only be resolved
+  to one of them — the first by path — which is the most that can be recovered
+  from data that never recorded which one it meant.
+
+### Changed
+
+- The sample dataset used by `npm run dev:vite` now contains two folders that
+  each hold a `clients` and a `server`, so this class of bug is visible in the
+  browser build without a real disk.
+
 ## [0.7.1] - 2026-08-11
 
 ### Fixed
@@ -138,6 +161,7 @@ Hungarian interface, light and dark themes, per-view window sizing, project
 scanning with git analysis, guarded cleanup, and a process runner with live log
 streaming. Never published.
 
+[0.7.2]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v0.7.2
 [0.7.1]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v0.7.1
 [0.7.0]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v0.7.0
 [0.6.0]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v0.6.0

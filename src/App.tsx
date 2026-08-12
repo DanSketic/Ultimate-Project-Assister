@@ -48,9 +48,10 @@ export function App() {
 
   const totalSize = projects.reduce((a, p) => a + p.sizeBytes, 0);
   const totalReclaim = projects.reduce((a, p) => a + p.reclaimBytes, 0);
-  const goalProject = projects.find((p) => p.name === app.goalSel) ?? projects[0];
-  const goalRatio = goalProject ? app.goalRatio(goalProject.name) : { all: 0, done: 0, pct: 0 };
-  const cmdProject = projects.find((p) => p.name === app.cmdSel) ?? projects.find((p) => p.commands.length);
+  const goalProject = projects.find((p) => p.id === app.goalSel) ?? projects[0];
+  const goalRatio = goalProject ? app.goalRatio(goalProject.id) : { all: 0, done: 0, pct: 0 };
+  const cmdProject =
+    projects.find((p) => p.id === app.cmdSel) ?? projects.find((p) => p.commands.length);
   const overdue = app.notes.filter((n) => isOverdue(n.due)).length;
 
   const heads: Record<typeof view, { kicker: string; title: string; meta: string }> = {

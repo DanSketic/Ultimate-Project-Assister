@@ -16,14 +16,14 @@ export function CommandsView({ app }: { app: App }) {
   }, [log]);
 
   const runnable = projects.filter((p) => p.commands.length > 0);
-  const selected = runnable.find((p) => p.name === cmdSel) ?? runnable[0];
+  const selected = runnable.find((p) => p.id === cmdSel) ?? runnable[0];
 
   // Folders with something running float to the top, then the busiest ones.
   const groups = useMemo(
     () =>
       groupByFolder(runnable, (items) => {
         const active = items.filter((p) =>
-          p.commands.some((c) => running.has(cmdKey(p.name, c))),
+          p.commands.some((c) => running.has(cmdKey(p.id, c))),
         ).length;
         return active * 1000 + items.length;
       }),
@@ -71,14 +71,14 @@ export function CommandsView({ app }: { app: App }) {
               />
             )}
             {group.items.map((p) => {
-          const on = p.name === selected?.name;
-          const hasRunning = p.commands.some((c) => running.has(cmdKey(p.name, c)));
+          const on = p.id === selected?.id;
+          const hasRunning = p.commands.some((c) => running.has(cmdKey(p.id, c)));
           return (
             <button
               key={p.id}
               type="button"
               className="h-soft"
-              onClick={() => app.setCmdSel(p.name)}
+              onClick={() => app.setCmdSel(p.id)}
               style={{
                 width: "100%",
                 display: "flex",
@@ -182,7 +182,7 @@ export function CommandsView({ app }: { app: App }) {
           )}
 
           {selected?.commands.map((c) => {
-            const key = cmdKey(selected.name, c);
+            const key = cmdKey(selected.id, c);
             const on = running.has(key);
             const strong = c.kind === "docker" || c.kind === "cargo";
 

@@ -19,7 +19,7 @@ export function Sidebar({ app }: { app: App }) {
 
   const totalReclaim = projects.reduce((a, p) => a + p.reclaimBytes, 0);
   const openFeatures = projects.reduce((a, p) => {
-    const r = app.goalRatio(p.name);
+    const r = app.goalRatio(p.id);
     return a + (r.all - r.done);
   }, 0);
   const withDue = notes.filter((n) => n.due).length;

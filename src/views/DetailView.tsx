@@ -64,8 +64,8 @@ export function DetailView({ app }: { app: App }) {
   const { t, current: p, lang } = app;
   if (!p) return null;
 
-  const ratio = app.goalRatio(p.name);
-  const projectNotes = app.notes.filter((n) => n.project === p.name);
+  const ratio = app.goalRatio(p.id);
+  const projectNotes = app.notes.filter((n) => n.project === p.id);
   const lastBuild = p.cleanTargets.length
     ? ago(Math.min(...p.cleanTargets.map((c) => c.ageDays)), lang)
     : "—";
@@ -110,7 +110,7 @@ export function DetailView({ app }: { app: App }) {
           type="button"
           className="h-accent"
           onClick={() => {
-            app.setGoalSel(p.name);
+            app.setGoalSel(p.id);
             app.setView("goals");
           }}
           style={toolButton}
@@ -126,7 +126,7 @@ export function DetailView({ app }: { app: App }) {
           type="button"
           className="h-accent"
           onClick={() => {
-            app.setBoardFilter(p.name);
+            app.setBoardFilter(p.id);
             app.setView("board");
           }}
           style={toolButton}
@@ -381,7 +381,7 @@ export function DetailView({ app }: { app: App }) {
                 type="button"
                 className="h-link"
                 onClick={() => {
-                  app.setGoalSel(p.name);
+                  app.setGoalSel(p.id);
                   app.setView("goals");
                 }}
                 style={{
@@ -402,8 +402,8 @@ export function DetailView({ app }: { app: App }) {
               </button>
             }
           >
-            {app.goalsFor(p.name).length === 0 && <div style={empty}>{t.emptyGoals}</div>}
-            {app.goalsFor(p.name).map((g) => {
+            {app.goalsFor(p.id).length === 0 && <div style={empty}>{t.emptyGoals}</div>}
+            {app.goalsFor(p.id).map((g) => {
               const done = g.features.filter((f) => f.done).length;
               const pct = g.features.length ? Math.round((done / g.features.length) * 100) : 0;
               return (
@@ -506,7 +506,7 @@ export function DetailView({ app }: { app: App }) {
                 type="button"
                 className="h-link"
                 onClick={() => {
-                  app.setBoardFilter(p.name);
+                  app.setBoardFilter(p.id);
                   app.setView("board");
                 }}
                 style={{
@@ -534,7 +534,7 @@ export function DetailView({ app }: { app: App }) {
                   key={n.id}
                   className="h-soft-3"
                   onClick={() => {
-                    app.setBoardFilter(p.name);
+                    app.setBoardFilter(p.id);
                     app.setView("board");
                   }}
                   style={{
@@ -591,10 +591,10 @@ export function DetailView({ app }: { app: App }) {
           <Card title={t.quick} pad="15px 16px">
             {p.commands.length === 0 && <div style={empty}>{t.emptyCmds}</div>}
             {p.commands.slice(0, 4).map((c) => {
-              const on = app.running.has(cmdKey(p.name, c));
+              const on = app.running.has(cmdKey(p.id, c));
               return (
                 <div
-                  key={cmdKey(p.name, c)}
+                  key={cmdKey(p.id, c)}
                   style={{
                     display: "flex",
                     alignItems: "center",

@@ -22,15 +22,15 @@ export function GoalsView({ app }: { app: App }) {
   const [goalDraft, setGoalDraft] = useState<string | null>(null);
   const [featureDraft, setFeatureDraft] = useState<{ goalId: string; value: string } | null>(null);
 
-  const selected = projects.find((p) => p.name === goalSel) ?? projects[0];
-  const goals = selected ? app.goalsFor(selected.name) : [];
+  const selected = projects.find((p) => p.id === goalSel) ?? projects[0];
+  const goals = selected ? app.goalsFor(selected.id) : [];
 
   // Folders with the most unfinished features first - that is where the work is.
   const groups = useMemo(
     () =>
       groupByFolder(projects, (items) =>
         items.reduce((open, p) => {
-          const r = app.goalRatio(p.name);
+          const r = app.goalRatio(p.id);
           return open + (r.all - r.done);
         }, 0),
       ),
@@ -39,7 +39,7 @@ export function GoalsView({ app }: { app: App }) {
   const showHeaders = groups.length > 1;
 
   const submitGoal = () => {
-    if (goalDraft?.trim() && selected) app.addGoal(selected.name, goalDraft);
+    if (goalDraft?.trim() && selected) app.addGoal(selected.id, goalDraft);
     setGoalDraft(null);
   };
 
@@ -91,14 +91,14 @@ export function GoalsView({ app }: { app: App }) {
               />
             )}
             {group.items.map((p) => {
-          const r = app.goalRatio(p.name);
-          const on = p.name === selected?.name;
+          const r = app.goalRatio(p.id);
+          const on = p.id === selected?.id;
           return (
             <button
               key={p.id}
               type="button"
               className="h-soft"
-              onClick={() => app.setGoalSel(p.name)}
+              onClick={() => app.setGoalSel(p.id)}
               style={{
                 width: "100%",
                 display: "block",

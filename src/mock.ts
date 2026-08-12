@@ -62,6 +62,12 @@ const ROWS: Row[] = [
   ["game-of-life", "D:\\dev\\misc\\game-of-life", "C++", ["C++ 100"], 48, 320, 290, "1.0.0", "v1.0.0", "main", 0, 0, 0, 158, "Hétvégi projekt, SDL2-vel rajzolva."],
   ["blog-engine", "D:\\dev\\misc\\blog-engine", "Elixir", ["Elixir 89", "HEEx 11"], 512, 860, 690, "0.5.0", "v0.5.0", "main", 0, 0, 2, 74, "Phoenix blog motor, félbehagyott kísérlet."],
   ["legacy-invoicer", "D:\\dev\\archive\\legacy-invoicer", "PHP", ["PHP 86", "Twig 14"], 1420, 1180, 640, "4.2.7", "v4.2.7", "master", 0, 0, 0, 402, "Régi számlázó, még fut egy kliensnél."],
+  // Two stacks that each hold a `clients` and a `server`. Names collide across
+  // folders on purpose - selecting one must never light up the other.
+  ["clients", "D:\\dev\\apps\\browser-tools\\clients", "TypeScript", ["TypeScript 92", "CSS 8"], 180, 640, 520, "0.3.0", "v0.3.0", "main", 2, 0, 0, 6, "Böngésző oldali kliens a browser-tools stackhez."],
+  ["server", "D:\\dev\\apps\\browser-tools\\server", "Node", ["JavaScript 96", "Dockerfile 4"], 210, 720, 610, "0.3.0", "v0.3.0", "main", 1, 0, 0, 6, "API szerver a browser-tools stackhez."],
+  ["clients", "D:\\dev\\apps\\reflow\\clients", "TypeScript", ["TypeScript 90", "CSS 10"], 160, 580, 470, "1.1.0", "v1.1.0", "main", 0, 0, 0, 19, "Reflow kliens felület."],
+  ["server", "D:\\dev\\apps\\reflow\\server", "Node", ["JavaScript 97", "SQL 3"], 190, 660, 550, "1.1.0", "v1.1.0", "main", 3, 1, 0, 19, "Reflow háttérszolgáltatás."],
 ];
 
 const MSG = [
@@ -77,7 +83,7 @@ const MSG = [
   "style: clippy pass",
 ];
 
-function cleanTargetsFor(row: Row, index: number): CleanTarget[] {
+function cleanTargetsFor(row: Row, index: number, projectId: string): CleanTarget[] {
   const [name, path, stack, , , , reclaimMb, , , , , , , days] = row;
   const parts: Array<[string, string, number]> = [];
 
@@ -138,7 +144,8 @@ function cleanTargetsFor(row: Row, index: number): CleanTarget[] {
       const part = members ? members[j % members.length]![0] : "";
       const full = part ? p.replace(`${path}\\`, `${path}\\${part}\\`) : p;
       return {
-        key: `${name}|${cat}|${full}`,
+        key: `${projectId}|${cat}|${full}`,
+        projectId,
         project: name,
         part,
         cat,
@@ -240,7 +247,7 @@ export function projects(): Project[] {
 
   CACHE = ROWS.map((row, i) => {
     const [name, path, stack, langs, files, sizeMb, reclaimMb, version, tag, branch, dirty, ahead, behind, days, desc] = row;
-    const targets = cleanTargetsFor(row, i);
+    const targets = cleanTargetsFor(row, i, `mock${i}`);
     const members = MONOREPO[name];
 
     const parts = members

@@ -67,13 +67,22 @@ export function BoardView({ app }: { app: App }) {
   const [drag, setDrag] = useState<{ id: string; x: number; y: number } | null>(null);
   const [editingDue, setEditingDue] = useState<string | null>(null);
 
+  // Notes are filed by project id; the chip shows that project's name.
+  const nameOf = useCallback(
+    (projectId: string) => app.projects.find((p) => p.id === projectId)?.name ?? projectId,
+    [app.projects],
+  );
+
   const chips = useMemo(() => {
-    const projects = [...new Set(notes.map((n) => n.project))].filter(Boolean);
+    const ids = [...new Set(notes.map((n) => n.project))].filter(Boolean);
     return [
       { key: "all", label: t.all },
-      ...projects.map((p) => ({ key: p, label: p.length > 16 ? `${p.slice(0, 15)}…` : p })),
+      ...ids.map((id) => {
+        const label = nameOf(id);
+        return { key: id, label: label.length > 16 ? `${label.slice(0, 15)}…` : label };
+      }),
     ];
-  }, [notes, t.all]);
+  }, [notes, t.all, nameOf]);
 
   const startPan = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (e.target !== e.currentTarget || e.button !== 0) return;
@@ -149,7 +158,7 @@ export function BoardView({ app }: { app: App }) {
         <button
           type="button"
           className="h-accent-strong"
-          onClick={() => app.addNote(boardFilter !== "all" ? boardFilter : (app.current?.name ?? ""))}
+          onClick={() => app.addNote(boardFilter !== "all" ? boardFilter : (app.current?.id ?? ""))}
           style={{
             display: "flex",
             alignItems: "center",
@@ -239,9 +248,9 @@ export function BoardView({ app }: { app: App }) {
                       textOverflow: "ellipsis",
                       opacity: 0.62,
                     }}
-                    title={n.project}
+                    title={nameOf(n.project)}
                   >
-                    {n.project || "—"}
+                    {n.project ? nameOf(n.project) : "—"}
                   </span>
                   <button
                     type="button"

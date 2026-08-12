@@ -320,7 +320,9 @@ pub fn run_command(
     let project = state.project_by_id(&project_id).ok_or("unknown project")?;
     let rel = cwd.unwrap_or_default();
     let dir = work_dir(&project.path, &rel)?;
-    state.runner.start(&app, &project.name, &dir, &rel, &cmd)
+    state
+        .runner
+        .start(&app, &project.id, &project.name, &dir, &rel, &cmd)
 }
 
 #[tauri::command]
@@ -331,7 +333,7 @@ pub fn stop_command(
     cwd: Option<String>,
 ) -> Result<(), String> {
     let project = state.project_by_id(&project_id).ok_or("unknown project")?;
-    state.runner.stop(&project.name, &cwd.unwrap_or_default(), &cmd)
+    state.runner.stop(&project.id, &cwd.unwrap_or_default(), &cmd)
 }
 
 #[tauri::command]
