@@ -9,6 +9,9 @@ export function Sidebar({ app }: { app: App }) {
   const { t, view, navOpen, projects, notes, running } = app;
 
   const navWidth = navOpen ? 214 : 58;
+  // The rail follows the anchored window edge, so its divider and the collapse
+  // arrow have to face the content rather than always pointing left.
+  const onRight = app.settings?.anchor === "right";
   const pad = navOpen ? "8px 9px" : "8px 0";
   const justify = navOpen ? "flex-start" : "center";
 
@@ -68,7 +71,7 @@ export function Sidebar({ app }: { app: App }) {
     <nav
       style={{
         flex: "0 0 auto",
-        borderRight: "1px solid rgba(var(--wrgb),.07)",
+        [onRight ? "borderLeft" : "borderRight"]: "1px solid rgba(var(--wrgb),.07)",
         display: "flex",
         flexDirection: "column",
         transition: "width 300ms cubic-bezier(.2,.7,.25,1)",
@@ -97,7 +100,10 @@ export function Sidebar({ app }: { app: App }) {
           marginBottom: 6,
         }}
       >
-        <PanelLeft size={16} style={{ flex: "0 0 16px" }} />
+        <PanelLeft
+          size={16}
+          style={{ flex: "0 0 16px", transform: onRight ? "scaleX(-1)" : undefined }}
+        />
         {navOpen && (
           <span style={{ fontSize: 11, letterSpacing: ".02em", whiteSpace: "nowrap", flex: 1 }}>
             {t.collapse}

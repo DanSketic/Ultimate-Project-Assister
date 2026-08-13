@@ -104,6 +104,8 @@ Two behaviours are deliberate and worth knowing about.
 so the board is wide and the settings screen is narrow, and the rest of your
 monitor stays free. **Settings → Fixed edge** decides which edge stays put while
 that happens; the default is the left edge, so the window grows to the right.
+The sidebar moves to whichever edge is anchored, so the menu never slides out
+from under the pointer.
 
 **It remembers where you left it.** Position, height and maximised state are
 restored on the next launch. Width is remembered *per view*: widen the board and

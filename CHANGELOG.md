@@ -7,6 +7,22 @@ the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 
 Every change bumps the version — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## [0.9.0] - 2026-08-12
+
+### Added
+
+- **The sidebar follows the anchored window edge.** Setting *Fixed edge* to the
+  right edge now moves the menu column there too, so the thing you click stays
+  under the pointer instead of sliding across the screen every time a view
+  resizes the window. Its divider and collapse arrow face the content either
+  way, and the rail is rendered in visual order so tab order matches what is on
+  screen.
+- **The side cards in the project detail stay put while the page scrolls.**
+  Facts, tags, notes and quick run pin below the toolbar instead of sliding
+  away with the changelog and commit history. When they no longer fit the space
+  available the column scrolls on its own, so the bottom card stays reachable.
+  Both the offset and the space available are measured, not assumed.
+
 ## [0.8.0] - 2026-08-12
 
 ### Added
@@ -190,6 +206,7 @@ Hungarian interface, light and dark themes, per-view window sizing, project
 scanning with git analysis, guarded cleanup, and a process runner with live log
 streaming. Never published.
 
+[0.9.0]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v0.9.0
 [0.8.0]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v0.8.0
 [0.7.2]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v0.7.2
 [0.7.1]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v0.7.1

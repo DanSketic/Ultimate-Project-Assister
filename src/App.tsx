@@ -93,6 +93,7 @@ export function App() {
   };
 
   const head = heads[view];
+  const sidebarOnRight = settings.anchor === "right";
 
   return (
     <div
@@ -120,8 +121,12 @@ export function App() {
 
       <TitleBar app={app} />
 
+      {/* The sidebar sits on whichever edge stays put while a view resizes the
+          window, so the menu never slides out from under the pointer. Rendered
+          in visual order rather than flipped with row-reverse, so tab order
+          follows what is on screen. */}
       <div style={{ flex: 1, minHeight: 0, display: "flex", position: "relative", zIndex: 2 }}>
-        <Sidebar app={app} />
+        {!sidebarOnRight && <Sidebar app={app} />}
 
         <main style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
           <div
@@ -178,7 +183,12 @@ export function App() {
             </div>
           </div>
 
-          <div style={{ flex: 1, minHeight: 0, overflow: "auto", position: "relative" }}>
+          {/* Tagged so a view can measure the space it actually has to work
+              with, rather than guessing from the viewport. */}
+          <div
+            data-scroll-root
+            style={{ flex: 1, minHeight: 0, overflow: "auto", position: "relative" }}
+          >
             {view === "projects" && <ProjectsView app={app} />}
             {view === "detail" && <DetailView app={app} />}
             {view === "clean" && <CleanView app={app} />}
@@ -190,6 +200,8 @@ export function App() {
 
           <StatusBar app={app} />
         </main>
+
+        {sidebarOnRight && <Sidebar app={app} />}
       </div>
 
       <ConfirmDialog app={app} />

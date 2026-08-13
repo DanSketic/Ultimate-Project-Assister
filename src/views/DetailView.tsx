@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useCallback, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
 import * as api from "../api";
 import { ChevronLeft, ChevronRight, Clock, Play, StickyNote, Stop, Tag, Target } from "../components/Icons";
@@ -23,6 +23,9 @@ function Card({
         borderRadius: 14,
         background: "rgba(var(--wrgb),.022)",
         padding: pad,
+        // The side column is height-bounded; without this its cards would
+        // compress to fit instead of letting the column scroll.
+        flexShrink: 0,
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
@@ -62,6 +65,45 @@ const empty = { fontSize: 11.5, color: "rgba(var(--trgb),.44)", padding: "4px 0"
 
 export function DetailView({ app }: { app: App }) {
   const { t, current: p, lang } = app;
+
+  // The side cards pin below the toolbar. Both the toolbar height and the room
+  // available are measured rather than assumed - a hard-coded offset is what
+  // left a gap under the projects list header.
+  const toolbarRef = useRef<HTMLDivElement | null>(null);
+  const [pin, setPin] = useState({ top: 0, maxHeight: 0 });
+
+  const measure = useCallback(() => {
+    const toolbar = toolbarRef.current;
+    if (!toolbar) return;
+    const scroller = toolbar.closest("[data-scroll-root]");
+    const top = Math.round(toolbar.getBoundingClientRect().height);
+    const room = scroller?.clientHeight ?? 0;
+    // Zero means the layout has no size yet - leave the column unconstrained
+    // rather than pinning it to a guess.
+    const maxHeight = room > 0 ? Math.max(200, room - top - 8) : 0;
+
+    setPin((prev) => (prev.top === top && prev.maxHeight === maxHeight ? prev : { top, maxHeight }));
+  }, []);
+
+  // No dependency list: re-measuring after every render is what keeps this
+  // correct when the toolbar wraps, the sidebar collapses, or the layout only
+  // gains a size later. The state guard above stops it looping.
+  useLayoutEffect(measure);
+
+  useLayoutEffect(() => {
+    const toolbar = toolbarRef.current;
+    if (!toolbar) return;
+    const scroller = toolbar.closest("[data-scroll-root]");
+    const observer = new ResizeObserver(measure);
+    observer.observe(toolbar);
+    if (scroller) observer.observe(scroller);
+    window.addEventListener("resize", measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [measure]);
+
   if (!p) return null;
 
   const ratio = app.goalRatio(p.id);
@@ -88,6 +130,7 @@ export function DetailView({ app }: { app: App }) {
   return (
     <div style={{ padding: "0 20px 26px" }}>
       <div
+        ref={toolbarRef}
         style={{
           display: "flex",
           alignItems: "center",
@@ -445,7 +488,21 @@ export function DetailView({ app }: { app: App }) {
           </Card>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 14,
+            // Stays put while the left column scrolls; once the cards no
+            // longer fit the room available, the column scrolls on its own so
+            // the bottom stays reachable.
+            position: "sticky",
+            top: pin.top,
+            alignSelf: "start",
+            maxHeight: pin.maxHeight || undefined,
+            overflowY: "auto",
+          }}
+        >
           <Card title={t.facts} pad="15px 16px">
             {facts.map((f) => (
               <div
