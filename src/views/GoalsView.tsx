@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 
 import { FavouriteButton, RailHeader } from "../components/GroupHeader";
+import { SearchField } from "../components/SearchField";
 import { Check, Close, Plus } from "../components/Icons";
 import { groupWithFavourites } from "../grouping";
 import type { App } from "../useApp";
@@ -21,15 +22,24 @@ export function GoalsView({ app }: { app: App }) {
 
   const [goalDraft, setGoalDraft] = useState<string | null>(null);
   const [featureDraft, setFeatureDraft] = useState<{ goalId: string; value: string } | null>(null);
+  const [query, setQuery] = useState("");
 
+  // Resolved against every project, not the filtered rail: narrowing the list
+  // should not change which project's goals are on screen.
   const selected = projects.find((p) => p.id === goalSel) ?? projects[0];
   const goals = selected ? app.goalsFor(selected.id) : [];
+
+  const listed = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return projects;
+    return projects.filter((p) => `${p.name} ${p.path}`.toLowerCase().includes(needle));
+  }, [projects, query]);
 
   // Folders with the most unfinished features first - that is where the work is.
   const groups = useMemo(
     () =>
       groupWithFavourites(
-        projects,
+        listed,
         app.favourites,
         (items) =>
           items.reduce((open, p) => {
@@ -38,7 +48,7 @@ export function GoalsView({ app }: { app: App }) {
           }, 0),
         t.favourites,
       ),
-    [projects, app, t.favourites],
+    [listed, app, t.favourites],
   );
   const showHeaders = groups.length > 1;
 
@@ -65,17 +75,33 @@ export function GoalsView({ app }: { app: App }) {
         padding: "0 20px 20px",
       }}
     >
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 2,
-          overflow: "auto",
-          minHeight: 0,
-          paddingBottom: 8,
-        }}
-      >
-        {groups.map((group) => (
+      {/* Search sits outside the scrolling list rather than sticking to its
+          top, so it cannot drift out of place as the list changes height. */}
+      <div style={{ display: "flex", flexDirection: "column", minHeight: 0, gap: 8 }}>
+        <SearchField
+          value={query}
+          onChange={setQuery}
+          placeholder={t.findProject}
+          clearTitle={t.clearSearch}
+          compact
+        />
+
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 2,
+            overflow: "auto",
+            minHeight: 0,
+            paddingBottom: 8,
+          }}
+        >
+          {groups.length === 0 && (
+            <div style={{ fontSize: 11.5, color: "rgba(var(--trgb),.45)", padding: "10px 11px" }}>
+              {t.noMatch}
+            </div>
+          )}
+          {groups.map((group) => (
           <div key={group.key}>
             {showHeaders && (
               <RailHeader
@@ -174,9 +200,10 @@ export function GoalsView({ app }: { app: App }) {
               </div>
             </div>
           );
-            })}
-          </div>
-        ))}
+              })}
+            </div>
+          ))}
+        </div>
       </div>
 
       <div

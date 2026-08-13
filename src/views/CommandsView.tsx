@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { FavouriteButton, RailHeader } from "../components/GroupHeader";
+import { SearchField } from "../components/SearchField";
 import { Play, Stop } from "../components/Icons";
 import { cmdKey, manifestLabel } from "../format";
 import { groupWithFavourites } from "../grouping";
@@ -9,6 +10,7 @@ import type { App } from "../useApp";
 export function CommandsView({ app }: { app: App }) {
   const { t, projects, cmdSel, running, log } = app;
 
+  const [query, setQuery] = useState("");
   const logRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     const el = logRef.current;
@@ -16,13 +18,23 @@ export function CommandsView({ app }: { app: App }) {
   }, [log]);
 
   const runnable = projects.filter((p) => p.commands.length > 0);
+  // Resolved against every runnable project, not the filtered rail: narrowing
+  // the list should not change which project's commands are on screen.
   const selected = runnable.find((p) => p.id === cmdSel) ?? runnable[0];
+
+  const listed = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return runnable;
+    return runnable.filter((p) =>
+      `${p.name} ${p.path} ${p.manifests.join(" ")}`.toLowerCase().includes(needle),
+    );
+  }, [runnable, query]);
 
   // Folders with something running float to the top, then the busiest ones.
   const groups = useMemo(
     () =>
       groupWithFavourites(
-        runnable,
+        listed,
         app.favourites,
         (items) => {
           const active = items.filter((p) =>
@@ -32,7 +44,7 @@ export function CommandsView({ app }: { app: App }) {
         },
         t.favourites,
       ),
-    [runnable, running, app.favourites, t.favourites],
+    [listed, running, app.favourites, t.favourites],
   );
   const showHeaders = groups.length > 1;
 
@@ -55,8 +67,24 @@ export function CommandsView({ app }: { app: App }) {
         padding: "0 20px 20px",
       }}
     >
-      <div style={{ overflow: "auto", minHeight: 0, display: "flex", flexDirection: "column", gap: 2 }}>
-        {groups.map((group) => (
+      {/* Search sits outside the scrolling list rather than sticking to its
+          top, so it cannot drift out of place as the list changes height. */}
+      <div style={{ display: "flex", flexDirection: "column", minHeight: 0, gap: 8 }}>
+        <SearchField
+          value={query}
+          onChange={setQuery}
+          placeholder={t.findProject}
+          clearTitle={t.clearSearch}
+          compact
+        />
+
+        <div style={{ overflow: "auto", minHeight: 0, display: "flex", flexDirection: "column", gap: 2 }}>
+          {groups.length === 0 && (
+            <div style={{ fontSize: 11.5, color: "rgba(var(--trgb),.45)", padding: "10px 11px" }}>
+              {t.noMatch}
+            </div>
+          )}
+          {groups.map((group) => (
           <div key={group.key}>
             {showHeaders && (
               <RailHeader
@@ -157,9 +185,10 @@ export function CommandsView({ app }: { app: App }) {
               />
             </div>
           );
-            })}
-          </div>
-        ))}
+              })}
+            </div>
+          ))}
+        </div>
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", minHeight: 0, gap: 14 }}>

@@ -7,6 +7,26 @@ the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 
 Every change bumps the version — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## [0.10.0] - 2026-08-12
+
+### Added
+
+- **A search box above the project rail in Goals and Commands**, matching the
+  one the projects list already had. It sits outside the scrolling list, so it
+  stays put however far down you are. Filtering the rail does not change which
+  project is open on the right.
+
+### Fixed
+
+- **Only the first six package.json scripts were offered.** Every script is now
+  listed. They are written by hand, so a cap only hid something the developer
+  deliberately put there; the ones reached for most often still sort first.
+  Makefile rules keep a bound, since those are recognised heuristically.
+- **Dev server output showed raw colour codes**, so a Nuxt or Vite line arrived
+  as `[90m[[90mnuxt:tailwindcss[90m][39m` instead of `[nuxt:tailwindcss]`. ANSI
+  escape sequences are stripped before a line reaches the log, which applies its
+  own colours anyway.
+
 ## [0.9.0] - 2026-08-12
 
 ### Added
@@ -206,6 +226,7 @@ Hungarian interface, light and dark themes, per-view window sizing, project
 scanning with git analysis, guarded cleanup, and a process runner with live log
 streaming. Never published.
 
+[0.10.0]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v0.10.0
 [0.9.0]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v0.9.0
 [0.8.0]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v0.8.0
 [0.7.2]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v0.7.2

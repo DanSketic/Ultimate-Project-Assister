@@ -31,6 +31,56 @@ fn now_hms() -> String {
     chrono::Local::now().format("%H:%M:%S").to_string()
 }
 
+const ESC: char = '\u{1b}';
+const BEL: char = '\u{7}';
+
+/// Strips ANSI escape sequences from a line of output.
+///
+/// Dev servers colour their own output, and those codes have no meaning in the
+/// log panel - it applies its own colours - so without this they show up as
+/// literal `[90m` noise around every word.
+fn strip_ansi(line: &str) -> String {
+    if !line.contains(ESC) {
+        return line.to_string();
+    }
+
+    let mut out = String::with_capacity(line.len());
+    let mut chars = line.chars();
+
+    while let Some(c) = chars.next() {
+        if c != ESC {
+            out.push(c);
+            continue;
+        }
+        match chars.next() {
+            // CSI: parameter bytes, then a final byte in the '@'..='~' range.
+            Some('[') => {
+                for c in chars.by_ref() {
+                    if ('@'..='~').contains(&c) {
+                        break;
+                    }
+                }
+            }
+            // OSC (window titles and hyperlinks): ends at BEL or ESC \.
+            Some(']') => {
+                while let Some(c) = chars.next() {
+                    if c == BEL {
+                        break;
+                    }
+                    if c == ESC {
+                        chars.next();
+                        break;
+                    }
+                }
+            }
+            // Any other two-character escape is dropped whole.
+            _ => {}
+        }
+    }
+
+    out
+}
+
 #[cfg(windows)]
 fn shell(cmd: &str) -> Command {
     use std::os::windows::process::CommandExt;
@@ -170,6 +220,49 @@ impl Runner {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn plain_text_is_left_alone() {
+        assert_eq!(strip_ansi("ready in 412 ms"), "ready in 412 ms");
+        assert_eq!(strip_ansi(""), "");
+    }
+
+    #[test]
+    fn nuxt_style_colouring_is_removed() {
+        // Exactly the shape a Nuxt dev server emits.
+        let line = "\u{1b}[90m[\u{1b}[90mnuxt:tailwindcss\u{1b}[90m]\u{1b}[39m \u{1b}[36mi\u{1b}[39m Using default Tailwind CSS file";
+        assert_eq!(strip_ansi(line), "[nuxt:tailwindcss] i Using default Tailwind CSS file");
+    }
+
+    #[test]
+    fn vite_check_marks_survive_their_colouring() {
+        let line = "\u{1b}[32m\u{221a}\u{1b}[39m Vite client built in 55ms";
+        assert_eq!(strip_ansi(line), "\u{221a} Vite client built in 55ms");
+    }
+
+    #[test]
+    fn underline_and_link_sequences_are_removed() {
+        let line = "Tailwind Viewer: \u{1b}[4m\u{1b}[33mhttp://localhost:3005/\u{1b}[39m\u{1b}[24m";
+        assert_eq!(strip_ansi(line), "Tailwind Viewer: http://localhost:3005/");
+    }
+
+    #[test]
+    fn window_title_sequences_are_removed() {
+        // OSC terminated by BEL, and by ESC backslash.
+        assert_eq!(strip_ansi("a\u{1b}]0;my title\u{7}b"), "ab");
+        assert_eq!(strip_ansi("a\u{1b}]0;my title\u{1b}\\b"), "ab");
+    }
+
+    #[test]
+    fn a_truncated_sequence_does_not_eat_the_line() {
+        // A sequence cut off mid-line must not swallow everything after it.
+        assert_eq!(strip_ansi("done\u{1b}"), "done");
+    }
+}
+
 /// Forwards one pipe of a child process, line by line, until it closes.
 fn pump<R: std::io::Read + Send + 'static>(
     app: AppHandle,
@@ -193,7 +286,7 @@ fn emit(app: &AppHandle, key: &str, project: &str, cmd: &str, text: &str, stream
             key: key.to_string(),
             project: project.to_string(),
             cmd: cmd.to_string(),
-            text: text.to_string(),
+            text: strip_ansi(text),
             stream: stream.to_string(),
             time: now_hms(),
         },

@@ -34,6 +34,8 @@ fn package_manager(root: &Path) -> &'static str {
     }
 }
 
+const MAX_MAKE_TARGETS: usize = 12;
+
 /// Scripts a developer actually reaches for, in the order they expect them.
 const SCRIPT_PRIORITY: &[&str] = &["dev", "start", "build", "test", "lint", "typecheck", "preview", "format"];
 
@@ -52,15 +54,12 @@ fn node_scripts(root: &Path) -> Vec<CommandDef> {
             .unwrap_or(SCRIPT_PRIORITY.len())
     });
 
+    // Every script is listed. These are written by hand in package.json, so a
+    // cap would just hide something the developer deliberately put there.
     names
         .into_iter()
-        .take(6)
         .map(|name| {
-            // `npm run x`, but bun and pnpm are happy with the shorter form.
-            let cmd = match pm {
-                "npm" | "yarn" => format!("{pm} run {name}"),
-                _ => format!("{pm} run {name}"),
-            };
+            let cmd = format!("{pm} run {name}");
             def("npm", &name, &cmd)
         })
         .collect()
@@ -92,7 +91,9 @@ fn make_targets(root: &Path) -> Vec<CommandDef> {
             continue;
         }
         out.push(def("make", target, &format!("make {target}")));
-        if out.len() == 6 {
+        // Makefile rules are recognised heuristically, unlike package.json
+        // scripts, so this one keeps a bound.
+        if out.len() == MAX_MAKE_TARGETS {
             break;
         }
     }
@@ -175,7 +176,7 @@ pub fn detect(root: &Path, stack: &str, manifests: &[String]) -> Vec<CommandDef>
     }
 
     // Makefile targets are useful on top of any stack.
-    if out.len() < 6 && (has("Makefile") || has("makefile")) {
+    if has("Makefile") || has("makefile") {
         for c in make_targets(root) {
             if !out.iter().any(|e| e.cmd == c.cmd) {
                 out.push(c);
@@ -193,4 +194,52 @@ pub fn detect(root: &Path, stack: &str, manifests: &[String]) -> Vec<CommandDef>
     }
 
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn project_with_scripts(dir: &Path, scripts: &str) {
+        fs::create_dir_all(dir).unwrap();
+        fs::write(dir.join("package.json"), format!(r#"{{"name":"x","scripts":{scripts}}}"#)).unwrap();
+    }
+
+    #[test]
+    fn every_package_json_script_is_offered() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        // Ten scripts: more than the six the list used to stop at.
+        project_with_scripts(
+            root,
+            r#"{"dev":"nuxt dev","build":"nuxt build","generate":"nuxt generate",
+                "preview":"nuxt preview","lint":"eslint .","lint:fix":"eslint . --fix",
+                "test":"vitest","test:e2e":"playwright test","typecheck":"vue-tsc",
+                "postinstall":"nuxt prepare"}"#,
+        );
+
+        let found = detect(root, "Node", &["package.json".to_string()]);
+        let names: Vec<&str> = found.iter().map(|c| c.name.as_str()).collect();
+
+        assert_eq!(found.len(), 10, "every script must be listed, got {names:?}");
+        for expected in [
+            "dev", "build", "generate", "preview", "lint", "lint:fix", "test", "test:e2e",
+            "typecheck", "postinstall",
+        ] {
+            assert!(names.contains(&expected), "{expected} missing from {names:?}");
+        }
+        // The ones reached for most often still come first.
+        assert_eq!(names[0], "dev");
+    }
+
+    #[test]
+    fn the_lockfile_picks_the_package_manager() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        project_with_scripts(root, r#"{"dev":"vite"}"#);
+        fs::write(root.join("pnpm-lock.yaml"), "").unwrap();
+
+        let found = detect(root, "Node", &["package.json".to_string()]);
+        assert_eq!(found[0].cmd, "pnpm run dev");
+    }
 }
