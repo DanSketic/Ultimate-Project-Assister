@@ -9,12 +9,15 @@ import type {
   CleanProgress,
   CleanTarget,
   CommandDef,
+  Container,
   DeleteReport,
+  DockerStatus,
   Goal,
   LogLine,
   Note,
   Project,
   Settings,
+  ToolStatus,
 } from "./types";
 
 const MB = 1024 * 1024;
@@ -313,11 +316,19 @@ MIT. See [LICENSE](LICENSE).
 }
 
 function changelogFor(i: number, version: string): ChangeEntry[] {
-  const bump = (v: string, by: number) =>
-    v.replace(/(\d+)$/, (m) => String(Math.max(0, Number(m) - by)));
+  // Counts back through minor versions so every entry is distinct, the way a
+  // real file reads. `0.4.2` yields 0.4.2, 0.4.1, 0.4.0, 0.3.9, ...
+  const [maj = "0", min = "0", patch = "0"] = version.split(".");
+  const flat = Number(min) * 10 + Number(patch);
+  const back = (k: number) => {
+    const n = Math.max(0, flat - k);
+    return `${maj}.${Math.floor(n / 10)}.${n % 10}`;
+  };
 
-  return [0, 1, 2].map((k) => ({
-    ver: k === 0 ? version : bump(version, k),
+  // Nine, so the "5 shown, the rest on request" behaviour is reachable in the
+  // browser build the same way it is on a real project.
+  return [0, 1, 2, 3, 4, 5, 6, 7, 8].map((k) => ({
+    ver: back(k),
     date: `2026-0${1 + ((i + k) % 8)}-${10 + ((i * 3 + k) % 18)}`,
     body: `### ${k === 0 ? "Added" : "Fixed"}
 
@@ -637,4 +648,108 @@ export async function deleteTargets(keys: string[]): Promise<DeleteReport> {
   emitClean({ phase: "done", done: 1, total: 1, current: "", freedBytes: freed });
 
   return { freedBytes: freed, removed: hit.map((t) => t.path), errors: [] };
+}
+
+// ---------------------------------------------------------------------------
+// Docker and toolchains
+// ---------------------------------------------------------------------------
+
+/** Installed, daemon up, with a stack running — the interesting case to draw. */
+export function dockerStatus(): DockerStatus {
+  return {
+    installed: true,
+    cliVersion: "27.1.1",
+    daemonRunning: true,
+    serverVersion: "27.1.1",
+    containersRunning: 3,
+    containersTotal: 7,
+    images: 42,
+    imagesBytes: 18.4 * MB * 1024,
+    buildCacheBytes: 6.1 * MB * 1024,
+    volumesBytes: 2.3 * MB * 1024,
+    error: "",
+  };
+}
+
+export function containers(projectId: string): Container[] {
+  // Only the compose project has a stack, the same way a real machine would.
+  const project = projects().find((p) => p.id === projectId);
+  if (!project || !project.manifests.some((m) => m.startsWith("docker-compose"))) return [];
+
+  return [
+    { id: "a1b2c3d4e5f6", name: `${project.name}-db-1`, image: "postgres:16", state: "running",
+      status: "Up 3 hours (healthy)", ports: "0.0.0.0:5432->5432/tcp", service: "db" },
+    { id: "b2c3d4e5f6a1", name: `${project.name}-redis-1`, image: "redis:7-alpine", state: "running",
+      status: "Up 3 hours", ports: "0.0.0.0:6379->6379/tcp", service: "redis" },
+    { id: "c3d4e5f6a1b2", name: `${project.name}-worker-1`, image: "node:22-slim", state: "exited",
+      status: "Exited (0) 12 minutes ago", ports: "", service: "worker" },
+  ];
+}
+
+/** One missing tool, so the install path is reachable in the browser build. */
+export function requirements(projectId: string): ToolStatus[] {
+  const project = projects().find((p) => p.id === projectId);
+  if (!project) return [];
+
+  const out: ToolStatus[] = [];
+  const add = (
+    id: string, name: string, found: boolean, version: string, requiredBy: string[],
+    install: string, docs: string,
+  ) =>
+    out.push({
+      id,
+      name,
+      found,
+      version,
+      path: found ? `C:\\tools\\${id}\\${id}.exe` : "",
+      requiredBy,
+      install,
+      docs,
+    });
+
+  const wants = (m: string) => project.parts.some((p) => p.manifests.includes(m));
+
+  if (wants("package.json")) {
+    add("node", "Node.js", true, "22.3.0", ["package.json"],
+        "winget install --exact --id OpenJS.NodeJS.LTS", "https://nodejs.org");
+    add("npm", "npm", true, "10.8.1", ["package.json"],
+        "winget install --exact --id OpenJS.NodeJS.LTS", "https://docs.npmjs.com");
+  }
+  if (wants("Cargo.toml")) {
+    add("cargo", "Rust (cargo)", true, "1.79.0", ["Cargo.toml"],
+        "winget install --exact --id Rustlang.Rustup", "https://rustup.rs");
+  }
+  if (wants("pyproject.toml")) {
+    add("python", "Python", true, "3.12.4", ["pyproject.toml"],
+        "winget install --exact --id Python.Python.3.12", "https://python.org");
+  }
+  if (wants("go.mod") || project.stack === "Go") {
+    add("go", "Go", false, "", ["go.mod"],
+        "winget install --exact --id GoLang.Go", "https://go.dev/dl");
+  }
+  if (project.manifests.some((m) => m.startsWith("docker-compose"))) {
+    add("docker", "Docker", true, "27.1.1", ["docker-compose.yml"],
+        "winget install --exact --id Docker.DockerDesktop", "https://docs.docker.com/get-docker");
+  }
+  if (wants("Makefile")) {
+    add("make", "GNU Make", false, "", ["Makefile"],
+        "winget install --exact --id GnuWin32.Make", "https://www.gnu.org/software/make");
+  }
+  add("git", "Git", true, "2.45.1", [".git"],
+      "winget install --exact --id Git.Git", "https://git-scm.com");
+
+  return out.sort((a, b) => Number(a.found) - Number(b.found) || a.name.localeCompare(b.name));
+}
+
+export async function installTool(id: string): Promise<string> {
+  const cmd = `winget install --exact --id ${id}`;
+  const key = `tools||${cmd}`;
+
+  emit(key, `$ ${cmd}`, "cmd");
+  for (const text of ["Found package…", "Downloading…", "Successfully installed"]) {
+    await pause(320);
+    emit(key, text, "out");
+  }
+  emit(key, "exit 0", "exit");
+  return cmd;
 }

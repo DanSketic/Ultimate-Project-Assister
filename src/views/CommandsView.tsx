@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { FavouriteButton, RailHeader } from "../components/GroupHeader";
 
+import { DockerChip } from "../components/Requirements";
 import { SearchField } from "../components/SearchField";
 import { Play, Stop } from "../components/Icons";
 import { cmdKey, manifestLabel } from "../format";
@@ -110,6 +111,8 @@ export function CommandsView({ app }: { app: App }) {
 
     return groups;
   }, [selected, app.cmdFavourites, t.favCmds, t.detected]);
+
+  const hasDockerCommands = selected?.commands.some((c) => c.kind === "docker") ?? false;
 
   const runningLabel = [...running]
     .map((k) => {
@@ -288,6 +291,23 @@ export function CommandsView({ app }: { app: App }) {
             >
               {selected ? `${selected.commands.length} · ${t.navCmd.toLowerCase()}` : "—"}
             </span>
+            {/* Starting a stack from here fails confusingly when the daemon is
+                down, so its state belongs next to the commands. */}
+            {hasDockerCommands && (
+              <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 7 }}>
+                <span
+                  style={{
+                    fontSize: 10,
+                    letterSpacing: ".07em",
+                    textTransform: "uppercase",
+                    color: "rgba(var(--trgb),.4)",
+                  }}
+                >
+                  {t.dockerTitle}
+                </span>
+                <DockerChip status={app.docker} t={t} />
+              </span>
+            )}
           </div>
 
           {!selected && (

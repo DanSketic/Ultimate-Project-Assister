@@ -3,7 +3,8 @@ import { useCallback, useLayoutEffect, useRef, useState, type ReactNode } from "
 import * as api from "../api";
 import { Collapsible } from "../components/Collapsible";
 import { Markdown } from "../components/Markdown";
-import { ChevronLeft, ChevronRight, Clock, Play, StickyNote, Stop, Tag, Target } from "../components/Icons";
+import { DockerBody, DockerChip, RefreshAction, RequirementsBody } from "../components/Requirements";
+import { ChevronDown, ChevronLeft, ChevronRight, Clock, Play, StickyNote, Stop, Tag, Target } from "../components/Icons";
 import { ago, cmdKey, dueInfo, num, size } from "../format";
 import type { App } from "../useApp";
 import type { CommandDef } from "../types";
@@ -66,6 +67,9 @@ const toolButton = {
 
 const empty = { fontSize: 11.5, color: "rgba(var(--trgb),.44)", padding: "4px 0" };
 
+/** How many changelog versions the card shows before asking. */
+const VERSION_PAGE = 5;
+
 /** Pinned first, then the headline operations, then everything else. */
 function rank(c: CommandDef, projectId: string, app: App): number {
   if (app.cmdFavourites.has(cmdKey(projectId, c))) return 0;
@@ -93,6 +97,7 @@ export function DetailView({ app }: { app: App }) {
   // left a gap under the projects list header.
   const toolbarRef = useRef<HTMLDivElement | null>(null);
   const [pin, setPin] = useState({ top: 0, maxHeight: 0 });
+  const [allVersions, setAllVersions] = useState(false);
 
   const measure = useCallback(() => {
     const toolbar = toolbarRef.current;
@@ -154,6 +159,20 @@ export function DetailView({ app }: { app: App }) {
   const quickCommands = [...p.commands]
     .sort((a, b) => rank(a, p.id, app) - rank(b, p.id, app))
     .slice(0, 4);
+
+  // A changelog runs to dozens of versions. The recent ones are what anybody
+  // looks at, so the rest are behind one more click rather than pushing the
+  // commit history off the page.
+  const shownChangelog = allVersions ? p.changelog : p.changelog.slice(0, VERSION_PAGE);
+  const shownReleases = allVersions ? p.git.releases : p.git.releases.slice(0, VERSION_PAGE);
+  const listed = p.changelog.length > 0 ? p.changelog.length : p.git.releases.length;
+  const hiddenVersions = Math.max(0, listed - VERSION_PAGE);
+
+  // The Docker card would be noise on a project that never mentions it.
+  const needsDocker =
+    p.parts.some((part) => part.manifests.some((m) => m.startsWith("docker-compose"))) ||
+    p.commands.some((c) => c.kind === "docker") ||
+    (app.requirements ?? []).some((r) => r.id === "docker");
 
   return (
     <div style={{ padding: "0 20px 26px" }}>
@@ -398,9 +417,11 @@ export function DetailView({ app }: { app: App }) {
               <div style={empty}>{t.noChangelog}</div>
             )}
 
-            {p.changelog.map((entry) => (
+            {/* Keyed by position as well as version: a hand-written changelog
+                can carry the same heading twice, `Unreleased` most obviously. */}
+            {shownChangelog.map((entry, i) => (
               <div
-                key={entry.ver}
+                key={`${entry.ver}-${i}`}
                 style={{
                   display: "grid",
                   gridTemplateColumns: "96px 1fr",
@@ -421,7 +442,7 @@ export function DetailView({ app }: { app: App }) {
                     collapsedHeight={72}
                     moreLabel={t.showMore}
                     lessLabel={t.showLess}
-                    key={`${p.id}-${entry.ver}`}
+                    key={`${p.id}-${entry.ver}-${i}`}
                   >
                     <Markdown source={entry.body} />
                   </Collapsible>
@@ -430,7 +451,7 @@ export function DetailView({ app }: { app: App }) {
             ))}
 
             {p.changelog.length === 0 &&
-              p.git.releases.map((r) => (
+              shownReleases.map((r) => (
                 <div
                   key={r.ver}
                   style={{
@@ -458,6 +479,38 @@ export function DetailView({ app }: { app: App }) {
                   </div>
                 </div>
               ))}
+
+            {hiddenVersions > 0 && (
+              <button
+                type="button"
+                className="h-link"
+                onClick={() => setAllVersions((v) => !v)}
+                aria-expanded={allVersions}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 5,
+                  marginTop: 11,
+                  border: 0,
+                  background: "transparent",
+                  padding: 0,
+                  cursor: "pointer",
+                  fontSize: 11.5,
+                  fontWeight: 500,
+                  color: "rgba(var(--trgb),.6)",
+                }}
+              >
+                {allVersions ? t.showLess : `${hiddenVersions} ${t.moreVersions}`}
+                <ChevronDown
+                  size={12}
+                  strokeWidth={2}
+                  style={{
+                    transform: allVersions ? "rotate(180deg)" : undefined,
+                    transition: "transform 160ms",
+                  }}
+                />
+              </button>
+            )}
           </Card>
 
           <Card title={t.commits}>
@@ -621,6 +674,31 @@ export function DetailView({ app }: { app: App }) {
               </div>
             ))}
           </Card>
+
+          {/* What the project needs installed. Above tags and notes on
+              purpose: a missing toolchain is why nothing runs. */}
+          <Card
+            title={t.requirements}
+            pad="15px 16px"
+            action={<RefreshAction onClick={() => void app.refreshProjectEnv()} title={t.recheck} />}
+          >
+            <RequirementsBody app={app} />
+          </Card>
+
+          {needsDocker && (
+            <Card
+              title={t.dockerTitle}
+              pad="15px 16px"
+              action={
+                <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <DockerChip status={app.docker} t={t} />
+                  <RefreshAction onClick={() => void app.refreshDocker()} title={t.recheck} />
+                </span>
+              }
+            >
+              <DockerBody app={app} />
+            </Card>
+          )}
 
           <Card title={t.tags} pad="15px 16px">
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>

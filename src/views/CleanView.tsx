@@ -543,7 +543,7 @@ export function CleanView({ app }: { app: App }) {
             </span>
           </div>
 
-          {app.docker?.available && (
+          {app.docker?.daemonRunning && (
             <div
               style={{
                 display: "flex",

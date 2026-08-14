@@ -11,10 +11,11 @@ use std::time::Instant;
 use tauri::{AppHandle, Emitter, State};
 
 use crate::model::{
-    CleanProgress, DeleteReport, DockerUsage, Project, ScanProgress, ScanResult, SysStats,
+    CleanProgress, Container, DeleteReport, DockerStatus, Project, ScanProgress, ScanResult,
+    SysStats, ToolStatus,
 };
 use crate::store::{Goal, Note, Settings, Store};
-use crate::{clean, platform, runner::Runner, scan, watcher::Watcher};
+use crate::{clean, docker, platform, runner::Runner, scan, tools, watcher::Watcher};
 
 pub const SCAN_PROGRESS: &str = "upa://scan-progress";
 pub const SCAN_DONE: &str = "upa://scan-done";
@@ -285,11 +286,82 @@ pub async fn delete_targets(
     Ok(report)
 }
 
+// ---------------------------------------------------------------------------
+// Docker and toolchains
+// ---------------------------------------------------------------------------
+
 #[tauri::command]
-pub async fn docker_usage() -> Result<DockerUsage, String> {
-    tauri::async_runtime::spawn_blocking(clean::docker_usage)
+pub async fn docker_status() -> Result<DockerStatus, String> {
+    // `docker info` waits on a named pipe that may not be listening, so this
+    // never runs on the async runtime's thread.
+    tauri::async_runtime::spawn_blocking(docker::status)
         .await
         .map_err(|e| e.to_string())
+}
+
+/// The containers of one project's compose stack, running or not.
+#[tauri::command]
+pub async fn project_containers(
+    state: State<'_, AppState>,
+    project_id: String,
+) -> Result<Vec<Container>, String> {
+    let Some(project) = state.project_by_id(&project_id) else { return Ok(Vec::new()) };
+    // Compose names the stack after the directory, not after our display name.
+    let dir = Path::new(&project.path)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or(project.name);
+
+    tauri::async_runtime::spawn_blocking(move || docker::containers_for(&dir))
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn project_requirements(
+    state: State<'_, AppState>,
+    project_id: String,
+) -> Result<Vec<ToolStatus>, String> {
+    let Some(project) = state.project_by_id(&project_id) else { return Ok(Vec::new()) };
+
+    tauri::async_runtime::spawn_blocking(move || tools::requirements(&project))
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Installs a toolchain, streaming the installer's output to the log.
+///
+/// The command is looked up here from the tool id rather than being passed in.
+/// The frontend can ask for "install node"; it cannot ask this to run an
+/// arbitrary command with the app's privileges.
+#[tauri::command]
+pub fn install_tool(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<String, String> {
+    let command = tools::install_command(&id);
+    if command.is_empty() {
+        return Err(format!("no packaged installer for {id}"));
+    }
+    // Run from the home directory: an installer has no business being started
+    // inside whichever project happens to be selected.
+    let dir = dirs_home().unwrap_or_else(std::env::temp_dir);
+
+    state
+        .runner
+        .start(&app, TOOLS_KEY, "tools", &dir, "", &command)
+        .map(|()| command)
+}
+
+/// The key installs are filed under, so their output is distinguishable from a
+/// project's own commands in the log and in the running set.
+pub const TOOLS_KEY: &str = "__tools__";
+
+fn dirs_home() -> Option<PathBuf> {
+    std::env::var_os("USERPROFILE")
+        .or_else(|| std::env::var_os("HOME"))
+        .map(PathBuf::from)
 }
 
 // ---------------------------------------------------------------------------

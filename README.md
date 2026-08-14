@@ -25,7 +25,9 @@ English only.
 | **Cleanup** | Measures build junk per category (`target/debug`, `node_modules`, `.venv`, `__pycache__`, `vendor`, `_build`, …) together with its age, grouped by project. Nothing is removed without confirmation, and the removal is guarded three ways. |
 | **Goals** | Goals and features per project with progress bars. Stored as plain JSON. |
 | **Board** | A free canvas of draggable notes with a project tag, a deadline and three colours. Opened from a project, new notes take that project; opened on its own, it asks which project a note belongs to. |
-| **Commands** | Runnable commands read out of the manifests — npm/pnpm/yarn/bun scripts, Makefile targets, cargo, compose. Start and stop them, with output streamed live. |
+| **Commands** | Runnable commands read out of the manifests — every npm/pnpm/yarn/bun script, Makefile targets, cargo, compose — grouped by the file each came from. The ones that start, build or check a project lead their group; any command can be pinned. Start and stop them, with output streamed live. |
+| **Requirements** | What each project needs installed — Node and the package manager its lockfile names, cargo, Python, Go, Docker, Make, and the rest — checked against PATH, with versions. Anything missing says which manifest asked for it, and offers the install command where the tool is packaged. |
+| **Docker** | Whether the CLI is there, whether the daemon is answering, its version, containers and images, and the compose stack belonging to the open project. |
 | **Settings** | Watched folders, scanning options, cleanup age threshold, window anchoring, language. |
 
 ---
@@ -48,6 +50,11 @@ build. The blue chips mark which package of a monorepo a directory belongs to.
 ![The cleanup view](docs/screenshots/clean.png)
 
 ### Project detail
+
+The whole `README.md` is rendered here, clamped to a few lines with the rest one
+click away, and a `CHANGELOG.md` is shown per version the same way — five at a
+time. The side column carries the facts, the requirements check, Docker when the
+project uses it, tags, notes and quick run, all pinned while the page scrolls.
 
 ![The project detail view](docs/screenshots/detail.png)
 
@@ -193,7 +200,9 @@ src/                     TypeScript + React frontend
 src-tauri/               Rust backend
   scan.rs                project discovery, measurement, language stats
   git.rs                 branch, dirty state, tags and changelog via git2
-  clean.rs               guarded deletion plus Docker usage
+  clean.rs               guarded deletion
+  docker.rs              daemon state, counts, sizes and a project's containers
+  tools.rs               which toolchains a project needs, and whether PATH has them
   cmds.rs                runnable commands read from manifests
   runner.rs              process spawning, log streaming, process-tree kill
   watcher.rs             filesystem watching via notify
@@ -220,8 +229,17 @@ scan rebuilds it.
   On an offline machine the system fallback is used. To bundle them, drop the
   woff2 files into `public/` and replace the link in `index.html` with
   `@font-face` rules.
-- **Docker** figures come from parsing `docker system df`; if the daemon is not
-  running the panel simply does not appear.
+- **Docker** figures come from parsing the CLI's own output (`docker info`,
+  `docker system df`, `docker ps`). With the daemon stopped the panel says so
+  rather than disappearing, but it cannot report sizes until it is started.
+- **Installing a toolchain** uses the platform's package manager — winget on
+  Windows, Homebrew on macOS. On Linux the distributions differ too much for a
+  single command to be trustworthy, so only the two npm-installed tools are
+  offered and everything else points at its documentation. Composer, Elixir,
+  Gradle and Maven are not in winget at all, and are handled the same way.
+- **A tool is found by looking it up on PATH**, so something installed but not
+  on PATH reads as missing — which is also what the project's own commands will
+  find when they try to run.
 - **Filesystem watching is deliberately shallow** — the project root and its
   `.git` directory, not the whole tree — so that `node_modules` cannot drown the
   notify watcher.

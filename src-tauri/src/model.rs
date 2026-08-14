@@ -219,11 +219,56 @@ pub struct SysStats {
     pub rss_bytes: u64,
 }
 
-/// Docker's own view of what it could reclaim, when the Docker toggle is on.
+/// Whether Docker is installed, whether the daemon is up, and what it holds.
+///
+/// `installed` and `daemon_running` are separate on purpose: Docker Desktop
+/// present but shut down is an ordinary state with an obvious remedy, and
+/// collapsing it into "unavailable" would hide that.
 #[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct DockerUsage {
-    pub available: bool,
+pub struct DockerStatus {
+    pub installed: bool,
+    pub cli_version: String,
+    pub daemon_running: bool,
+    pub server_version: String,
+    pub containers_running: u32,
+    pub containers_total: u32,
+    pub images: u32,
     pub images_bytes: u64,
     pub build_cache_bytes: u64,
+    pub volumes_bytes: u64,
+    /// Why the daemon could not be reached; empty when it could.
+    pub error: String,
+}
+
+/// One container of a project's compose stack.
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Container {
+    pub id: String,
+    pub name: String,
+    pub image: String,
+    /// `running`, `exited`, `created`, `paused`, ...
+    pub state: String,
+    /// Human status, e.g. `Up 3 hours (healthy)`.
+    pub status: String,
+    pub ports: String,
+    /// Compose service name, when the container came from a compose file.
+    pub service: String,
+}
+
+/// A toolchain a project needs, and whether this machine has it.
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolStatus {
+    pub id: String,
+    pub name: String,
+    pub found: bool,
+    pub version: String,
+    pub path: String,
+    /// The manifests in this project that call for it.
+    pub required_by: Vec<String>,
+    /// Ready-to-run install command, empty when there is no packaged install.
+    pub install: String,
+    pub docs: String,
 }

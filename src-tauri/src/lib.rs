@@ -3,6 +3,7 @@
 mod clean;
 mod cmds;
 mod commands;
+mod docker;
 mod geometry;
 mod git;
 mod model;
@@ -10,6 +11,7 @@ mod platform;
 mod runner;
 mod scan;
 mod store;
+mod tools;
 mod watcher;
 
 use tauri::Manager;
@@ -42,7 +44,10 @@ pub fn run() {
             commands::scan_projects,
             commands::rescan_project,
             commands::delete_targets,
-            commands::docker_usage,
+            commands::docker_status,
+            commands::project_containers,
+            commands::project_requirements,
+            commands::install_tool,
             commands::run_command,
             commands::stop_command,
             commands::running_commands,

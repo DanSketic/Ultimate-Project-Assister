@@ -148,10 +148,51 @@ export interface DeleteReport {
   errors: string[];
 }
 
-export interface DockerUsage {
-  available: boolean;
+/**
+ * `installed` and `daemonRunning` are separate: Docker Desktop present but shut
+ * down is an ordinary state with an obvious remedy, and collapsing it into
+ * "unavailable" would hide that.
+ */
+export interface DockerStatus {
+  installed: boolean;
+  cliVersion: string;
+  daemonRunning: boolean;
+  serverVersion: string;
+  containersRunning: number;
+  containersTotal: number;
+  images: number;
   imagesBytes: number;
   buildCacheBytes: number;
+  volumesBytes: number;
+  /** Why the daemon could not be reached; empty when it could. */
+  error: string;
+}
+
+/** One container of a project's compose stack. */
+export interface Container {
+  id: string;
+  name: string;
+  image: string;
+  /** `running`, `exited`, `created`, `paused`, ... */
+  state: string;
+  /** Human status, e.g. `Up 3 hours (healthy)`. */
+  status: string;
+  ports: string;
+  service: string;
+}
+
+/** A toolchain a project needs, and whether this machine has it. */
+export interface ToolStatus {
+  id: string;
+  name: string;
+  found: boolean;
+  version: string;
+  path: string;
+  /** The manifests in this project that call for it. */
+  requiredBy: string[];
+  /** Ready-to-run install command, empty when there is no packaged install. */
+  install: string;
+  docs: string;
 }
 
 export interface Toggles {

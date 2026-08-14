@@ -6,7 +6,8 @@ import { bindToProjects, cmdKey, isExcluded, newId, size, todayIso } from "./for
 import type {
   CleanProgress,
   CommandDef,
-  DockerUsage,
+  Container,
+  DockerStatus,
   Feature,
   Goal,
   Lang,
@@ -16,6 +17,7 @@ import type {
   Project,
   Settings,
   Theme,
+  ToolStatus,
   View,
 } from "./types";
 
@@ -114,7 +116,14 @@ export function useApp() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [cleanProgress, setCleanProgress] = useState<CleanProgress | null>(null);
   const [ruleDraft, setRuleDraft] = useState("");
-  const [docker, setDocker] = useState<DockerUsage | null>(null);
+
+  // --- docker and toolchains ----------------------------------------------
+  const [docker, setDocker] = useState<DockerStatus | null>(null);
+  const [dockerBusy, setDockerBusy] = useState(false);
+  const [containers, setContainers] = useState<Container[]>([]);
+  /** Null while the check is still running, so the card can say so. */
+  const [requirements, setRequirements] = useState<ToolStatus[] | null>(null);
+  const [installing, setInstalling] = useState<Set<string>>(new Set());
 
   // --- goals / board / commands ------------------------------------------
   const [goalSel, setGoalSel] = useState("");
@@ -299,18 +308,26 @@ export function useApp() {
     void api.setWindowContext(view, navOpen ? NAV_OPEN : NAV_CLOSED);
   }, [view, navOpen]);
 
-  // --- docker ---------------------------------------------------------
-  useEffect(() => {
-    if (!settings?.toggles.docker) {
-      setDocker(null);
-      return;
+  // --- docker -------------------------------------------------------------
+  // Asking the daemon is slow when it is not listening, so this is deliberately
+  // demand-driven: on the views that show it, and on an explicit refresh.
+  const refreshDocker = useCallback(async () => {
+    setDockerBusy(true);
+    try {
+      setDocker(await api.dockerStatus());
+    } finally {
+      setDockerBusy(false);
     }
+  }, []);
+
+  useEffect(() => {
+    if (view !== "detail" && view !== "cmd" && view !== "clean") return;
     let alive = true;
-    void api.dockerUsage().then((usage) => alive && setDocker(usage));
+    void api.dockerStatus().then((s) => alive && setDocker(s));
     return () => {
       alive = false;
     };
-  }, [settings?.toggles.docker]);
+  }, [view]);
 
   // --- persistence helpers ------------------------------------------------
   const patchSettings = useCallback(
@@ -426,6 +443,52 @@ export function useApp() {
       return { all, done, pct: all ? Math.round((done / all) * 100) : 0 };
     },
     [goals],
+  );
+
+  // --- per-project requirements and containers ------------------------------
+  const project = current?.id;
+  useEffect(() => {
+    if (!project || view !== "detail") return;
+    let alive = true;
+    setRequirements(null);
+    void api.projectRequirements(project).then((r) => alive && setRequirements(r));
+    void api.projectContainers(project).then((c) => alive && setContainers(c));
+    return () => {
+      alive = false;
+    };
+  }, [project, view]);
+
+  const refreshProjectEnv = useCallback(async () => {
+    if (!project) return;
+    const [tools, running] = await Promise.all([
+      api.projectRequirements(project),
+      api.projectContainers(project),
+    ]);
+    setRequirements(tools);
+    setContainers(running);
+  }, [project]);
+
+  /**
+   * Runs a toolchain's installer. Only the id is sent - the backend owns the
+   * command - and the output lands in the same log the project commands use.
+   */
+  const installTool = useCallback(
+    async (tool: { id: string; name: string }) => {
+      setInstalling((prev) => new Set(prev).add(tool.id));
+      try {
+        const cmd = await api.installTool(tool.id);
+        flash(`${tool.name}: ${cmd}`);
+      } catch (e) {
+        flash(`${tool.name}: ${e}`);
+      } finally {
+        setInstalling((prev) => {
+          const next = new Set(prev);
+          next.delete(tool.id);
+          return next;
+        });
+      }
+    },
+    [flash],
   );
 
   const allCleanRows = useMemo(
@@ -729,7 +792,15 @@ export function useApp() {
     goals,
     notes,
     current,
+    // docker and toolchains
     docker,
+    dockerBusy,
+    refreshDocker,
+    containers,
+    requirements,
+    refreshProjectEnv,
+    installing,
+    installTool,
     // i18n / theme
     t,
     lang,

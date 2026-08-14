@@ -7,8 +7,9 @@
 import type {
   Anchor,
   CleanProgress,
+  Container,
   DeleteReport,
-  DockerUsage,
+  DockerStatus,
   Goal,
   LogLine,
   Note,
@@ -16,6 +17,7 @@ import type {
   ScanProgress,
   ScanResult,
   Settings,
+  ToolStatus,
 } from "./types";
 import * as mock from "./mock";
 
@@ -94,9 +96,32 @@ export async function deleteTargets(keys: string[]): Promise<DeleteReport> {
   return call<DeleteReport>("delete_targets", { keys });
 }
 
-export async function dockerUsage(): Promise<DockerUsage> {
-  if (!IS_TAURI) return { available: false, imagesBytes: 0, buildCacheBytes: 0 };
-  return call<DockerUsage>("docker_usage");
+// ---------------------------------------------------------------------------
+// Docker and toolchains
+// ---------------------------------------------------------------------------
+
+export async function dockerStatus(): Promise<DockerStatus> {
+  if (!IS_TAURI) return mock.dockerStatus();
+  return call<DockerStatus>("docker_status");
+}
+
+export async function projectContainers(projectId: string): Promise<Container[]> {
+  if (!IS_TAURI) return mock.containers(projectId);
+  return call<Container[]>("project_containers", { projectId });
+}
+
+export async function projectRequirements(projectId: string): Promise<ToolStatus[]> {
+  if (!IS_TAURI) return mock.requirements(projectId);
+  return call<ToolStatus[]>("project_requirements", { projectId });
+}
+
+/**
+ * Installs a toolchain. Only the id crosses the boundary — the backend owns the
+ * command, so this cannot be talked into running something else.
+ */
+export async function installTool(id: string): Promise<string> {
+  if (!IS_TAURI) return mock.installTool(id);
+  return call<string>("install_tool", { id });
 }
 
 // ---------------------------------------------------------------------------

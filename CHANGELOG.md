@@ -7,6 +7,47 @@ the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 
 Every change bumps the version — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## [1.0.0] - 2026-08-14
+
+The first stable release. Everything the app was meant to do is in place, and
+the last gap — being told *why* a project will not start — is closed.
+
+### Added
+
+- **A requirements card on every project.** The toolchains a project needs are
+  read off the manifests already found by the scanner — Node and the package
+  manager its lockfile names, cargo, Python, Go, Docker, Make, CMake, PHP and
+  Composer, Elixir, Ruby, Java with Gradle or Maven, Flutter, .NET — and each
+  is checked against PATH. Present ones show their version and the executable
+  actually being used, which is the answer when a machine has two Pythons.
+  Missing ones say which manifest asked for them and come first in the list.
+  `npm run dev` failing because Node is simply absent is the most common reason
+  a freshly cloned project will not start, and now the app says so.
+- **One-click install for what is missing.** Where the tool is packaged, the
+  card offers the install command; clicking *Install* shows the exact command
+  before anything runs, and the installer's output streams into the same log
+  the project commands use. The frontend sends only a tool id — the command is
+  owned by the backend, so this cannot be talked into running something else.
+  Every winget id was checked against the public repository; Composer, Elixir,
+  Gradle and Maven are not packaged there, so those point at the documentation
+  rather than offering a command that would fail.
+- **Docker status.** Whether the CLI is installed, whether the daemon is
+  answering, its version, container and image counts, and what it is holding.
+  "Installed but not started" is its own state with its own hint, rather than
+  being folded into "unavailable". A chip in the Commands view carries the same
+  state next to the buttons that would start a stack, because that is where a
+  stopped daemon is about to bite.
+- **A project's own containers.** The compose stack belonging to the open
+  project is listed with each service's state, matched by the project name
+  compose itself would derive from the directory.
+- **The changelog card shows five versions**, with the rest one click away, so a
+  long history no longer pushes the commit list off the page.
+
+### Changed
+
+- Docker's numbers moved out of the cleaner into a module of their own, and the
+  cleaner is now only about deletion.
+
 ## [0.11.0] - 2026-08-14
 
 ### Added
@@ -271,6 +312,7 @@ Hungarian interface, light and dark themes, per-view window sizing, project
 scanning with git analysis, guarded cleanup, and a process runner with live log
 streaming. Never published.
 
+[1.0.0]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v1.0.0
 [0.11.0]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v0.11.0
 [0.10.0]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v0.10.0
 [0.9.0]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v0.9.0

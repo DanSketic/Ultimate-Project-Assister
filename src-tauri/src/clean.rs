@@ -1,4 +1,4 @@
-//! Deletion of build junk, plus Docker's reclaimable numbers.
+//! Deletion of build junk.
 //!
 //! Deleting recursively is the one genuinely dangerous thing this app does, so
 //! `validate` gates every removal behind three independent checks: the target
@@ -8,11 +8,10 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use walkdir::WalkDir;
 
-use crate::model::{CleanTarget, DockerUsage};
+use crate::model::CleanTarget;
 
 /// Directory names the cleaner is ever allowed to remove.
 const DELETABLE_NAMES: &[&str] = &[
@@ -162,74 +161,10 @@ pub fn delete_target(target: &CleanTarget, project_root: &Path) -> Result<u64, S
     }
 }
 
-// ---------------------------------------------------------------------------
-// Docker
-// ---------------------------------------------------------------------------
-
-/// Parses `4.9GB`, `812.4 MB`, `0B` into bytes.
-fn parse_human_size(raw: &str) -> u64 {
-    let raw = raw.trim();
-    let split = raw
-        .find(|c: char| c.is_ascii_alphabetic())
-        .unwrap_or(raw.len());
-    let (num, unit) = raw.split_at(split);
-    let Ok(value) = num.trim().parse::<f64>() else { return 0 };
-
-    let mult = match unit.trim().to_ascii_lowercase().as_str() {
-        "b" => 1.0,
-        "kb" | "kib" => 1024.0,
-        "mb" | "mib" => 1024.0 * 1024.0,
-        "gb" | "gib" => 1024.0 * 1024.0 * 1024.0,
-        "tb" | "tib" => 1024.0 * 1024.0 * 1024.0 * 1024.0,
-        _ => 0.0,
-    };
-    (value * mult) as u64
-}
-
-/// Asks the Docker daemon what it could reclaim. Never fails loudly - Docker
-/// simply not being installed is the common case.
-pub fn docker_usage() -> DockerUsage {
-    let mut cmd = Command::new("docker");
-    cmd.args(["system", "df", "--format", "{{.Type}}\t{{.Reclaimable}}"]);
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
-    }
-
-    let Ok(out) = cmd.output() else { return DockerUsage::default() };
-    if !out.status.success() {
-        return DockerUsage::default();
-    }
-
-    let text = String::from_utf8_lossy(&out.stdout);
-    let mut usage = DockerUsage { available: true, ..Default::default() };
-
-    for line in text.lines() {
-        let Some((kind, reclaimable)) = line.split_once('\t') else { continue };
-        // Docker appends a percentage: "4.9GB (100%)".
-        let size = reclaimable.split('(').next().unwrap_or("").trim();
-        let bytes = parse_human_size(size);
-        match kind.trim() {
-            "Images" => usage.images_bytes = bytes,
-            "Build Cache" => usage.build_cache_bytes = bytes,
-            _ => {}
-        }
-    }
-
-    usage
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn parses_docker_sizes() {
-        assert_eq!(parse_human_size("0B"), 0);
-        assert_eq!(parse_human_size("1KB"), 1024);
-        assert_eq!(parse_human_size("2.5 MB"), 2_621_440);
-    }
 
     #[test]
     fn refuses_paths_outside_the_project() {
