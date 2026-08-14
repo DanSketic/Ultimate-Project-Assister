@@ -20,7 +20,7 @@ use walkdir::WalkDir;
 
 use crate::cmds;
 use crate::git;
-use crate::model::{CleanTarget, CommandDef, LangShare, Project, ProjectPart};
+use crate::model::{ChangeEntry, CleanTarget, CommandDef, LangShare, Project, ProjectPart};
 use crate::store::Settings;
 
 /// How deep below a watched folder we look for project roots.
@@ -397,6 +397,107 @@ fn readme_summary(root: &Path) -> Option<String> {
         }
     }
     None
+}
+
+/// A README past this is not something anyone reads in a side panel, and every
+/// byte here is also written to the project cache.
+const MAX_README_BYTES: usize = 40 * 1024;
+/// Per-section cap for the changelog, and how many sections are kept.
+const MAX_ENTRY_BYTES: usize = 8 * 1024;
+const MAX_CHANGELOG_ENTRIES: usize = 40;
+
+/// Reads a file from the first name that exists, case variants included.
+fn first_file(root: &Path, names: &[&str]) -> Option<String> {
+    names.iter().find_map(|name| fs::read_to_string(root.join(name)).ok())
+}
+
+/// Truncates on a character boundary, so a multi-byte character is never cut
+/// in half and left as invalid text.
+fn clip(text: &str, limit: usize) -> String {
+    if text.len() <= limit {
+        return text.to_string();
+    }
+    let mut end = limit;
+    while end > 0 && !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    format!("{}\n", &text[..end])
+}
+
+/// The whole README, for the description card to render.
+fn readme_text(root: &Path) -> String {
+    first_file(root, &["README.md", "readme.md", "README.MD", "README.txt", "README"])
+        .map(|raw| clip(raw.trim(), MAX_README_BYTES))
+        .unwrap_or_default()
+}
+
+/// Splits a `CHANGELOG.md` on its `## ` headings, newest first - which is the
+/// order the file is already written in, so the sections are kept as they come.
+fn changelog_entries(root: &Path) -> Vec<ChangeEntry> {
+    let Some(raw) = first_file(
+        root,
+        &["CHANGELOG.md", "changelog.md", "CHANGELOG", "HISTORY.md", "NEWS.md"],
+    ) else {
+        return Vec::new();
+    };
+
+    /// Closes off the section being collected, if there is one.
+    fn flush(
+        out: &mut Vec<ChangeEntry>,
+        heading: &mut Option<(String, String)>,
+        body: &mut String,
+    ) {
+        if let Some((ver, date)) = heading.take() {
+            out.push(ChangeEntry { ver, date, body: clip(body.trim(), MAX_ENTRY_BYTES) });
+        }
+        body.clear();
+    }
+
+    let mut out: Vec<ChangeEntry> = Vec::new();
+    let mut body = String::new();
+    let mut heading: Option<(String, String)> = None;
+    let mut fenced = false;
+
+    for line in raw.lines() {
+        // A `##` inside a code fence is a shell comment, not a heading.
+        if line.trim_start().starts_with("```") {
+            fenced = !fenced;
+        }
+        if !fenced {
+            if let Some(rest) = line.strip_prefix("## ") {
+                flush(&mut out, &mut heading, &mut body);
+                if out.len() >= MAX_CHANGELOG_ENTRIES {
+                    return out;
+                }
+                heading = Some(split_version(rest));
+                continue;
+            }
+            // Link definitions at the foot of the file are plumbing.
+            if heading.is_some() && line.starts_with('[') && line.contains("]: http") {
+                continue;
+            }
+        }
+        if heading.is_some() {
+            body.push_str(line);
+            body.push('\n');
+        }
+    }
+    flush(&mut out, &mut heading, &mut body);
+    out
+}
+
+/// `[0.10.0] - 2026-08-12` -> `("0.10.0", "2026-08-12")`. Both the brackets and
+/// the date are optional, since not every project follows Keep a Changelog.
+fn split_version(heading: &str) -> (String, String) {
+    let heading = heading.trim();
+    // Split on the first dash that has space around it, so `2026-08-12` and a
+    // version like `1.0.0-rc.1` survive intact.
+    let (left, right) = match heading.find(" - ").or_else(|| heading.find(" – ")) {
+        Some(at) => (&heading[..at], heading[at..].trim_matches(|c: char| c == '-' || c == '–' || c.is_whitespace())),
+        None => (heading, ""),
+    };
+    let ver = left.trim().trim_start_matches('[').trim_end_matches(']').trim();
+    (ver.to_string(), right.trim().to_string())
 }
 
 /// Minimal `key: value` reader - enough for pubspec's flat top-level keys.
@@ -931,6 +1032,10 @@ pub fn measure(root: &Path, settings: &Settings) -> Option<Project> {
         // A monorepo's README lives at the root, not inside the lead package.
         if d.is_empty() { readme_summary(root).unwrap_or_default() } else { d }
     };
+    // Both are read from the project root: a monorepo documents itself there,
+    // not inside whichever package happens to lead.
+    let readme = readme_text(root);
+    let changelog = changelog_entries(root);
 
     Some(Project {
         id,
@@ -944,6 +1049,8 @@ pub fn measure(root: &Path, settings: &Settings) -> Option<Project> {
         reclaim_bytes: clean_targets.iter().map(|t| t.bytes).sum(),
         version,
         desc,
+        readme,
+        changelog,
         manifests,
         parts,
         commands,
@@ -1186,6 +1293,81 @@ mod tests {
         assert_eq!(project.parts[0].rel, "");
         assert_eq!(project.parts[0].name, "fixture");
         assert!(project.commands.iter().all(|c| c.cwd.is_empty()));
+    }
+
+    const KEEP_A_CHANGELOG: &str = r#"# Changelog
+
+Everything above the first heading is preamble, not a release.
+
+## [0.10.0] - 2026-08-12
+
+### Added
+
+- A search box above the project rail.
+
+## [0.9.0] - 2026-08-11
+
+### Fixed
+
+- Something that was broken.
+
+```sh
+## not a heading, this is a shell comment
+```
+
+## 0.1.0
+
+The very first one, with no date.
+
+[0.10.0]: https://example.invalid/releases/tag/v0.10.0
+"#;
+
+    #[test]
+    fn a_changelog_is_split_into_versions() {
+        let tmp = tempfile::tempdir().unwrap();
+        fs::write(tmp.path().join("CHANGELOG.md"), KEEP_A_CHANGELOG).unwrap();
+
+        let entries = changelog_entries(tmp.path());
+        let versions: Vec<&str> = entries.iter().map(|e| e.ver.as_str()).collect();
+
+        assert_eq!(versions, ["0.10.0", "0.9.0", "0.1.0"], "newest first, preamble dropped");
+        assert_eq!(entries[0].date, "2026-08-12");
+        assert_eq!(entries[2].date, "", "a heading with no date is still a version");
+        assert!(entries[0].body.contains("search box"));
+        assert!(!entries[0].body.contains("0.9.0"), "sections must not bleed into each other");
+        // A `##` inside a fenced block is a comment in someone's shell snippet.
+        assert!(entries[1].body.contains("not a heading"));
+        assert!(!entries[1].body.contains("]: https"), "link definitions are plumbing");
+    }
+
+    #[test]
+    fn a_project_carries_its_readme_and_changelog() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path().join("fixture");
+        fixture(&root);
+        fs::write(root.join("README.md"), "# Fixture\n\nProse, and **bold** text.\n").unwrap();
+        fs::write(root.join("CHANGELOG.md"), KEEP_A_CHANGELOG).unwrap();
+
+        let project = measure(&root, &Settings::default()).unwrap();
+
+        // The whole file, markdown intact - the panel renders it.
+        assert!(project.readme.contains("# Fixture"));
+        assert!(project.readme.contains("**bold**"));
+        assert_eq!(project.changelog.len(), 3);
+        // The one-line summary is still the manifest's, not the README's.
+        assert_eq!(project.desc, "A fixture crate.");
+    }
+
+    #[test]
+    fn a_project_without_either_file_reports_nothing() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path().join("fixture");
+        fixture(&root);
+
+        let project = measure(&root, &Settings::default()).unwrap();
+
+        assert_eq!(project.readme, "");
+        assert!(project.changelog.is_empty());
     }
 
     /// Two checkouts can easily hold a `server` each. Nothing that selects or

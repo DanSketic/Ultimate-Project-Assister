@@ -45,6 +45,12 @@ export const ChevronLeft = (p: IconProps) => (
   </Svg>
 );
 
+export const ChevronDown = (p: IconProps) => (
+  <Svg strokeWidth={1.9} {...p}>
+    <path d="m6 9 6 6 6-6" />
+  </Svg>
+);
+
 export const Monitor = (p: IconProps) => (
   <Svg strokeWidth={1.9} {...p}>
     <rect x="2.5" y="4" width="19" height="12.5" rx="2.5" />

@@ -5,6 +5,7 @@
 // layout can be worked on without scanning a real disk.
 
 import type {
+  ChangeEntry,
   CleanProgress,
   CleanTarget,
   CommandDef,
@@ -156,58 +157,88 @@ function cleanTargetsFor(row: Row, index: number, projectId: string): CleanTarge
     });
 }
 
+/** Kept in step with `PRIMARY` in src-tauri/src/cmds.rs. */
+const PRIMARY_NAMES = [
+  "dev",
+  "dev run",
+  "start",
+  "serve",
+  "server",
+  "run",
+  "runserver",
+  "build",
+  "release build",
+  "test",
+  "tests",
+  "stack up",
+];
+
 function commandsFor(name: string, stack: string, cwd = ""): CommandDef[] {
   const out: CommandDef[] = [];
-  const add = (kind: CommandDef["kind"], n: string, cmd: string) =>
-    out.push({ kind, name: n, cmd, cwd, part: cwd || name });
+  const add = (kind: CommandDef["kind"], source: string, n: string, cmd: string) =>
+    out.push({
+      kind,
+      name: n,
+      cmd,
+      cwd,
+      part: cwd || name,
+      source,
+      primary: PRIMARY_NAMES.includes(n),
+    });
 
   switch (stack) {
     case "Rust":
-      add("cargo", "dev run", "cargo run");
-      add("cargo", "release build", "cargo build --release");
-      add("cargo", "test", "cargo test --all");
-      add("cargo", "clippy", "cargo clippy -- -D warnings");
+      add("cargo", "Cargo.toml", "dev run", "cargo run");
+      add("cargo", "Cargo.toml", "release build", "cargo build --release");
+      add("cargo", "Cargo.toml", "test", "cargo test --all");
+      add("cargo", "Cargo.toml", "clippy", "cargo clippy -- -D warnings");
       break;
     case "TypeScript":
     case "Node":
     case "Astro":
-      add("npm", "dev", "npm run dev");
-      add("npm", "build", "npm run build");
-      add("npm", "lint", "npm run lint");
-      add("npm", "test", "npm run test");
+      // Enough scripts, with variants, to show the grouping and the promotion
+      // of the headline ones doing real work.
+      add("npm", "package.json", "dev", "npm run dev");
+      add("npm", "package.json", "build", "npm run build");
+      add("npm", "package.json", "test", "npm run test");
+      add("npm", "package.json", "lint", "npm run lint");
+      add("npm", "package.json", "lint:fix", "npm run lint:fix");
+      add("npm", "package.json", "test:e2e", "npm run test:e2e");
+      add("npm", "package.json", "typecheck", "npm run typecheck");
+      add("npm", "package.json", "format", "npm run format");
       break;
     case "Python":
-      add("py", "serve", "uvicorn app:api --reload");
-      add("py", "tests", "pytest -q");
+      add("py", "pyproject.toml", "serve", "uvicorn app:api --reload");
+      add("py", "pyproject.toml", "tests", "pytest -q");
       break;
     case "Go":
-      add("make", "run", "go run ./...");
-      add("docker", "stack up", "docker compose up -d");
+      add("make", "go.mod", "run", "go run ./...");
+      add("docker", "docker-compose.yml", "stack up", "docker compose up -d");
       break;
     case "Docker":
     case "YAML":
-      add("docker", "stack up", "docker compose up");
-      add("docker", "stack down", "docker compose down -v");
-      add("docker", "prune", "docker system prune -f");
+      add("docker", "docker-compose.yml", "stack up", "docker compose up");
+      add("docker", "docker-compose.yml", "stack down", "docker compose down -v");
+      add("docker", "Dockerfile", "prune", "docker system prune -f");
       break;
     case "Dart":
-      add("make", "run android", "flutter run -d android");
-      add("make", "build apk", "flutter build apk");
+      add("make", "pubspec.yaml", "run android", "flutter run -d android");
+      add("make", "pubspec.yaml", "build apk", "flutter build apk");
       break;
     case "PHP":
-      add("make", "serve", "php -S localhost:8000 -t public");
+      add("make", "composer.json", "serve", "php -S localhost:8000 -t public");
       break;
     case "C++":
     case "Elixir":
-      add("make", "build", "make build");
-      add("make", "run", "make run");
+      add("make", "Makefile", "build", "make build");
+      add("make", "Makefile", "run", "make run");
       break;
     default:
       break;
   }
 
   if (name === "shopflow-web" && !cwd) {
-    add("docker", "db + redis", "docker compose up -d db redis");
+    add("docker", "docker-compose.yml", "db + redis", "docker compose up -d db redis");
   }
   return out;
 }
@@ -238,6 +269,67 @@ function manifestsFor(stack: string, name: string): string[] {
     default:
       return ["Makefile"];
   }
+}
+
+/**
+ * A README long enough to need collapsing, exercising every block the markdown
+ * renderer handles: headings, prose, a list, a fenced block, a table, a quote.
+ */
+function readmeFor(name: string, stack: string, desc: string): string {
+  return `# ${name}
+
+${desc} Written in **${stack}**, and kept deliberately small.
+
+## Getting started
+
+Clone it, install the dependencies and start the dev server. The only thing you
+need on your machine is a recent toolchain — everything else is vendored.
+
+\`\`\`sh
+git clone https://example.invalid/${name}.git
+cd ${name}
+make dev
+\`\`\`
+
+## What is in the box
+
+- A \`core/\` module that does the actual work
+- An adapter layer, so the transport can be swapped without touching \`core/\`
+- A test suite that runs in under ten seconds
+
+| Directory | Purpose |
+| --- | --- |
+| \`core/\` | Domain logic, no I/O |
+| \`adapters/\` | Everything that talks to the outside world |
+| \`tests/\` | Fixtures and the suite itself |
+
+> Nothing in \`core/\` may import from \`adapters/\`. The dependency only ever
+> points inwards.
+
+## Licence
+
+MIT. See [LICENSE](LICENSE).
+`;
+}
+
+function changelogFor(i: number, version: string): ChangeEntry[] {
+  const bump = (v: string, by: number) =>
+    v.replace(/(\d+)$/, (m) => String(Math.max(0, Number(m) - by)));
+
+  return [0, 1, 2].map((k) => ({
+    ver: k === 0 ? version : bump(version, k),
+    date: `2026-0${1 + ((i + k) % 8)}-${10 + ((i * 3 + k) % 18)}`,
+    body: `### ${k === 0 ? "Added" : "Fixed"}
+
+- ${MSG[(i + k) % MSG.length]}, which had been on the list for a while.
+- ${MSG[(i + k + 4) % MSG.length]}. The old behaviour is kept behind a flag for
+  one more release.
+
+### Changed
+
+- The \`--verbose\` flag now prints timings as well as the step names.
+`,
+  }));
 }
 
 let CACHE: Project[] | null = null;
@@ -296,6 +388,10 @@ export function projects(): Project[] {
       reclaimBytes: reclaimMb * MB,
       version,
       desc,
+      // Two projects deliberately have neither, so the empty states are
+      // reachable in the browser build.
+      readme: i % 7 === 3 ? "" : readmeFor(name, stack, desc),
+      changelog: i % 5 === 2 ? [] : changelogFor(i, version),
       manifests: [...new Set(parts.flatMap((p) => p.manifests))],
       parts,
       commands,
@@ -349,6 +445,8 @@ export function settings(): Settings {
     folders: ["D:\\dev\\rust", "D:\\dev\\web", "D:\\dev\\py", "D:\\dev\\go", "D:\\dev\\ops"],
     toggles: { scanStart: true, watchFs: true, deepGit: true, docker: false },
     ageDays: 30,
+    cmdFavourites: [],
+    cleanPicked: null,
     rules: [
       { pattern: "node_modules", scope: "keep: shopflow-web" },
       { pattern: "*.sqlite", scope: "never delete" },

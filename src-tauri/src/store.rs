@@ -15,7 +15,9 @@ use crate::model::Project;
 
 /// Bumped whenever `Project` changes shape. A cache written by an older build
 /// is discarded rather than half-read.
-const CACHE_VERSION: u32 = 1;
+///
+/// 2: added `readme`, `changelog`, and `source` / `primary` on each command.
+const CACHE_VERSION: u32 = 2;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -80,6 +82,16 @@ pub struct Settings {
     pub rules: Vec<Rule>,
     /// Project ids the user pinned. Shown first in Projects, Goals and Commands.
     pub favourites: Vec<String>,
+    /// `<project id>|<cwd>|<command>` for each command the user pinned.
+    pub cmd_favourites: Vec<String>,
+    /// Cleanup rows the user last had ticked, by target key. Kept even while a
+    /// directory is absent: a `target/` that was emptied and has since built up
+    /// again should come back already selected.
+    ///
+    /// `None` means the user has never touched the selection, so the cleaner
+    /// falls back to picking by age. An empty list is a real answer - it means
+    /// they cleared it - and must not be mistaken for "never chosen".
+    pub clean_picked: Option<Vec<String>>,
     pub freed_bytes: u64,
     /// `YYYY-MM-DD` - `freed_bytes` resets when the date rolls over.
     pub freed_date: String,
@@ -98,6 +110,8 @@ impl Default for Settings {
             age_days: 30,
             rules: Vec::new(),
             favourites: Vec::new(),
+            cmd_favourites: Vec::new(),
+            clean_picked: None,
             freed_bytes: 0,
             freed_date: String::new(),
             window: WindowState::default(),
@@ -380,6 +394,49 @@ mod tests {
         let reloaded = Store::load(tmp.path().to_path_buf()).settings();
         assert_eq!(reloaded.lang, "en", "the real change must still apply");
         assert_eq!(reloaded.window, placed(), "geometry must survive untouched");
+    }
+
+    #[test]
+    fn the_cleanup_selection_and_pinned_commands_survive_a_restart() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().to_path_buf();
+
+        let chosen = Settings {
+            clean_picked: Some(vec!["a1b2|node_modules|D:\\dev\\web\\shop\\node_modules".into()]),
+            cmd_favourites: vec!["a1b2||npm run dev".into()],
+            ..Settings::default()
+        };
+        Store::load(dir.clone()).set_settings(chosen.clone()).unwrap();
+
+        let reloaded = Store::load(dir).settings();
+
+        assert_eq!(reloaded.clean_picked, chosen.clean_picked);
+        assert_eq!(reloaded.cmd_favourites, chosen.cmd_favourites);
+    }
+
+    /// Clearing the selection is an answer, not the absence of one. If the two
+    /// were stored the same way, "select none" would come back as "select
+    /// everything old" on the next launch.
+    #[test]
+    fn an_empty_selection_is_not_the_same_as_no_selection() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().to_path_buf();
+
+        assert_eq!(Settings::default().clean_picked, None, "untouched means None");
+
+        let cleared = Settings { clean_picked: Some(Vec::new()), ..Settings::default() };
+        Store::load(dir.clone()).set_settings(cleared).unwrap();
+
+        assert_eq!(Store::load(dir).settings().clean_picked, Some(Vec::new()));
+    }
+
+    #[test]
+    fn settings_written_before_the_selection_was_remembered_still_load() {
+        // The file predates both fields; neither may fabricate a selection.
+        let s = load_with(WITHOUT_ANCHOR);
+
+        assert_eq!(s.clean_picked, None);
+        assert!(s.cmd_favourites.is_empty());
     }
 
     fn project_at(path: &str) -> Project {

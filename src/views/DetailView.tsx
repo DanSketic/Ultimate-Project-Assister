@@ -1,9 +1,12 @@
 import { useCallback, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
 import * as api from "../api";
+import { Collapsible } from "../components/Collapsible";
+import { Markdown } from "../components/Markdown";
 import { ChevronLeft, ChevronRight, Clock, Play, StickyNote, Stop, Tag, Target } from "../components/Icons";
 import { ago, cmdKey, dueInfo, num, size } from "../format";
 import type { App } from "../useApp";
+import type { CommandDef } from "../types";
 
 function Card({
   title,
@@ -62,6 +65,25 @@ const toolButton = {
 } as const;
 
 const empty = { fontSize: 11.5, color: "rgba(var(--trgb),.44)", padding: "4px 0" };
+
+/** Pinned first, then the headline operations, then everything else. */
+function rank(c: CommandDef, projectId: string, app: App): number {
+  if (app.cmdFavourites.has(cmdKey(projectId, c))) return 0;
+  return c.primary ? 1 : 2;
+}
+
+const verStyle = {
+  fontFamily: "'JetBrains Mono',monospace",
+  fontSize: 12,
+  fontWeight: 500,
+  color: "var(--accTx)",
+} as const;
+
+const dateStyle = {
+  fontFamily: "'JetBrains Mono',monospace",
+  fontSize: 10,
+  color: "rgba(var(--trgb),.52)",
+} as const;
 
 export function DetailView({ app }: { app: App }) {
   const { t, current: p, lang } = app;
@@ -126,6 +148,12 @@ export function DetailView({ app }: { app: App }) {
   ];
 
   const tags = p.git.tags.length ? p.git.tags : [t.noTags];
+
+  // Four slots, spent on what the user pinned first and the headline operations
+  // second, rather than on whichever commands happened to be detected first.
+  const quickCommands = [...p.commands]
+    .sort((a, b) => rank(a, p.id, app) - rank(b, p.id, app))
+    .slice(0, 4);
 
   return (
     <div style={{ padding: "0 20px 26px" }}>
@@ -210,17 +238,47 @@ export function DetailView({ app }: { app: App }) {
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 328px", gap: 16, alignItems: "start" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <Card title={t.desc}>
+          <Card
+            title={t.desc}
+            action={
+              p.readme ? (
+                <span
+                  style={{
+                    fontFamily: "'JetBrains Mono',monospace",
+                    fontSize: 10,
+                    color: "rgba(var(--trgb),.4)",
+                  }}
+                >
+                  {t.readmeFrom}
+                </span>
+              ) : undefined
+            }
+          >
             <div
               style={{
                 fontSize: 14.5,
                 lineHeight: 1.55,
                 maxWidth: "62ch",
                 textWrap: "pretty",
-                color: p.desc ? "rgba(var(--trgb),.92)" : "rgba(var(--trgb),.44)",
+                color: p.desc || p.readme ? "rgba(var(--trgb),.92)" : "rgba(var(--trgb),.44)",
               }}
             >
-              {p.desc || t.noDesc}
+              {/* The whole README, rendered, but clamped to roughly the height
+                  the one-line summary used to take. Nothing on this card is
+                  taller than it was; the difference is that the rest is now
+                  reachable. */}
+              {p.readme ? (
+                <Collapsible
+                  collapsedHeight={96}
+                  moreLabel={t.showMore}
+                  lessLabel={t.showLess}
+                  key={p.id}
+                >
+                  <Markdown source={p.readme} />
+                </Collapsible>
+              ) : (
+                p.desc || t.noDesc
+              )}
             </div>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 13 }}>
               {p.langs.map((l) => (
@@ -319,11 +377,30 @@ export function DetailView({ app }: { app: App }) {
             </Card>
           )}
 
-          <Card title={t.changelog}>
-            {p.git.releases.length === 0 && <div style={empty}>{t.noChangelog}</div>}
-            {p.git.releases.map((r) => (
+          {/* A CHANGELOG.md is the author's own account of what changed, so it
+              wins over the tag list the git reader assembles. Tags are the
+              fallback for a project that keeps no changelog file. */}
+          <Card
+            title={t.changelog}
+            action={
+              <span
+                style={{
+                  fontFamily: "'JetBrains Mono',monospace",
+                  fontSize: 10,
+                  color: "rgba(var(--trgb),.4)",
+                }}
+              >
+                {p.changelog.length > 0 ? t.changelogFrom : p.git.releases.length > 0 ? t.fromTags : ""}
+              </span>
+            }
+          >
+            {p.changelog.length === 0 && p.git.releases.length === 0 && (
+              <div style={empty}>{t.noChangelog}</div>
+            )}
+
+            {p.changelog.map((entry) => (
               <div
-                key={r.ver}
+                key={entry.ver}
                 style={{
                   display: "grid",
                   gridTemplateColumns: "96px 1fr",
@@ -333,39 +410,54 @@ export function DetailView({ app }: { app: App }) {
                 }}
               >
                 <div>
-                  <div
-                    style={{
-                      fontFamily: "'JetBrains Mono',monospace",
-                      fontSize: 12,
-                      fontWeight: 500,
-                      color: "var(--accTx)",
-                    }}
-                  >
-                    {r.ver}
-                  </div>
-                  <div
-                    style={{
-                      fontFamily: "'JetBrains Mono',monospace",
-                      fontSize: 10,
-                      color: "rgba(var(--trgb),.52)",
-                    }}
-                  >
-                    {r.date}
-                  </div>
+                  <div style={verStyle}>{entry.ver}</div>
+                  <div style={dateStyle}>{entry.date}</div>
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  {r.notes.map((n, i) => (
-                    <div
-                      key={i}
-                      style={{ display: "flex", gap: 9, fontSize: 12.5, color: "rgba(var(--trgb),.82)" }}
-                    >
-                      <span style={{ color: "rgba(var(--accrgb),.6)" }}>•</span>
-                      <span>{n}</span>
-                    </div>
-                  ))}
+                <div style={{ fontSize: 12.5, color: "rgba(var(--trgb),.82)", minWidth: 0 }}>
+                  {/* Every version starts collapsed. A changelog is a long file
+                      by design, and dumping all of it here would bury the
+                      commit history under it. */}
+                  <Collapsible
+                    collapsedHeight={72}
+                    moreLabel={t.showMore}
+                    lessLabel={t.showLess}
+                    key={`${p.id}-${entry.ver}`}
+                  >
+                    <Markdown source={entry.body} />
+                  </Collapsible>
                 </div>
               </div>
             ))}
+
+            {p.changelog.length === 0 &&
+              p.git.releases.map((r) => (
+                <div
+                  key={r.ver}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "96px 1fr",
+                    gap: 14,
+                    padding: "11px 0",
+                    borderTop: "1px solid rgba(var(--wrgb),.06)",
+                  }}
+                >
+                  <div>
+                    <div style={verStyle}>{r.ver}</div>
+                    <div style={dateStyle}>{r.date}</div>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    {r.notes.map((n, i) => (
+                      <div
+                        key={i}
+                        style={{ display: "flex", gap: 9, fontSize: 12.5, color: "rgba(var(--trgb),.82)" }}
+                      >
+                        <span style={{ color: "rgba(var(--accrgb),.6)" }}>•</span>
+                        <span>{n}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
           </Card>
 
           <Card title={t.commits}>
@@ -647,7 +739,7 @@ export function DetailView({ app }: { app: App }) {
 
           <Card title={t.quick} pad="15px 16px">
             {p.commands.length === 0 && <div style={empty}>{t.emptyCmds}</div>}
-            {p.commands.slice(0, 4).map((c) => {
+            {quickCommands.map((c) => {
               const on = app.running.has(cmdKey(p.id, c));
               return (
                 <div
@@ -692,6 +784,7 @@ export function DetailView({ app }: { app: App }) {
                     type="button"
                     onClick={() => void app.toggleCommand(p, c)}
                     title={on ? t.stop : t.run}
+                    className={on ? "h-danger" : "h-ghost"}
                     style={{
                       border: `1px solid ${on ? "rgba(var(--accrgb),.5)" : "rgba(var(--wrgb),.12)"}`,
                       borderRadius: 8,

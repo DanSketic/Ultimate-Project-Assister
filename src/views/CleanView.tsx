@@ -30,6 +30,7 @@ function FilterToggle({
   return (
     <button
       type="button"
+      className="h-seg"
       onClick={onClick}
       aria-pressed={on}
       style={{

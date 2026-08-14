@@ -37,6 +37,7 @@ export function ChipGroup({ items, active, onPick, mono = false, wrap = false }:
           <button
             key={item.key}
             type="button"
+            className="h-seg"
             onClick={() => onPick(item.key)}
             style={{
               border: 0,

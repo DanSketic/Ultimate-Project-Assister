@@ -93,17 +93,24 @@ export function FolderHeader({
   );
 }
 
-/** Compact folder heading for the narrow rails in Goals and Commands. */
+/**
+ * Compact folder heading for the narrow rails in Goals and Commands.
+ *
+ * `preserveCase` is for headings that are file names: `package.json` is not
+ * spelled `PACKAGE.JSON`, and shouting it makes it harder to recognise.
+ */
 export function RailHeader({
   label,
   title,
   meta,
   pinned = false,
+  preserveCase = false,
 }: {
   label: string;
   title: string;
   meta?: ReactNode;
   pinned?: boolean;
+  preserveCase?: boolean;
 }) {
   return (
     <div
@@ -119,9 +126,9 @@ export function RailHeader({
       <span
         style={{
           fontFamily: "'JetBrains Mono',monospace",
-          fontSize: 9.5,
-          letterSpacing: ".06em",
-          textTransform: "uppercase",
+          fontSize: preserveCase ? 10 : 9.5,
+          letterSpacing: preserveCase ? "0" : ".06em",
+          textTransform: preserveCase ? "none" : "uppercase",
           color: pinned ? "var(--accTx)" : "rgba(var(--trgb),.42)",
           whiteSpace: "nowrap",
           overflow: "hidden",

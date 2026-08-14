@@ -7,6 +7,51 @@ the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 
 Every change bumps the version — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## [0.11.0] - 2026-08-14
+
+### Added
+
+- **The description card reads the whole README**, rendered as markdown —
+  headings, lists, tables, fenced code, quotes and emphasis. It opens clamped
+  to about the height the old one-line summary took, so nothing on the page
+  grew; a *Read all of it* toggle expands the rest. Whether the toggle appears
+  at all is measured from the laid-out height rather than guessed from a
+  character count. Links are shown with their address in the tooltip, not
+  followed — the app has no business opening URLs out of a file it merely
+  scanned.
+- **A `CHANGELOG.md` is read and shown per version**, each section collapsed to
+  its first couple of lines with the same toggle. The file wins over the git
+  tags, which stay as the fallback for a project that keeps no changelog.
+- **Commands are grouped by the file they were read out of** — `package.json`,
+  `Cargo.toml`, `docker-compose.yml`, a `Makefile`. In a monorepo the directory
+  is part of the heading, so `frontend/package.json` and `backend/go.mod` are
+  plainly separate.
+- **Headline operations stand out.** The commands that start, build or check a
+  project are tinted, outlined and sorted to the top of their group; the
+  housekeeping around them stays flat. A variant such as `test:e2e` is not
+  promoted alongside `test` — promoting everything would promote nothing.
+- **Commands can be pinned**, the way projects already could. Pinned ones
+  gather in a block above the file groups and lead the detail view's quick-run
+  card. They still appear under their own file as well: one command in two
+  places, not a command that has moved somewhere unexpected.
+- **The cleanup selection is remembered.** What was ticked comes back on the
+  next launch, including entries whose directory is currently gone — so a
+  `target/` that was cleaned and has since built up again returns already
+  selected. Keys belonging to a project that no longer exists are pruned.
+  Clearing the selection is stored as a real answer, not as "never chosen".
+
+### Fixed
+
+- **Most buttons had no hover or pressed state at all.** The rules were written
+  as a `background` on a class, but nearly every control sets its background
+  inline, and an inline style beats any class rule — so the declarations never
+  applied and the interface felt dead under the pointer. The tint is now an
+  inset `box-shadow`, which paints over whatever background is already there,
+  needs no `!important`, and leaves a selected row still looking selected.
+  Every interactive class now has both a hover and a pressed state, buttons
+  that carried no class at all were given one, and a disabled button no longer
+  answers as though it could act.
+
 ## [0.10.0] - 2026-08-12
 
 ### Added
@@ -226,6 +271,7 @@ Hungarian interface, light and dark themes, per-view window sizing, project
 scanning with git analysis, guarded cleanup, and a process runner with live log
 streaming. Never published.
 
+[0.11.0]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v0.11.0
 [0.10.0]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v0.10.0
 [0.9.0]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v0.9.0
 [0.8.0]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v0.8.0

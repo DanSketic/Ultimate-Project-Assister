@@ -32,6 +32,19 @@ pub struct Release {
     pub notes: Vec<String>,
 }
 
+/// One version section of a `CHANGELOG.md`. Unlike `Release`, which is built
+/// from git tags, this keeps the author's own markdown so the UI can render it.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ChangeEntry {
+    /// `0.10.0`, `Unreleased`, ... - whatever the heading names.
+    pub ver: String,
+    /// Trailing date on the heading, empty when there is none.
+    pub date: String,
+    /// The section body, still markdown.
+    pub body: String,
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GitInfo {
@@ -54,7 +67,8 @@ pub struct GitInfo {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CleanTarget {
-    /// `<project name>|<category>` - stable across rescans, used as a selection key.
+    /// `<project id>|<category>|<path>` - stable across rescans, and the key
+    /// the selection is remembered under.
     pub key: String,
     /// Identity of the owning project. Two projects can share a name, so
     /// anything that groups or selects must use this rather than `project`.
@@ -86,6 +100,15 @@ pub struct CommandDef {
     /// Display label of the part this command belongs to.
     #[serde(default)]
     pub part: String,
+    /// Manifest the command was read out of: `package.json`, `Cargo.toml`,
+    /// `Makefile`, ... Commands are grouped by this, so the list says where
+    /// each entry actually came from.
+    #[serde(default)]
+    pub source: String,
+    /// A headline operation - the ones that start, build or check the project.
+    /// Shown first inside its group and given the stronger styling.
+    #[serde(default)]
+    pub primary: bool,
 }
 
 /// One package inside a project. A single-package project has exactly one part
@@ -122,7 +145,12 @@ pub struct Project {
     pub size_bytes: u64,
     pub reclaim_bytes: u64,
     pub version: String,
+    /// One-line summary for the lists.
     pub desc: String,
+    /// The whole README, still markdown. Empty when the project has none.
+    pub readme: String,
+    /// `CHANGELOG.md` split into version sections, newest first.
+    pub changelog: Vec<ChangeEntry>,
     pub manifests: Vec<String>,
     /// Always at least one entry. More than one means a monorepo.
     pub parts: Vec<ProjectPart>,

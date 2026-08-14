@@ -264,6 +264,7 @@ export function BoardView({ app }: { app: App }) {
                       type="button"
                       onClick={() => setReassigning(reassigning === n.id ? null : n.id)}
                       title={t.changeProject}
+                      className="h-link"
                       style={{
                         border: 0,
                         background: "transparent",
@@ -344,6 +345,7 @@ export function BoardView({ app }: { app: App }) {
                   ) : (
                     <button
                       type="button"
+                      className="h-soft"
                       onClick={() => setEditingDue(n.id)}
                       style={{
                         display: "inline-flex",

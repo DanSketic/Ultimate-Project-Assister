@@ -25,6 +25,13 @@ export interface Release {
   notes: string[];
 }
 
+/** One version section of a CHANGELOG.md; `body` is still markdown. */
+export interface ChangeEntry {
+  ver: string;
+  date: string;
+  body: string;
+}
+
 export interface GitInfo {
   isRepo: boolean;
   branch: string;
@@ -62,6 +69,10 @@ export interface CommandDef {
   cwd: string;
   /** Display label of the part this command belongs to. */
   part: string;
+  /** Manifest the command was read out of; the commands list groups by this. */
+  source: string;
+  /** A headline operation: starts, builds or checks the project. */
+  primary: boolean;
 }
 
 /** One package inside a project. More than one part means a monorepo. */
@@ -87,7 +98,12 @@ export interface Project {
   sizeBytes: number;
   reclaimBytes: number;
   version: string;
+  /** One-line summary for the lists. */
   desc: string;
+  /** The whole README, still markdown; empty when there is none. */
+  readme: string;
+  /** CHANGELOG.md split into version sections, newest first. */
+  changelog: ChangeEntry[];
   manifests: string[];
   /** Always at least one entry. */
   parts: ProjectPart[];
@@ -171,6 +187,14 @@ export interface Settings {
   rules: Rule[];
   /** Project ids the user pinned; shown first in the lists. */
   favourites: string[];
+  /** `<project id>|<cwd>|<command>` for each command the user pinned. */
+  cmdFavourites: string[];
+  /**
+   * Cleanup target keys last ticked, kept even while a directory is absent.
+   * `null` means never chosen, so the cleaner picks by age instead; an empty
+   * array means the user deliberately cleared the selection.
+   */
+  cleanPicked: string[] | null;
   freedBytes: number;
   freedDate: string;
   window: WindowState;

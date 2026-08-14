@@ -98,6 +98,7 @@ export function TitleBar({ app }: { app: App }) {
             type="button"
             onClick={() => setTheme("auto")}
             title={t.themeAuto}
+            className="h-seg"
             style={{
               border: 0,
               borderRadius: 7,
@@ -120,6 +121,7 @@ export function TitleBar({ app }: { app: App }) {
             type="button"
             onClick={() => setTheme("light")}
             title={t.themeLight}
+            className="h-seg"
             style={{
               border: 0,
               borderRadius: 7,
@@ -138,6 +140,7 @@ export function TitleBar({ app }: { app: App }) {
             type="button"
             onClick={() => setTheme("dark")}
             title={t.themeDark}
+            className="h-seg"
             style={{
               border: 0,
               borderRadius: 7,

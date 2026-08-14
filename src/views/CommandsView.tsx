@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { FavouriteButton, RailHeader } from "../components/GroupHeader";
+
 import { SearchField } from "../components/SearchField";
 import { Play, Stop } from "../components/Icons";
 import { cmdKey, manifestLabel } from "../format";
 import { groupWithFavourites } from "../grouping";
 import type { App } from "../useApp";
+import type { CommandDef } from "../types";
 
 export function CommandsView({ app }: { app: App }) {
   const { t, projects, cmdSel, running, log } = app;
@@ -47,6 +49,67 @@ export function CommandsView({ app }: { app: App }) {
     [listed, running, app.favourites, t.favourites],
   );
   const showHeaders = groups.length > 1;
+
+  /**
+   * The selected project's commands, gathered under the file each was read out
+   * of, and inside a group with the headline operations first.
+   *
+   * Pinned commands are lifted into a block of their own above the rest, the
+   * same shape the project rail uses for favourite projects. A pinned command
+   * still appears under its own file: it is one command in two places, not a
+   * command that has moved somewhere unexpected.
+   */
+  const cmdGroups = useMemo(() => {
+    if (!selected) return [];
+
+    const order = (c: CommandDef) => (c.primary ? 0 : 1);
+    const sorted = (items: CommandDef[]) =>
+      items.slice().sort((a, b) => order(a) - order(b));
+
+    const groups: Array<{
+      key: string;
+      label: string;
+      title: string;
+      pinned: boolean;
+      items: CommandDef[];
+    }> = [];
+
+    const pinned = selected.commands.filter((c) => app.cmdFavourites.has(cmdKey(selected.id, c)));
+    if (pinned.length > 0) {
+      groups.push({
+        key: "__pinned__",
+        label: t.favCmds,
+        title: t.favCmds,
+        pinned: true,
+        items: sorted(pinned),
+      });
+    }
+
+    // A monorepo has the same file name in several packages, so the directory
+    // is part of the identity as well as of the label. `|` is the separator
+    // because Windows forbids it in a path, so it can never appear in `cwd`.
+    const byFile = new Map<string, CommandDef[]>();
+    for (const c of selected.commands) {
+      const key = `${c.cwd}|${c.source}`;
+      const list = byFile.get(key);
+      if (list) list.push(c);
+      else byFile.set(key, [c]);
+    }
+
+    for (const [key, items] of byFile) {
+      const [cwd = "", source = ""] = key.split("|");
+      const label = cwd ? `${cwd}/${source || "—"}` : source || t.detected;
+      groups.push({
+        key,
+        label,
+        title: cwd ? `${selected.path}\\${cwd}\\${source}` : `${selected.path}\\${source}`,
+        pinned: false,
+        items: sorted(items),
+      });
+    }
+
+    return groups;
+  }, [selected, app.cmdFavourites, t.favCmds, t.detected]);
 
   const runningLabel = [...running]
     .map((k) => {
@@ -214,6 +277,8 @@ export function CommandsView({ app }: { app: App }) {
             >
               {t.detected}
             </span>
+            {/* The file names live on the group headings now, so this says how
+                many commands there are rather than repeating the manifests. */}
             <span
               style={{
                 fontFamily: "'JetBrains Mono',monospace",
@@ -221,7 +286,7 @@ export function CommandsView({ app }: { app: App }) {
                 color: "rgba(var(--trgb),.5)",
               }}
             >
-              {selected ? manifestLabel(selected.manifests) : "—"}
+              {selected ? `${selected.commands.length} · ${t.navCmd.toLowerCase()}` : "—"}
             </span>
           </div>
 
@@ -231,109 +296,150 @@ export function CommandsView({ app }: { app: App }) {
             </div>
           )}
 
-          {selected?.commands.map((c) => {
-            const key = cmdKey(selected.id, c);
-            const on = running.has(key);
-            const strong = c.kind === "docker" || c.kind === "cargo";
-
-            return (
-              <div
-                key={key}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 11,
-                  padding: "10px 0",
-                  borderTop: "1px solid rgba(var(--wrgb),.06)",
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: 10.5,
-                    fontWeight: 500,
-                    border: `1px solid ${strong ? "rgba(var(--accrgb),.3)" : "rgba(var(--wrgb),.1)"}`,
-                    background: strong ? "rgba(var(--accrgb),.1)" : "rgba(var(--wrgb),.04)",
-                    color: strong ? "var(--accTx)" : "rgba(var(--trgb),.6)",
-                    borderRadius: 99,
-                    padding: "2px 8px",
-                    flex: "0 0 auto",
-                  }}
-                >
-                  {c.kind}
-                </span>
-
-                <span style={{ minWidth: 0, flex: 1 }}>
-                  <span
-                    style={{ display: "flex", alignItems: "baseline", gap: 7, fontSize: 13, fontWeight: 500 }}
-                  >
-                    {c.name}
-                    {c.cwd && (
-                      <span
-                        style={{
-                          fontFamily: "'JetBrains Mono',monospace",
-                          fontSize: 9.5,
-                          fontWeight: 500,
-                          border: "1px solid rgba(var(--coolrgb),.35)",
-                          background: "rgba(var(--coolrgb),.12)",
-                          color: "rgba(var(--trgb),.7)",
-                          borderRadius: 99,
-                          padding: "1px 7px",
-                        }}
-                      >
-                        {c.cwd}
-                      </span>
-                    )}
-                  </span>
+          {cmdGroups.map((group) => (
+            <div key={group.key} style={{ marginTop: 10 }}>
+              <RailHeader
+                label={group.label}
+                title={group.title}
+                pinned={group.pinned}
+                preserveCase={!group.pinned}
+                meta={
                   <span
                     style={{
-                      display: "block",
                       fontFamily: "'JetBrains Mono',monospace",
-                      fontSize: 10.5,
-                      color: "rgba(var(--trgb),.4)",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
+                      fontSize: 9.5,
+                      color: "rgba(var(--trgb),.42)",
                     }}
                   >
-                    {c.cmd}
+                    {group.items.length}
                   </span>
-                </span>
+                }
+              />
+              {group.items.map((c) => {
+                const key = cmdKey(selected!.id, c);
+                const on = running.has(key);
+                const pinned = app.cmdFavourites.has(key);
 
-                <span
-                  style={{
-                    fontFamily: "'JetBrains Mono',monospace",
-                    fontSize: 10,
-                    color: on ? "var(--acc)" : "rgba(var(--trgb),.46)",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {on ? `● ${t.runningL}` : t.idleL}
-                </span>
+                return (
+                  <div
+                    key={key}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 11,
+                      padding: c.primary ? "11px 10px" : "10px 10px",
+                      borderTop: "1px solid rgba(var(--wrgb),.06)",
+                      // A headline command is tinted and outlined; everything
+                      // else stays flat, so the difference is visible at a
+                      // glance rather than needing to be read.
+                      borderRadius: c.primary ? 11 : 0,
+                      border: c.primary ? "1px solid rgba(var(--accrgb),.22)" : undefined,
+                      background: c.primary ? "rgba(var(--accrgb),.055)" : undefined,
+                      marginBottom: c.primary ? 4 : 0,
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: 10.5,
+                        fontWeight: 500,
+                        border: `1px solid ${c.primary ? "rgba(var(--accrgb),.35)" : "rgba(var(--wrgb),.1)"}`,
+                        background: c.primary ? "rgba(var(--accrgb),.12)" : "rgba(var(--wrgb),.04)",
+                        color: c.primary ? "var(--accTx)" : "rgba(var(--trgb),.6)",
+                        borderRadius: 99,
+                        padding: "2px 8px",
+                        flex: "0 0 auto",
+                      }}
+                    >
+                      {c.kind}
+                    </span>
 
-                <button
-                  type="button"
-                  onClick={() => void app.toggleCommand(selected, c)}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    border: `1px solid ${on ? "rgba(var(--danrgb),.45)" : "rgba(var(--wrgb),.12)"}`,
-                    borderRadius: 9,
-                    background: on ? "rgba(var(--danrgb),.14)" : "rgba(var(--wrgb),.04)",
-                    color: on ? "var(--danTx2)" : "rgba(var(--trgb),.85)",
-                    padding: "6px 11px",
-                    cursor: "pointer",
-                    fontSize: 11.5,
-                    fontWeight: 600,
-                    flex: "0 0 auto",
-                  }}
-                >
-                  {on ? <Stop size={8} /> : <Play size={9} />}
-                  {on ? t.stop : t.run}
-                </button>
-              </div>
-            );
-          })}
+                    <span style={{ minWidth: 0, flex: 1 }}>
+                      <span
+                        style={{
+                          display: "flex",
+                          alignItems: "baseline",
+                          gap: 7,
+                          fontSize: 13,
+                          fontWeight: c.primary ? 600 : 500,
+                        }}
+                      >
+                        {c.name}
+                        {c.cwd && (
+                          <span
+                            style={{
+                              fontFamily: "'JetBrains Mono',monospace",
+                              fontSize: 9.5,
+                              fontWeight: 500,
+                              border: "1px solid rgba(var(--coolrgb),.35)",
+                              background: "rgba(var(--coolrgb),.12)",
+                              color: "rgba(var(--trgb),.7)",
+                              borderRadius: 99,
+                              padding: "1px 7px",
+                            }}
+                          >
+                            {c.cwd}
+                          </span>
+                        )}
+                      </span>
+                      <span
+                        style={{
+                          display: "block",
+                          fontFamily: "'JetBrains Mono',monospace",
+                          fontSize: 10.5,
+                          color: "rgba(var(--trgb),.4)",
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                        }}
+                      >
+                        {c.cmd}
+                      </span>
+                    </span>
+
+                    <span
+                      style={{
+                        fontFamily: "'JetBrains Mono',monospace",
+                        fontSize: 10,
+                        color: on ? "var(--acc)" : "rgba(var(--trgb),.46)",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {on ? `● ${t.runningL}` : t.idleL}
+                    </span>
+
+                    <FavouriteButton
+                      on={pinned}
+                      onClick={() => app.toggleCmdFavourite(key)}
+                      title={pinned ? t.removeFavCmd : t.addFavCmd}
+                    />
+
+                    <button
+                      type="button"
+                      className={on ? "h-danger" : "h-ghost"}
+                      onClick={() => void app.toggleCommand(selected!, c)}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        border: `1px solid ${on ? "rgba(var(--danrgb),.45)" : "rgba(var(--wrgb),.12)"}`,
+                        borderRadius: 9,
+                        background: on ? "rgba(var(--danrgb),.14)" : "rgba(var(--wrgb),.04)",
+                        color: on ? "var(--danTx2)" : "rgba(var(--trgb),.85)",
+                        padding: "6px 11px",
+                        cursor: "pointer",
+                        fontSize: 11.5,
+                        fontWeight: 600,
+                        flex: "0 0 auto",
+                      }}
+                    >
+                      {on ? <Stop size={8} /> : <Play size={9} />}
+                      {on ? t.stop : t.run}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
         </div>
 
         <div

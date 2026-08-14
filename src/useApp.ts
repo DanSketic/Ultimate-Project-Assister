@@ -378,8 +378,20 @@ export function useApp() {
         const result = await api.scanProjects();
         setProjects(result.projects);
         setElapsedMs(result.elapsedMs);
+        // Drop back to the remembered selection rather than to this session's
+        // in-memory copy of it.
         setPicked(null);
         rebindSavedData(result.projects);
+
+        // A remembered selection outlives a rescan on purpose, but not the
+        // project it belongs to. Keys read `<project id>|<category>|<path>`,
+        // so once a project is gone its keys are dead weight.
+        const live = new Set(result.projects.map((p) => p.id));
+        const remembered = active.cleanPicked;
+        if (remembered) {
+          const kept = remembered.filter((key) => live.has(key.split("|")[0] ?? ""));
+          if (kept.length !== remembered.length) patchSettings({ cleanPicked: kept });
+        }
         const d = dict(active.lang);
         flash(
           `${d.rescanToast} ${result.projects.length} ${d.rescanIn} · ${(result.elapsedMs / 1000).toFixed(1)} s`,
@@ -391,7 +403,7 @@ export function useApp() {
         setScanNote("");
       }
     },
-    [settings, flash],
+    [settings, flash, patchSettings],
   );
 
   // --- derived data -------------------------------------------------------
@@ -422,11 +434,26 @@ export function useApp() {
   );
 
   /**
-   * Selection defaults to everything older than the configured threshold, minus
-   * whatever the exclusion rules protect.
+   * What is ticked in the cleaner.
+   *
+   * The selection the user last left is restored, including keys whose
+   * directory is currently absent - a `target/` that was cleaned and has since
+   * built up again comes back already ticked, which is the whole point of
+   * remembering it. Only when there is nothing remembered at all does this fall
+   * back to the age-and-rules default.
    */
   const pickedSet = useMemo(() => {
     if (picked) return picked;
+
+    // Null, not empty: clearing the selection is itself a choice, and must not
+    // be read as "never chosen" and overwritten by the age default.
+    const saved = settings?.cleanPicked;
+    if (saved) {
+      const restored: Record<string, boolean> = {};
+      for (const key of saved) restored[key] = true;
+      return restored;
+    }
+
     const auto: Record<string, boolean> = {};
     const threshold = settings?.ageDays ?? 30;
     const rules = settings?.rules ?? [];
@@ -434,7 +461,7 @@ export function useApp() {
       if (row.ageDays >= threshold && !isExcluded(row, rules)) auto[row.key] = true;
     }
     return auto;
-  }, [picked, allCleanRows, settings?.ageDays, settings?.rules]);
+  }, [picked, allCleanRows, settings?.ageDays, settings?.rules, settings?.cleanPicked]);
 
   const selectedRows = useMemo(
     () => allCleanRows.filter((r) => pickedSet[r.key]),
@@ -474,16 +501,41 @@ export function useApp() {
     [favourites, patchSettings],
   );
 
+  /** Pinned commands, keyed the same way a running command is: id|cwd|cmd. */
+  const cmdFavourites = useMemo(
+    () => new Set(settings?.cmdFavourites ?? []),
+    [settings?.cmdFavourites],
+  );
+
+  const toggleCmdFavourite = useCallback(
+    (key: string) => {
+      const next = new Set(cmdFavourites);
+      if (!next.delete(key)) next.add(key);
+      patchSettings({ cmdFavourites: [...next] });
+    },
+    [cmdFavourites, patchSettings],
+  );
+
   const toggleMax = useCallback(async () => {
     setMaxed(await api.toggleMaximizeWindow());
   }, []);
 
-  const toggleClean = useCallback((key: string) => {
-    setPicked((prev) => {
-      const base = prev ?? pickedSet;
-      return { ...base, [key]: !base[key] };
-    });
-  }, [pickedSet]);
+  /**
+   * Records the selection so the next session opens with it. Only the ticked
+   * keys are stored; an unticked one is simply absent.
+   */
+  const commitPicked = useCallback(
+    (next: Record<string, boolean>) => {
+      setPicked(next);
+      patchSettings({ cleanPicked: Object.keys(next).filter((key) => next[key]) });
+    },
+    [patchSettings],
+  );
+
+  const toggleClean = useCallback(
+    (key: string) => commitPicked({ ...pickedSet, [key]: !pickedSet[key] }),
+    [pickedSet, commitPicked],
+  );
 
   /**
    * Ticks or unticks the rows currently on screen. Rows hidden by a filter are
@@ -492,13 +544,11 @@ export function useApp() {
    */
   const setCleanSelection = useCallback(
     (rows: { key: string }[], on: boolean) => {
-      setPicked((prev) => {
-        const next = { ...(prev ?? pickedSet) };
-        for (const r of rows) next[r.key] = on;
-        return next;
-      });
+      const next = { ...pickedSet };
+      for (const r of rows) next[r.key] = on;
+      commitPicked(next);
     },
-    [pickedSet],
+    [pickedSet, commitPicked],
   );
 
   const doClean = useCallback(async () => {
@@ -511,7 +561,11 @@ export function useApp() {
       const report = await api.deleteTargets(keys);
       const fresh = await api.cachedProjects();
       setProjects(fresh);
-      setPicked({});
+      // The selection is deliberately left alone. The rows just removed are no
+      // longer in `allCleanRows`, so nothing shows as selected - but the keys
+      // stay remembered, and a directory that builds up again comes back
+      // already ticked. A row whose deletion failed also stays ticked, which
+      // is right: it still needs cleaning.
 
       // The backend owns the "freed today" counter; read it back rather than
       // recomputing it here. In browser mode there is no backend to ask.
@@ -740,6 +794,8 @@ export function useApp() {
     setCmdSel,
     running,
     toggleCommand,
+    cmdFavourites,
+    toggleCmdFavourite,
     log,
     clearLog: () => setLog([]),
     // chrome

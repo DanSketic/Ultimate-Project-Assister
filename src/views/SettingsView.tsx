@@ -271,6 +271,7 @@ export function SettingsView({ app }: { app: App }) {
                 <button
                   key={code}
                   type="button"
+                  className="h-seg"
                   onClick={() => app.patchSettings({ lang: code })}
                   style={{
                     border: 0,

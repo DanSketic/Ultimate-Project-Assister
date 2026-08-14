@@ -9,15 +9,38 @@ use std::path::Path;
 
 use crate::model::CommandDef;
 
+/// The handful of commands that start, build or check a project. They lead
+/// their group in the list; everything else is housekeeping around them.
+///
+/// Matched whole, not by prefix: `test` is a headline command, `test:e2e` is a
+/// variant of it, and promoting both would leave nothing to promote.
+const PRIMARY: &[&str] = &[
+    "dev",
+    "dev run",
+    "start",
+    "serve",
+    "server",
+    "run",
+    "runserver",
+    "build",
+    "release build",
+    "test",
+    "tests",
+    "stack up",
+];
+
 /// `cwd` and `part` are filled in by the scanner, which knows where this
-/// package sits inside the project.
-fn def(kind: &str, name: &str, cmd: &str) -> CommandDef {
+/// package sits inside the project. `source` is the manifest the command was
+/// read out of, which is what the list groups by.
+fn def(kind: &str, source: &str, name: &str, cmd: &str) -> CommandDef {
     CommandDef {
         kind: kind.into(),
         name: name.into(),
         cmd: cmd.into(),
         cwd: String::new(),
         part: String::new(),
+        source: source.into(),
+        primary: PRIMARY.contains(&name),
     }
 }
 
@@ -60,17 +83,17 @@ fn node_scripts(root: &Path) -> Vec<CommandDef> {
         .into_iter()
         .map(|name| {
             let cmd = format!("{pm} run {name}");
-            def("npm", &name, &cmd)
+            def("npm", "package.json", &name, &cmd)
         })
         .collect()
 }
 
 /// Reads plain `target:` rules out of a Makefile, skipping the meta ones.
 fn make_targets(root: &Path) -> Vec<CommandDef> {
-    let raw = ["Makefile", "makefile", "GNUmakefile"]
+    let found = ["Makefile", "makefile", "GNUmakefile"]
         .iter()
-        .find_map(|n| fs::read_to_string(root.join(n)).ok());
-    let Some(raw) = raw else { return Vec::new() };
+        .find_map(|n| fs::read_to_string(root.join(n)).ok().map(|raw| (*n, raw)));
+    let Some((file, raw)) = found else { return Vec::new() };
 
     let mut out = Vec::new();
     for line in raw.lines() {
@@ -90,7 +113,7 @@ fn make_targets(root: &Path) -> Vec<CommandDef> {
         {
             continue;
         }
-        out.push(def("make", target, &format!("make {target}")));
+        out.push(def("make", file, target, &format!("make {target}")));
         // Makefile rules are recognised heuristically, unlike package.json
         // scripts, so this one keeps a bound.
         if out.len() == MAX_MAKE_TARGETS {
@@ -112,65 +135,79 @@ pub fn detect(root: &Path, stack: &str, manifests: &[String]) -> Vec<CommandDef>
 
     match stack {
         "Rust" => {
-            out.push(def("cargo", "dev run", "cargo run"));
-            out.push(def("cargo", "release build", "cargo build --release"));
-            out.push(def("cargo", "test", "cargo test --all"));
-            out.push(def("cargo", "clippy", "cargo clippy -- -D warnings"));
+            let src = "Cargo.toml";
+            out.push(def("cargo", src, "dev run", "cargo run"));
+            out.push(def("cargo", src, "release build", "cargo build --release"));
+            out.push(def("cargo", src, "test", "cargo test --all"));
+            out.push(def("cargo", src, "clippy", "cargo clippy -- -D warnings"));
         }
         "TypeScript" | "Node" | "Astro" => {
             out.extend(node_scripts(root));
         }
         "Python" => {
-            if has_dep(root, "pyproject.toml", "fastapi") || root.join("app.py").exists() {
-                out.push(def("py", "serve", "uvicorn app:api --reload"));
+            // Each of these is offered because a particular file is on disk, so
+            // that file is what the command is filed under.
+            if has_dep(root, "pyproject.toml", "fastapi") {
+                out.push(def("py", "pyproject.toml", "serve", "uvicorn app:api --reload"));
+            } else if root.join("app.py").exists() {
+                out.push(def("py", "app.py", "serve", "uvicorn app:api --reload"));
             }
             if root.join("manage.py").exists() {
-                out.push(def("py", "runserver", "python manage.py runserver"));
+                out.push(def("py", "manage.py", "runserver", "python manage.py runserver"));
             }
-            if root.join("tests").is_dir() || has_dep(root, "pyproject.toml", "pytest") {
-                out.push(def("py", "tests", "pytest -q"));
+            if has_dep(root, "pyproject.toml", "pytest") {
+                out.push(def("py", "pyproject.toml", "tests", "pytest -q"));
+            } else if root.join("tests").is_dir() {
+                out.push(def("py", "tests/", "tests", "pytest -q"));
             }
             if root.join("main.py").exists() {
-                out.push(def("py", "run", "python main.py"));
+                out.push(def("py", "main.py", "run", "python main.py"));
             }
         }
         "Go" => {
-            out.push(def("make", "run", "go run ./..."));
-            out.push(def("make", "build", "go build ./..."));
-            out.push(def("make", "test", "go test ./..."));
+            let src = "go.mod";
+            out.push(def("make", src, "run", "go run ./..."));
+            out.push(def("make", src, "build", "go build ./..."));
+            out.push(def("make", src, "test", "go test ./..."));
         }
         "Dart" => {
-            out.push(def("make", "run", "flutter run"));
-            out.push(def("make", "build apk", "flutter build apk"));
-            out.push(def("make", "test", "flutter test"));
+            let src = "pubspec.yaml";
+            out.push(def("make", src, "run", "flutter run"));
+            out.push(def("make", src, "build apk", "flutter build apk"));
+            out.push(def("make", src, "test", "flutter test"));
         }
         "PHP" => {
-            out.push(def("make", "serve", "php -S localhost:8000 -t public"));
-            out.push(def("make", "install", "composer install"));
+            let src = "composer.json";
+            out.push(def("make", src, "serve", "php -S localhost:8000 -t public"));
+            out.push(def("make", src, "install", "composer install"));
         }
         "Elixir" => {
+            let src = "mix.exs";
             if has_dep(root, "mix.exs", "phoenix") {
-                out.push(def("make", "server", "mix phx.server"));
+                out.push(def("make", src, "server", "mix phx.server"));
             }
-            out.push(def("make", "test", "mix test"));
-            out.push(def("make", "deps", "mix deps.get"));
+            out.push(def("make", src, "test", "mix test"));
+            out.push(def("make", src, "deps", "mix deps.get"));
         }
         "C++" => {
-            out.push(def("make", "configure", "cmake -B build"));
-            out.push(def("make", "build", "cmake --build build"));
+            let src = "CMakeLists.txt";
+            out.push(def("make", src, "configure", "cmake -B build"));
+            out.push(def("make", src, "build", "cmake --build build"));
         }
         "Java" => {
             if has("build.gradle") || has("build.gradle.kts") {
-                out.push(def("make", "build", "gradle build"));
-                out.push(def("make", "test", "gradle test"));
+                let src = if has("build.gradle") { "build.gradle" } else { "build.gradle.kts" };
+                out.push(def("make", src, "build", "gradle build"));
+                out.push(def("make", src, "test", "gradle test"));
             } else {
-                out.push(def("make", "build", "mvn package"));
-                out.push(def("make", "test", "mvn test"));
+                out.push(def("make", "pom.xml", "build", "mvn package"));
+                out.push(def("make", "pom.xml", "test", "mvn test"));
             }
         }
         "Ruby" => {
-            out.push(def("make", "install", "bundle install"));
-            out.push(def("make", "test", "bundle exec rake test"));
+            let src = "Gemfile";
+            out.push(def("make", src, "install", "bundle install"));
+            out.push(def("make", src, "test", "bundle exec rake test"));
         }
         _ => {}
     }
@@ -185,12 +222,13 @@ pub fn detect(root: &Path, stack: &str, manifests: &[String]) -> Vec<CommandDef>
     }
 
     // A compose file means the project has services to bring up.
-    if has("docker-compose.yml") || has("docker-compose.yaml") {
-        out.push(def("docker", "stack up", "docker compose up"));
-        out.push(def("docker", "stack down", "docker compose down -v"));
+    let compose = ["docker-compose.yml", "docker-compose.yaml"].into_iter().find(|f| has(f));
+    if let Some(src) = compose {
+        out.push(def("docker", src, "stack up", "docker compose up"));
+        out.push(def("docker", src, "stack down", "docker compose down -v"));
     }
     if stack == "Docker" {
-        out.push(def("docker", "prune", "docker system prune -f"));
+        out.push(def("docker", "Dockerfile", "prune", "docker system prune -f"));
     }
 
     out
@@ -230,6 +268,56 @@ mod tests {
         }
         // The ones reached for most often still come first.
         assert_eq!(names[0], "dev");
+    }
+
+    #[test]
+    fn each_command_says_which_file_it_came_from() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        project_with_scripts(root, r#"{"dev":"vite"}"#);
+        fs::write(root.join("Makefile"), "deploy:\n\t./ship.sh\n").unwrap();
+        fs::write(root.join("docker-compose.yml"), "services:\n").unwrap();
+
+        let manifests = ["package.json", "Makefile", "docker-compose.yml"].map(String::from);
+        let found = detect(root, "Node", &manifests);
+
+        let source_of = |name: &str| {
+            found.iter().find(|c| c.name == name).map(|c| c.source.as_str()).unwrap_or("<missing>")
+        };
+        assert_eq!(source_of("dev"), "package.json");
+        assert_eq!(source_of("deploy"), "Makefile");
+        assert_eq!(source_of("stack up"), "docker-compose.yml");
+        assert!(found.iter().all(|c| !c.source.is_empty()), "every command needs a source");
+    }
+
+    #[test]
+    fn the_headline_operations_are_marked() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        project_with_scripts(
+            root,
+            r#"{"dev":"vite","build":"vite build","test":"vitest",
+                "lint":"eslint .","test:e2e":"playwright test","format":"prettier -w ."}"#,
+        );
+
+        let found = detect(root, "Node", &["package.json".to_string()]);
+        let primary: Vec<&str> =
+            found.iter().filter(|c| c.primary).map(|c| c.name.as_str()).collect();
+
+        assert_eq!(primary, ["dev", "build", "test"]);
+        // A variant of a headline command is not itself one, or promoting
+        // things would leave nothing promoted.
+        assert!(!found.iter().find(|c| c.name == "test:e2e").unwrap().primary);
+    }
+
+    #[test]
+    fn cargo_headlines_are_marked_too() {
+        let found = detect(tempfile::tempdir().unwrap().path(), "Rust", &["Cargo.toml".to_string()]);
+        let primary: Vec<&str> =
+            found.iter().filter(|c| c.primary).map(|c| c.name.as_str()).collect();
+
+        assert_eq!(primary, ["dev run", "release build", "test"]);
+        assert!(found.iter().all(|c| c.source == "Cargo.toml"));
     }
 
     #[test]

@@ -138,97 +138,153 @@ textarea {
 }
 
 /* ------------------------------------------------------------------ */
-/* Hover and focus states. The design expressed these as `style-hover`  */
+/* Pointer feedback. The design expressed these as `style-hover`        */
 /* attributes; in React they live here as classes.                      */
+/*                                                                      */
+/* The tint is an inset box-shadow rather than a `background`, because   */
+/* nearly every control here sets its own background inline and an       */
+/* inline style beats any class rule - a `background` on :hover simply   */
+/* never applied, which is why so much of the interface used to look     */
+/* dead under the pointer. An inset shadow paints over whatever          */
+/* background is already there, keeps a selected row looking selected,   */
+/* and needs no `!important` because nothing sets box-shadow inline.     */
 /* ------------------------------------------------------------------ */
 
-.h-ghost:hover {
-  background: rgba(var(--wrgb), 0.07);
+.h-ghost,
+.h-nav,
+.h-nav-toggle,
+.h-row,
+.h-soft,
+.h-soft-3,
+.h-seg,
+.h-accent,
+.h-accent-soft,
+.h-accent-strong,
+.h-danger,
+.h-addfeat,
+.h-addgoal,
+.h-rule-x,
+.h-folder-x,
+.h-close,
+.h-link,
+.h-fade,
+.h-fade-4 {
+  transition: box-shadow 110ms, color 110ms, border-color 110ms, opacity 110ms;
+}
+
+/* --- neutral surfaces --- */
+.h-ghost:hover,
+.h-nav:hover,
+.h-nav-toggle:hover,
+.h-row:hover,
+.h-soft:hover,
+.h-seg:hover {
+  box-shadow: inset 0 0 0 999px rgba(var(--wrgb), 0.06);
+}
+.h-soft-3:hover {
+  box-shadow: inset 0 0 0 999px rgba(var(--wrgb), 0.035);
+}
+.h-ghost:active,
+.h-nav:active,
+.h-nav-toggle:active,
+.h-row:active,
+.h-soft:active,
+.h-soft-3:active,
+.h-seg:active {
+  box-shadow: inset 0 0 0 999px rgba(var(--wrgb), 0.14);
+}
+
+.h-ghost:hover,
+.h-nav-toggle:hover,
+.h-seg:hover {
   color: var(--t0);
-}
-
-.h-close:hover {
-  background: #ff5f52;
-  color: #fff;
-}
-
-.h-nav:hover {
-  background: rgba(var(--wrgb), 0.05);
-}
-
-.h-nav-toggle:hover {
-  background: rgba(var(--wrgb), 0.05);
-  color: var(--t0);
-}
-
-.h-accent:hover {
-  background: rgba(var(--accrgb), 0.12);
-  border-color: rgba(var(--accrgb), 0.4);
-  color: var(--accTx);
 }
 
 .h-row:hover {
-  background: rgba(var(--wrgb), 0.04);
   border-color: rgba(var(--wrgb), 0.07) !important;
 }
 
-.h-soft:hover {
-  background: rgba(var(--wrgb), 0.05);
+/* --- accented surfaces --- */
+.h-accent:hover,
+.h-accent-soft:hover,
+.h-accent-strong:hover,
+.h-addfeat:hover,
+.h-addgoal:hover {
+  box-shadow: inset 0 0 0 999px rgba(var(--accrgb), 0.11);
+  color: var(--accTx);
+}
+.h-accent:active,
+.h-accent-soft:active,
+.h-accent-strong:active,
+.h-addfeat:active,
+.h-addgoal:active {
+  box-shadow: inset 0 0 0 999px rgba(var(--accrgb), 0.22);
+}
+.h-accent:hover,
+.h-addgoal:hover {
+  border-color: rgba(var(--accrgb), 0.45) !important;
 }
 
-.h-soft-3:hover {
-  background: rgba(var(--wrgb), 0.03);
+/* --- destructive surfaces --- */
+.h-danger:hover,
+.h-rule-x:hover {
+  box-shadow: inset 0 0 0 999px rgba(var(--danrgb), 0.16);
+  color: var(--danTx);
+}
+.h-danger:active,
+.h-rule-x:active {
+  box-shadow: inset 0 0 0 999px rgba(var(--danrgb), 0.3);
+}
+.h-folder-x:hover {
+  border-color: rgba(var(--danrgb), 0.5) !important;
+  color: var(--danTx);
+}
+.h-folder-x:active {
+  box-shadow: inset 0 0 0 999px rgba(var(--danrgb), 0.16);
 }
 
-.h-accent-soft:hover {
-  background: rgba(var(--accrgb), 0.24) !important;
+/* The window close button is the one control that goes fully red. */
+.h-close:hover {
+  background: #ff5f52 !important;
+  color: #fff;
+}
+.h-close:active {
+  background: #d94336 !important;
+  color: #fff;
 }
 
-.h-accent-strong:hover {
-  background: rgba(var(--accrgb), 0.26) !important;
-}
-
-.h-danger:hover {
-  background: rgba(var(--danrgb), 0.3) !important;
-}
-
+/* --- text-only controls, which have no surface to tint --- */
 .h-link:hover {
   color: var(--accTx);
 }
-
-.h-addfeat:hover {
-  background: rgba(var(--accrgb), 0.08);
-  color: var(--accTx);
-}
-
-.h-addgoal:hover {
-  background: rgba(var(--accrgb), 0.07);
-  border-color: rgba(var(--accrgb), 0.45);
-  color: var(--accTx);
+.h-link:active {
+  opacity: 0.65;
 }
 
 .h-fade {
   opacity: 0.35;
 }
-.h-fade:hover {
-  opacity: 1;
-}
-
 .h-fade-4 {
   opacity: 0.4;
 }
+.h-fade:hover,
 .h-fade-4:hover {
   opacity: 1;
 }
-
-.h-rule-x:hover {
-  color: var(--danTx);
-  background: rgba(var(--danrgb), 0.12);
+.h-fade:active,
+.h-fade-4:active {
+  opacity: 1;
+  box-shadow: inset 0 0 0 999px rgba(var(--wrgb), 0.12);
 }
 
-.h-folder-x:hover {
-  border-color: rgba(var(--danrgb), 0.5) !important;
-  color: var(--danTx);
+/* A control that cannot act must not answer as though it can. */
+button:disabled {
+  cursor: default;
+}
+button:disabled:hover,
+button:disabled:active {
+  box-shadow: none;
+  opacity: inherit;
 }
 
 .field:focus-within {
