@@ -149,9 +149,18 @@ export async function freePort(port: number): Promise<string> {
   return call<string>("free_port", { port });
 }
 
-export async function runCommand(projectId: string, cmd: string, cwd = ""): Promise<void> {
-  if (!IS_TAURI) return mock.runCommand(projectId, cmd, cwd);
-  await call<void>("run_command", { projectId, cmd, cwd });
+/**
+ * Starts a command. `port` moves it to another one — the backend rewrites the
+ * line, so the command stays filed under what the user actually pressed.
+ */
+export async function runCommand(
+  projectId: string,
+  cmd: string,
+  cwd = "",
+  port?: number,
+): Promise<void> {
+  if (!IS_TAURI) return mock.runCommand(projectId, cmd, cwd, port);
+  await call<void>("run_command", { projectId, cmd, cwd, port: port ?? null });
 }
 
 export async function stopCommand(projectId: string, cmd: string, cwd = ""): Promise<void> {

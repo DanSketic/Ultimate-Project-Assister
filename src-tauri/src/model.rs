@@ -294,6 +294,11 @@ pub struct PortConflict {
     pub holder: Option<PortUser>,
     /// Set when the holder is something else, named from the OS process table.
     pub process: Option<PortProcess>,
+    /// A free port next door, and the command rewritten to ask for it. Zero and
+    /// empty when the port is not the command's to choose - a compose stack
+    /// publishes what its file says.
+    pub suggested_port: u16,
+    pub suggested_cmd: String,
 }
 
 /// A toolchain a project needs, and whether this machine has it.

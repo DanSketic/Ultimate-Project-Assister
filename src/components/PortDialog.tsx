@@ -20,6 +20,7 @@ export function PortDialog({ app }: { app: App }) {
   // nothing to offer.
   const canResolve = !!holder || !!process?.killable;
   const foreign = !holder && !!process;
+  const canMove = conflict.suggestedPort > 0 && !!conflict.suggestedCmd;
 
   return (
     <div
@@ -102,6 +103,36 @@ export function PortDialog({ app }: { app: App }) {
           <Row label={t.portWaiting} value={`${project.name} · ${command.cmd}`} />
         </div>
 
+        {/* The way out that takes nothing away from anyone: run it next door.
+            The rewritten line is shown, because the app is guessing at how this
+            command accepts a port and the user can see whether it guessed. */}
+        {canMove && (
+          <div
+            style={{
+              borderRadius: 11,
+              border: "1px solid rgba(var(--accrgb),.3)",
+              background: "rgba(var(--accrgb),.07)",
+              padding: "11px 13px",
+              marginBottom: 16,
+            }}
+          >
+            <div style={{ fontSize: 11.5, color: "rgba(var(--trgb),.75)", marginBottom: 6 }}>
+              {t.portMoveHint} <strong>:{conflict.suggestedPort}</strong>
+            </div>
+            <code
+              style={{
+                display: "block",
+                fontFamily: mono,
+                fontSize: 10.5,
+                color: "var(--accTx)",
+                wordBreak: "break-all",
+              }}
+            >
+              {conflict.suggestedCmd}
+            </code>
+          </div>
+        )}
+
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "flex-end" }}>
           <button
             type="button"
@@ -120,6 +151,27 @@ export function PortDialog({ app }: { app: App }) {
           >
             {t.portCancel}
           </button>
+
+          {/* First and default: moving aside costs nobody anything. */}
+          {canMove && (
+            <button
+              type="button"
+              className="h-accent-strong"
+              onClick={() => void app.startOnFreePort()}
+              style={{
+                border: "1px solid rgba(var(--accrgb),.5)",
+                borderRadius: 10,
+                background: "rgba(var(--accrgb),.16)",
+                color: "var(--accTx)",
+                padding: "7px 14px",
+                cursor: "pointer",
+                fontSize: 12,
+                fontWeight: 600,
+              }}
+            >
+              {t.portMove} :{conflict.suggestedPort}
+            </button>
+          )}
 
           <button
             type="button"
@@ -145,17 +197,17 @@ export function PortDialog({ app }: { app: App }) {
           {canResolve && (
             <button
               type="button"
-              className={foreign ? "h-danger" : "h-accent-strong"}
+              className={foreign ? "h-danger" : "h-ghost"}
               onClick={() => void app.resolvePortAndStart()}
               style={{
-                border: `1px solid ${foreign ? "rgba(var(--danrgb),.5)" : "rgba(var(--accrgb),.5)"}`,
+                border: `1px solid ${foreign ? "rgba(var(--danrgb),.45)" : "rgba(var(--wrgb),.12)"}`,
                 borderRadius: 10,
-                background: foreign ? "rgba(var(--danrgb),.16)" : "rgba(var(--accrgb),.16)",
-                color: foreign ? "var(--danTx2)" : "var(--accTx)",
+                background: foreign ? "rgba(var(--danrgb),.12)" : "rgba(var(--wrgb),.04)",
+                color: foreign ? "var(--danTx2)" : "rgba(var(--trgb),.8)",
                 padding: "7px 14px",
                 cursor: "pointer",
                 fontSize: 12,
-                fontWeight: 600,
+                fontWeight: foreign ? 600 : 500,
               }}
             >
               {foreign ? `${t.portKill} ${process?.name}` : t.portResolve}

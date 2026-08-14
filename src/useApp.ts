@@ -742,12 +742,12 @@ export function useApp() {
     setLogs((prev) => (logTab && prev[logTab] ? { ...prev, [logTab]: [] } : {}));
   }, [logTab]);
 
-  /** Starts a command for real, with no further questions. */
+  /** Starts a command for real, optionally moved to another port. */
   const startCommand = useCallback(
-    async (project: Project, command: CommandDef) => {
+    async (project: Project, command: CommandDef, port?: number) => {
       const key = cmdKey(project.id, command);
       try {
-        await api.runCommand(project.id, command.cmd, command.cwd);
+        await api.runCommand(project.id, command.cmd, command.cwd, port);
         setRunning((prev) => new Set(prev).add(key));
         setLogTab(key);
       } catch (e) {
@@ -848,6 +848,18 @@ export function useApp() {
     setPortAsk(null);
     await startCommand(ask.project, ask.command);
   }, [portAsk, startCommand]);
+
+  /**
+   * Runs the command on the free port next door instead, leaving whatever holds
+   * the wanted one alone. Usually the answer nobody has to think about.
+   */
+  const startOnFreePort = useCallback(async () => {
+    const ask = portAsk;
+    if (!ask?.conflict.suggestedPort) return;
+    setPortAsk(null);
+    await startCommand(ask.project, ask.command, ask.conflict.suggestedPort);
+    flash(`${ask.command.name} → :${ask.conflict.suggestedPort}`);
+  }, [portAsk, startCommand, flash]);
 
   // --- goals --------------------------------------------------------------
   const addGoal = useCallback(
@@ -1047,6 +1059,7 @@ export function useApp() {
     dismissPortAsk: () => setPortAsk(null),
     resolvePortAndStart,
     startAnyway,
+    startOnFreePort,
     clearLog,
     // chrome
     toast,

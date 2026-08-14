@@ -12,6 +12,25 @@ are assigned when a release is cut — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Added
 
+- **A busy port can be stepped around instead of fought over.** The first thing
+  the dialog now offers is running the command on the free port next door — the
+  wanted port stays with whoever has it, and nothing is stopped. The rewritten
+  command line is shown before it runs, because the app is inferring how that
+  particular command accepts a port and you should be able to see whether it
+  inferred correctly.
+
+  The rewrite handles the forms these commands actually take: `npm run dev`
+  gets the `--` separator npm insists on, the other package managers do not,
+  Django takes a bare address, `php -S` carries its port inside the address, and
+  a port already on the line is replaced rather than a second one appended.
+  `PORT` and its variants are exported too, for servers that read the
+  environment rather than a flag. A compose stack is never quietly moved: its
+  published ports are in its file, and rewriting the command would be claiming
+  something untrue.
+
+  The command stays filed under what you pressed, so the row still shows as the
+  one running, and its log echoes the line that actually ran.
+
 - **A port conflict can now actually be resolved.** Warning about a port and
   then offering nothing but *cancel* was not much better than the error it
   replaced. When the holder is a process this app did not start, it is named —

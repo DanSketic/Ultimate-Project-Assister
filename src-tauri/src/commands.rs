@@ -350,7 +350,7 @@ pub fn install_tool(
 
     state
         .runner
-        .start(&app, TOOLS_KEY, "tools", &dir, "", &command)
+        .start(&app, TOOLS_KEY, "tools", &dir, "", &command, &command, None)
         .map(|()| command)
 }
 
@@ -434,7 +434,7 @@ pub async fn check_port(
         })
     });
 
-    let taken = tauri::async_runtime::spawn_blocking(move || ports::conflict_for(port, holder))
+    let taken = tauri::async_runtime::spawn_blocking(move || ports::conflict_for(port, &cmd, holder))
         .await
         .map_err(|e| e.to_string())?;
 
@@ -453,6 +453,11 @@ pub async fn free_port(port: u16) -> Result<String, String> {
         .map_err(|e| e.to_string())?
 }
 
+/// Starts a command, optionally moved to another port.
+///
+/// The rewrite happens here rather than in the frontend, so the key the command
+/// is filed under stays the one the user pressed while the line that actually
+/// runs carries the new port.
 #[tauri::command]
 pub fn run_command(
     app: AppHandle,
@@ -460,13 +465,19 @@ pub fn run_command(
     project_id: String,
     cmd: String,
     cwd: Option<String>,
+    port: Option<u16>,
 ) -> Result<(), String> {
     let project = state.project_by_id(&project_id).ok_or("unknown project")?;
     let rel = cwd.unwrap_or_default();
     let dir = work_dir(&project.path, &rel)?;
+
+    let line = port
+        .and_then(|p| ports::with_port(&cmd, p))
+        .unwrap_or_else(|| cmd.clone());
+
     state
         .runner
-        .start(&app, &project.id, &project.name, &dir, &rel, &cmd)
+        .start(&app, &project.id, &project.name, &dir, &rel, &cmd, &line, port)
 }
 
 #[tauri::command]

@@ -198,6 +198,109 @@ pub fn is_taken(port: u16) -> bool {
     false
 }
 
+/// The first free port at or above `wanted`, searched over a small window.
+///
+/// Adjacent rather than random: 5174 next to 5173 is recognisable as "the same
+/// dev server, moved", where a port plucked out of the ephemeral range is not.
+pub fn free_near(wanted: u16) -> Option<u16> {
+    (wanted.saturating_add(1)..=wanted.saturating_add(64)).find(|p| *p >= MIN_PORT && !is_taken(*p))
+}
+
+/// Rewrites a command so it asks for a different port.
+///
+/// Returns `None` when the port is not the command's to choose - a compose
+/// stack publishes what its file says, and quietly rewriting that would be
+/// lying about what is running.
+pub fn with_port(cmd: &str, port: u16) -> Option<String> {
+    if cmd.contains("compose up") || cmd.contains("compose down") {
+        return None;
+    }
+
+    // An explicit port already on the line is replaced in place, whatever form
+    // it took, so a command never ends up carrying two different ports.
+    if port_in_command(cmd).is_some() {
+        return Some(replace_port(cmd, port));
+    }
+
+    // `php -S localhost:8000` carries its port inside the address.
+    if cmd.contains("php -S") {
+        return Some(rewrite_host_port(cmd, port));
+    }
+
+    // Django takes a bare address, not a flag.
+    if cmd.contains("manage.py runserver") {
+        return Some(format!("{cmd} {port}"));
+    }
+    // Rails and a few others spell it `-p`.
+    if cmd.contains("rails s") {
+        return Some(format!("{cmd} -p {port}"));
+    }
+
+    // npm insists on `--` before arguments meant for the script itself. The
+    // other package managers forward them either way.
+    if cmd.starts_with("npm run ") {
+        return Some(format!("{cmd} -- --port {port}"));
+    }
+    if cmd.starts_with("pnpm run ")
+        || cmd.starts_with("yarn ")
+        || cmd.starts_with("bun run ")
+        || cmd.starts_with("vite")
+        || cmd.contains("next dev")
+        || cmd.contains("nuxt dev")
+        || cmd.contains("astro dev")
+        || cmd.contains("ng serve")
+        || cmd.contains("uvicorn")
+        || cmd.contains("flask run")
+    {
+        return Some(format!("{cmd} --port {port}"));
+    }
+
+    // Anything else: the environment variable is the only lever we have, and
+    // the runner sets it regardless. Saying so beats appending a flag the
+    // command would reject.
+    None
+}
+
+/// Swaps the number in whichever port token the line already carries.
+fn replace_port(cmd: &str, port: u16) -> String {
+    let mut out: Vec<String> = Vec::new();
+    let mut replace_next = false;
+
+    for token in cmd.split_whitespace() {
+        if replace_next {
+            replace_next = false;
+            out.push(port.to_string());
+            continue;
+        }
+        let swapped = ["--port=", "-p=", "PORT="]
+            .iter()
+            .find_map(|prefix| token.strip_prefix(prefix).map(|_| format!("{prefix}{port}")));
+        match swapped {
+            Some(t) => out.push(t),
+            None => {
+                if token == "--port" || token == "-p" {
+                    replace_next = true;
+                }
+                out.push(token.to_string());
+            }
+        }
+    }
+    out.join(" ")
+}
+
+/// `php -S localhost:8000 -t public` -> the same with a new port.
+fn rewrite_host_port(cmd: &str, port: u16) -> String {
+    cmd.split_whitespace()
+        .map(|token| match token.rsplit_once(':') {
+            Some((host, tail)) if tail.chars().all(|c| c.is_ascii_digit()) && !tail.is_empty() => {
+                format!("{host}:{port}")
+            }
+            _ => token.to_string(),
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 /// Processes that must never be killed to free a port, whatever they are
 /// listening on. Some of these genuinely do hold ports, and ending one takes
 /// the session or the machine with it.
@@ -323,10 +426,24 @@ fn kill_tree(pid: u32) -> Result<(), String> {
 /// Who holds a port. A command this app started is identified exactly, by its
 /// own bookkeeping; anything else is looked up in the OS tables so it can be
 /// named and, if it is safe to, offered up for stopping.
-pub fn conflict_for(port: u16, mine: Option<PortUser>) -> PortConflict {
+pub fn conflict_for(port: u16, cmd: &str, mine: Option<PortUser>) -> PortConflict {
     let taken = is_taken(port);
-    let process = if taken && mine.is_none() { holder_process(port) } else { None };
-    PortConflict { port, taken, holder: mine, process }
+    if !taken {
+        return PortConflict { port, taken, ..Default::default() };
+    }
+
+    let process = if mine.is_none() { holder_process(port) } else { None };
+    // Moving aside is usually the answer nobody has to think about: it takes
+    // nothing away from whoever already has the port.
+    let (suggested_port, suggested_cmd) = match free_near(port) {
+        Some(free) => match with_port(cmd, free) {
+            Some(line) => (free, line),
+            None => (0, String::new()),
+        },
+        None => (0, String::new()),
+    };
+
+    PortConflict { port, taken, holder: mine, process, suggested_port, suggested_cmd }
 }
 
 #[cfg(test)]
@@ -412,6 +529,88 @@ services:
         assert_eq!(port_for("cargo build --release", tmp.path(), &[]), None);
         assert_eq!(port_for("npm run lint", tmp.path(), &["package.json".into()]), None);
         assert_eq!(port_for("cargo test --all", tmp.path(), &[]), None);
+    }
+
+    #[test]
+    fn a_command_can_be_moved_to_another_port() {
+        // npm needs the separator; the others forward arguments as they are.
+        assert_eq!(with_port("npm run dev", 5174).unwrap(), "npm run dev -- --port 5174");
+        assert_eq!(with_port("pnpm run dev", 5174).unwrap(), "pnpm run dev --port 5174");
+        assert_eq!(with_port("vite", 5174).unwrap(), "vite --port 5174");
+        assert_eq!(with_port("uvicorn app:api --reload", 8001).unwrap(), "uvicorn app:api --reload --port 8001");
+        // Django takes a bare address.
+        assert_eq!(
+            with_port("python manage.py runserver", 8001).unwrap(),
+            "python manage.py runserver 8001",
+        );
+    }
+
+    #[test]
+    fn an_existing_port_is_replaced_rather_than_doubled() {
+        // Otherwise the line would carry two ports and the later one would win
+        // by accident rather than by intent.
+        assert_eq!(with_port("vite --port 5173", 5174).unwrap(), "vite --port 5174");
+        assert_eq!(with_port("next dev -p 3000", 3001).unwrap(), "next dev -p 3001");
+        assert_eq!(with_port("vite --port=5173", 5174).unwrap(), "vite --port=5174");
+        assert_eq!(with_port("PORT=3000 npm start", 3001).unwrap(), "PORT=3001 npm start");
+
+        assert_eq!(port_in_command(&with_port("npm run dev -- --port 5173", 5174).unwrap()), Some(5174));
+    }
+
+    #[test]
+    fn php_carries_its_port_inside_the_address() {
+        assert_eq!(
+            with_port("php -S localhost:8000 -t public", 8001).unwrap(),
+            "php -S localhost:8001 -t public",
+        );
+    }
+
+    #[test]
+    fn a_compose_stack_is_never_quietly_moved() {
+        // The published ports are in the file; rewriting the command would be
+        // claiming something that is not true.
+        assert_eq!(with_port("docker compose up", 8081), None);
+        assert_eq!(with_port("docker compose up -d db redis", 8081), None);
+    }
+
+    #[test]
+    fn the_offered_port_is_next_door_and_actually_free() {
+        let held = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+        let port = held.local_addr().unwrap().port();
+
+        let free = free_near(port).expect("a free port near by");
+        assert!(free > port, "the search goes upward from the wanted port");
+        assert!(free <= port + 64);
+        assert!(!is_taken(free));
+    }
+
+    #[test]
+    fn a_free_port_has_nothing_to_suggest() {
+        // A fixed range below Windows' dynamic start (49152), so the sibling
+        // tests binding ephemeral ports in parallel cannot take it back between
+        // the check and the call.
+        let port = (45_000..45_100).find(|p| !is_taken(*p)).expect("a free port to test with");
+
+        let conflict = conflict_for(port, "npm run dev", None);
+
+        assert!(!conflict.taken);
+        assert_eq!(conflict.suggested_port, 0, "nothing to move aside from");
+        assert_eq!(conflict.suggested_cmd, "");
+    }
+
+    #[test]
+    fn a_taken_port_comes_back_with_somewhere_to_go() {
+        let held = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+        let port = held.local_addr().unwrap().port();
+
+        let conflict = conflict_for(port, "npm run dev", None);
+
+        assert!(conflict.taken);
+        assert!(conflict.suggested_port > port);
+        assert_eq!(
+            conflict.suggested_cmd,
+            format!("npm run dev -- --port {}", conflict.suggested_port),
+        );
     }
 
     #[test]

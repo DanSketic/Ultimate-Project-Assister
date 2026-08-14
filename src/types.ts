@@ -212,6 +212,13 @@ export interface PortConflict {
   holder: PortUser | null;
   /** Set when the holder is something else, named from the OS process table. */
   process: PortProcess | null;
+  /**
+   * A free port next door, and the command rewritten to ask for it. Zero and
+   * empty when the port is not the command's to choose — a compose stack
+   * publishes what its file says.
+   */
+  suggestedPort: number;
+  suggestedCmd: string;
 }
 
 /** A toolchain a project needs, and whether this machine has it. */

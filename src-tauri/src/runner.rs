@@ -141,6 +141,14 @@ impl Runner {
         self.procs.lock().unwrap().contains_key(key)
     }
 
+    /// Spawns a command and streams its output.
+    ///
+    /// `cmd` is what the command is filed under; `line` is what actually runs.
+    /// The two differ only when the command has been moved to another port, so
+    /// the row the user pressed still shows as the one running. `port`, when
+    /// given, is exported as `PORT` and friends for the servers that read the
+    /// environment rather than a flag.
+    #[allow(clippy::too_many_arguments)]
     pub fn start(
         &self,
         app: &AppHandle,
@@ -149,6 +157,8 @@ impl Runner {
         dir: &Path,
         rel: &str,
         cmd: &str,
+        line: &str,
+        port: Option<u16>,
     ) -> Result<(), String> {
         let key = key_of(project_id, rel, cmd);
         if self.is_running(&key) {
@@ -158,7 +168,15 @@ impl Runner {
             return Err(format!("{} no longer exists", dir.display()));
         }
 
-        let mut child = shell(cmd)
+        let mut spawn = shell(line);
+        if let Some(port) = port {
+            let value = port.to_string();
+            for key in ["PORT", "VITE_PORT", "NUXT_PORT", "SERVER_PORT"] {
+                spawn.env(key, &value);
+            }
+        }
+
+        let mut child = spawn
             .current_dir(dir)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
@@ -169,7 +187,9 @@ impl Runner {
         let pid = child.id();
         self.procs.lock().unwrap().insert(key.clone(), pid);
 
-        emit(app, &key, project, cmd, &format!("$ {cmd}  ({project})"), "cmd");
+        // The echo shows what actually ran, so a command that was moved to
+        // another port says so in its own log rather than only in a toast.
+        emit(app, &key, project, cmd, &format!("$ {line}  ({project})"), "cmd");
 
         // stdout / stderr pumps.
         if let Some(pipe) = child.stdout.take() {

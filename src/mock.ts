@@ -600,11 +600,26 @@ export function onLog(handler: (line: LogLine) => void): () => void {
 // Keyed by project *id*, exactly as `runner::key_of` does on the Rust side.
 // Keying by name here meant the running indicator and the log tabs matched
 // nothing in the browser build.
-export async function runCommand(projectId: string, cmd: string, cwd = ""): Promise<void> {
+export async function runCommand(
+  projectId: string,
+  cmd: string,
+  cwd = "",
+  port?: number,
+): Promise<void> {
   const name = projects().find((p) => p.id === projectId)?.name ?? projectId;
   const key = `${projectId}|${cwd}|${cmd}`;
   running.add(key);
-  emit(key, `$ ${cmd}  (${name}${cwd ? `/${cwd}` : ""})`, "cmd");
+  // The echo shows the line that ran, which is how a moved command says so.
+  const line = port ? mockWithPort(cmd, port) : cmd;
+  emit(key, `$ ${line}  (${name}${cwd ? `/${cwd}` : ""})`, "cmd");
+}
+
+/** Mirrors `ports::with_port` closely enough for the browser build. */
+function mockWithPort(cmd: string, port: number): string {
+  if (/--port[= ]|-p[= ]|PORT=/.test(cmd)) {
+    return cmd.replace(/((?:--port|-p)[= ]|PORT=)\d+/, `$1${port}`);
+  }
+  return cmd.startsWith("npm run ") ? `${cmd} -- --port ${port}` : `${cmd} --port ${port}`;
 }
 
 export async function stopCommand(projectId: string, cmd: string, cwd = ""): Promise<void> {
@@ -642,7 +657,7 @@ export async function checkPort(
   cwd = "",
 ): Promise<PortConflict> {
   const port = mockPortFor(cmd);
-  if (port === 0) return { port: 0, taken: false, holder: null, process: null };
+  if (port === 0) return { port: 0, taken: false, holder: null, process: null, suggestedPort: 0, suggestedCmd: "" };
 
   const mine = `${projectId}|${cwd}|${cmd}`;
   for (const key of running) {
@@ -655,6 +670,8 @@ export async function checkPort(
       taken: true,
       holder: { key, projectId: otherId, project: project?.name ?? otherId, cmd: otherCmd },
       process: null,
+      suggestedPort: port + 1,
+      suggestedCmd: mockWithPort(cmd, port + 1),
     };
   }
 
@@ -671,9 +688,11 @@ export async function checkPort(
         exe: "C:\\Users\\dansk\\AppData\\Local\\Volta\\tools\\image\\node\\24.14.1\\node.exe",
         killable: true,
       },
+      suggestedPort: port + 1,
+      suggestedCmd: mockWithPort(cmd, port + 1),
     };
   }
-  return { port, taken: false, holder: null, process: null };
+  return { port, taken: false, holder: null, process: null, suggestedPort: 0, suggestedCmd: "" };
 }
 
 export async function freePort(port: number): Promise<string> {
