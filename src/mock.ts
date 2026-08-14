@@ -642,7 +642,7 @@ export async function checkPort(
   cwd = "",
 ): Promise<PortConflict> {
   const port = mockPortFor(cmd);
-  if (port === 0) return { port: 0, taken: false, holder: null };
+  if (port === 0) return { port: 0, taken: false, holder: null, process: null };
 
   const mine = `${projectId}|${cwd}|${cmd}`;
   for (const key of running) {
@@ -654,9 +654,31 @@ export async function checkPort(
       port,
       taken: true,
       holder: { key, projectId: otherId, project: project?.name ?? otherId, cmd: otherCmd },
+      process: null,
     };
   }
-  return { port, taken: false, holder: null };
+
+  // 8080 stands in for a port held by something outside the app, so the
+  // stop-a-foreign-process path is reachable in the browser build.
+  if (port === 8080) {
+    return {
+      port,
+      taken: true,
+      holder: null,
+      process: {
+        pid: 24672,
+        name: "node.exe",
+        exe: "C:\\Users\\dansk\\AppData\\Local\\Volta\\tools\\image\\node\\24.14.1\\node.exe",
+        killable: true,
+      },
+    };
+  }
+  return { port, taken: false, holder: null, process: null };
+}
+
+export async function freePort(port: number): Promise<string> {
+  await pause(400);
+  return `node.exe (:${port})`;
 }
 
 const cleanListeners = new Set<(p: CleanProgress) => void>();

@@ -164,8 +164,9 @@ export function Sidebar({ app }: { app: App }) {
           {running.size}
         </span>,
       )}
-      {item("set", <Sliders size={16} style={{ flex: "0 0 16px" }} />, t.navSet)}
 
+      {/* Settings sits at the foot with Rescan rather than among the views:
+          both are things you do to the app, not places in it. */}
       <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
         <button
           type="button"
@@ -201,6 +202,8 @@ export function Sidebar({ app }: { app: App }) {
             </span>
           )}
         </button>
+
+        {item("set", <Sliders size={16} style={{ flex: "0 0 16px" }} />, t.navSet)}
         {navOpen && (
           <div
             style={{

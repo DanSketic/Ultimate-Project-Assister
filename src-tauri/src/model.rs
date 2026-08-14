@@ -271,6 +271,17 @@ pub struct PortUser {
     pub cmd: String,
 }
 
+/// A process outside this app that is holding a port.
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PortProcess {
+    pub pid: u32,
+    pub name: String,
+    pub exe: String,
+    /// False for a system process, which will not be stopped whatever it holds.
+    pub killable: bool,
+}
+
 /// The answer to "can this command have its port?".
 #[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -278,9 +289,11 @@ pub struct PortConflict {
     /// 0 when the command serves nothing and no check applies.
     pub port: u16,
     pub taken: bool,
-    /// Set only when the holder is a command this app started. A port held by
-    /// something else is reported as taken with no holder, rather than guessed.
+    /// Set when the holder is a command this app started - the case it can stop
+    /// cleanly, through the runner that owns it.
     pub holder: Option<PortUser>,
+    /// Set when the holder is something else, named from the OS process table.
+    pub process: Option<PortProcess>,
 }
 
 /// A toolchain a project needs, and whether this machine has it.

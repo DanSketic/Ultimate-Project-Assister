@@ -139,6 +139,16 @@ export async function checkPort(
   return call<PortConflict>("check_port", { projectId, cmd, cwd });
 }
 
+/**
+ * Ends whatever is holding a port. Only the port number crosses the boundary —
+ * the backend resolves the holder and refuses system processes, so this cannot
+ * be asked to end a process of the caller's choosing.
+ */
+export async function freePort(port: number): Promise<string> {
+  if (!IS_TAURI) return mock.freePort(port);
+  return call<string>("free_port", { port });
+}
+
 export async function runCommand(projectId: string, cmd: string, cwd = ""): Promise<void> {
   if (!IS_TAURI) return mock.runCommand(projectId, cmd, cwd);
   await call<void>("run_command", { projectId, cmd, cwd });

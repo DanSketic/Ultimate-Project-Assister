@@ -8,6 +8,33 @@ the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 Every change is recorded here as it lands, under `Unreleased`. Version numbers
 are assigned when a release is cut — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## [Unreleased]
+
+### Added
+
+- **A port conflict can now actually be resolved.** Warning about a port and
+  then offering nothing but *cancel* was not much better than the error it
+  replaced. When the holder is a process this app did not start, it is named —
+  process, PID and the executable path, which is what tells two `node.exe`
+  apart — and can be stopped from the dialog, after which the waiting command
+  starts. The port is confirmed free before that happens, rather than assumed:
+  a process can refuse to die, and reporting success while the port is still
+  held would send the command straight back into the error.
+
+  System processes are refused outright, whatever they are holding. The
+  frontend sends only a port number; the backend resolves the holder itself and
+  applies that guard, so this cannot be asked to end a process of anyone's
+  choosing.
+
+- The listening process is read from the operating system's own tables. The
+  state column is never matched on, because it is translated on a localised
+  Windows — only the local address and the trailing PID are read.
+
+### Changed
+
+- **Settings moved to the foot of the sidebar, under Rescan.** Both are things
+  you do to the app rather than places in it, so they belong together.
+
 ## [1.2.0] - 2026-08-14
 
 ### Added

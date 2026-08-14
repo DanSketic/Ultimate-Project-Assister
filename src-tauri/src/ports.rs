@@ -10,8 +10,9 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::net::{Ipv4Addr, SocketAddrV4, TcpListener};
 use std::path::Path;
+use std::process::Command;
 
-use crate::model::{PortConflict, PortUser};
+use crate::model::{PortConflict, PortProcess, PortUser};
 
 /// Ports below this are system services nothing here would start.
 const MIN_PORT: u16 = 1024;
@@ -197,17 +198,135 @@ pub fn is_taken(port: u16) -> bool {
     false
 }
 
-/// Who holds a port, as far as we can tell without elevated privileges.
-///
-/// A command this app started is identified exactly, by its own bookkeeping.
-/// Anything else is reported as an unknown holder rather than guessed at: the
-/// PID behind a socket is not readable for another user's process, and a wrong
-/// name here would be worse than none.
-pub fn conflict_for(
-    port: u16,
-    mine: Option<PortUser>,
-) -> PortConflict {
-    PortConflict { port, taken: is_taken(port), holder: mine }
+/// Processes that must never be killed to free a port, whatever they are
+/// listening on. Some of these genuinely do hold ports, and ending one takes
+/// the session or the machine with it.
+const NEVER_KILL: &[&str] = &[
+    "system", "idle", "smss", "csrss", "wininit", "winlogon", "services", "lsass",
+    "svchost", "explorer", "dwm", "fontdrvhost", "sihost", "runtimebroker",
+    "systemd", "init", "launchd", "kernel_task", "windowserver", "loginwindow",
+];
+
+/// The PID listening on a TCP port, from the operating system's own tables.
+#[cfg(windows)]
+fn listening_pid(port: u16) -> Option<u32> {
+    use std::os::windows::process::CommandExt;
+
+    let mut cmd = Command::new("netstat");
+    cmd.args(["-ano", "-p", "TCP"]);
+    cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    let out = cmd.output().ok()?;
+    let text = String::from_utf8_lossy(&out.stdout);
+
+    let needle = format!(":{port}");
+    for line in text.lines() {
+        let fields: Vec<&str> = line.split_whitespace().collect();
+        // Proto, local address, foreign address, [state], pid. The state word
+        // is translated on a localised Windows, so it is never matched on -
+        // only the local address and the trailing pid are read.
+        if fields.len() < 4 {
+            continue;
+        }
+        if !fields[1].ends_with(&needle) {
+            continue;
+        }
+        if let Ok(pid) = fields[fields.len() - 1].parse::<u32>() {
+            if pid > 4 {
+                return Some(pid);
+            }
+        }
+    }
+    None
+}
+
+#[cfg(not(windows))]
+fn listening_pid(port: u16) -> Option<u32> {
+    let out = Command::new("lsof")
+        .args(["-nP", &format!("-iTCP:{port}"), "-sTCP:LISTEN", "-t"])
+        .output()
+        .ok()?;
+    String::from_utf8_lossy(&out.stdout).lines().next()?.trim().parse().ok()
+}
+
+/// Names the process holding a port, so the user can see what they are about to
+/// stop rather than being shown a bare number.
+pub fn holder_process(port: u16) -> Option<PortProcess> {
+    use sysinfo::{Pid, ProcessRefreshKind, RefreshKind, System};
+
+    let pid = listening_pid(port)?;
+    if pid == std::process::id() {
+        return None; // us; nothing useful to offer
+    }
+
+    let sys = System::new_with_specifics(
+        RefreshKind::nothing().with_processes(ProcessRefreshKind::everything()),
+    );
+    let process = sys.process(Pid::from_u32(pid));
+
+    let name = process
+        .map(|p| p.name().to_string_lossy().to_string())
+        .unwrap_or_else(|| format!("pid {pid}"));
+    let exe = process
+        .and_then(|p| p.exe().map(|e| e.to_string_lossy().to_string()))
+        .unwrap_or_default();
+
+    let stem = name.to_lowercase();
+    let stem = stem.strip_suffix(".exe").unwrap_or(&stem);
+    Some(PortProcess { pid, name, exe, killable: !NEVER_KILL.contains(&stem) })
+}
+
+/// Ends whatever is holding a port, with the guards that decide whether it may
+/// be ended at all applied here rather than trusted from the caller.
+pub fn free(port: u16) -> Result<String, String> {
+    let holder = holder_process(port).ok_or_else(|| format!("nothing is listening on {port}"))?;
+    if !holder.killable {
+        return Err(format!("{} is a system process and will not be stopped", holder.name));
+    }
+    kill_tree(holder.pid)?;
+
+    // Confirm rather than assume: a process can refuse to die, and reporting
+    // success while the port is still held would send the command straight
+    // back into the error it was started to avoid.
+    for _ in 0..20 {
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        if !is_taken(port) {
+            return Ok(holder.name);
+        }
+    }
+    Err(format!("{} did not release port {port}", holder.name))
+}
+
+fn kill_tree(pid: u32) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        let mut c = Command::new("taskkill");
+        c.args(["/PID", &pid.to_string(), "/T", "/F"]);
+        c.creation_flags(0x0800_0000);
+        let out = c.output().map_err(|e| e.to_string())?;
+        if out.status.success() {
+            Ok(())
+        } else {
+            Err(String::from_utf8_lossy(&out.stderr).trim().to_string())
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        Command::new("kill")
+            .args(["-TERM", &pid.to_string()])
+            .output()
+            .map_err(|e: std::io::Error| e.to_string())?;
+        Ok(())
+    }
+}
+
+/// Who holds a port. A command this app started is identified exactly, by its
+/// own bookkeeping; anything else is looked up in the OS tables so it can be
+/// named and, if it is safe to, offered up for stopping.
+pub fn conflict_for(port: u16, mine: Option<PortUser>) -> PortConflict {
+    let taken = is_taken(port);
+    let process = if taken && mine.is_none() { holder_process(port) } else { None };
+    PortConflict { port, taken, holder: mine, process }
 }
 
 #[cfg(test)]
@@ -293,6 +412,47 @@ services:
         assert_eq!(port_for("cargo build --release", tmp.path(), &[]), None);
         assert_eq!(port_for("npm run lint", tmp.path(), &["package.json".into()]), None);
         assert_eq!(port_for("cargo test --all", tmp.path(), &[]), None);
+    }
+
+    #[test]
+    fn a_system_process_is_never_offered_up() {
+        // The guard is a name test, so it is worth pinning the shape of it.
+        for name in ["System", "svchost.exe", "LSASS.EXE", "explorer.exe", "systemd"] {
+            let stem = name.to_lowercase();
+            let stem = stem.strip_suffix(".exe").unwrap_or(&stem);
+            assert!(NEVER_KILL.contains(&stem), "{name} must not be killable");
+        }
+        for name in ["node.exe", "cargo.exe", "python.exe", "Docker Desktop.exe"] {
+            let stem = name.to_lowercase();
+            let stem = stem.strip_suffix(".exe").unwrap_or(&stem);
+            assert!(!NEVER_KILL.contains(&stem), "{name} is ordinary and may be stopped");
+        }
+    }
+
+    #[test]
+    fn the_process_holding_a_port_is_found_and_named() {
+        // Bind a port in this very process, then ask the OS who has it. The
+        // answer has to come back as us, which proves the table is being read
+        // correctly on this platform rather than silently returning nothing.
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+        let port = listener.local_addr().unwrap().port();
+
+        assert_eq!(
+            listening_pid(port),
+            Some(std::process::id()),
+            "the listening pid for a port we hold must be our own",
+        );
+        // `holder_process` deliberately returns nothing for ourselves.
+        assert!(holder_process(port).is_none());
+    }
+
+    #[test]
+    fn freeing_a_port_nobody_holds_says_so() {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+        let port = listener.local_addr().unwrap().port();
+        drop(listener);
+
+        assert!(free(port).is_err(), "there is nothing to free");
     }
 
     #[test]

@@ -194,16 +194,24 @@ export interface PortUser {
   cmd: string;
 }
 
+/** A process outside this app that is holding a port. */
+export interface PortProcess {
+  pid: number;
+  name: string;
+  exe: string;
+  /** False for a system process, which will not be stopped whatever it holds. */
+  killable: boolean;
+}
+
 /** The answer to "can this command have its port?". */
 export interface PortConflict {
   /** 0 when the command serves nothing and no check applies. */
   port: number;
   taken: boolean;
-  /**
-   * Set only when the holder is a command this app started. A port held by
-   * something else is reported as taken with no holder, rather than guessed.
-   */
+  /** Set when the holder is a command this app started, and can be stopped cleanly. */
   holder: PortUser | null;
+  /** Set when the holder is something else, named from the OS process table. */
+  process: PortProcess | null;
 }
 
 /** A toolchain a project needs, and whether this machine has it. */

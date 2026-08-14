@@ -50,6 +50,7 @@ pub fn run() {
             commands::project_requirements,
             commands::install_tool,
             commands::check_port,
+            commands::free_port,
             commands::run_command,
             commands::stop_command,
             commands::running_commands,

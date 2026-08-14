@@ -441,6 +441,18 @@ pub async fn check_port(
     Ok(taken)
 }
 
+/// Ends whatever is holding a port, so a dev server can have it.
+///
+/// Deliberately narrow: it resolves the holder itself and refuses to touch a
+/// system process, so the frontend can ask to free port 1420 but cannot ask
+/// this to end a process of its choosing.
+#[tauri::command]
+pub async fn free_port(port: u16) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || ports::free(port))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
 #[tauri::command]
 pub fn run_command(
     app: AppHandle,

@@ -14,6 +14,12 @@ export function PortDialog({ app }: { app: App }) {
 
   const { conflict, command, project } = ask;
   const holder = conflict.holder;
+  const process = conflict.process;
+  // Either kind of holder can be cleared: one through the runner that owns it,
+  // the other by ending the process. A system process is the only case with
+  // nothing to offer.
+  const canResolve = !!holder || !!process?.killable;
+  const foreign = !holder && !!process;
 
   return (
     <div
@@ -64,7 +70,13 @@ export function PortDialog({ app }: { app: App }) {
         </div>
 
         <p style={{ margin: "0 0 12px", fontSize: 12.5, color: "rgba(var(--trgb),.75)", lineHeight: 1.55 }}>
-          {holder ? t.portHeldByUs : t.portHeldByOther}
+          {holder
+            ? t.portHeldByUs
+            : process?.killable
+              ? t.portHeldByProcess
+              : process
+                ? t.portHeldBySystem
+                : t.portHeldByOther}
         </p>
 
         <div
@@ -78,6 +90,14 @@ export function PortDialog({ app }: { app: App }) {
         >
           {holder && (
             <Row label={t.portHolder} value={`${holder.project} · ${holder.cmd}`} accent />
+          )}
+          {process && (
+            <Row
+              label={t.portHolder}
+              value={`${process.name} · PID ${process.pid}`}
+              hint={process.exe}
+              accent
+            />
           )}
           <Row label={t.portWaiting} value={`${project.name} · ${command.cmd}`} />
         </div>
@@ -120,25 +140,25 @@ export function PortDialog({ app }: { app: App }) {
             {t.portAnyway}
           </button>
 
-          {/* Only offered when the holder is ours: stopping a process this app
-              did not start is not something to do from a dialog. */}
-          {holder && (
+          {/* Ending a process the app did not start is the heavier of the two,
+              so it says whose name it is and is styled as what it is. */}
+          {canResolve && (
             <button
               type="button"
-              className="h-accent-strong"
+              className={foreign ? "h-danger" : "h-accent-strong"}
               onClick={() => void app.resolvePortAndStart()}
               style={{
-                border: "1px solid rgba(var(--accrgb),.5)",
+                border: `1px solid ${foreign ? "rgba(var(--danrgb),.5)" : "rgba(var(--accrgb),.5)"}`,
                 borderRadius: 10,
-                background: "rgba(var(--accrgb),.16)",
-                color: "var(--accTx)",
+                background: foreign ? "rgba(var(--danrgb),.16)" : "rgba(var(--accrgb),.16)",
+                color: foreign ? "var(--danTx2)" : "var(--accTx)",
                 padding: "7px 14px",
                 cursor: "pointer",
                 fontSize: 12,
                 fontWeight: 600,
               }}
             >
-              {t.portResolve}
+              {foreign ? `${t.portKill} ${process?.name}` : t.portResolve}
             </button>
           )}
         </div>
@@ -147,20 +167,46 @@ export function PortDialog({ app }: { app: App }) {
   );
 }
 
-function Row({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) {
+function Row({
+  label,
+  value,
+  hint,
+  accent = false,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  accent?: boolean;
+}) {
   return (
     <div style={{ display: "flex", alignItems: "baseline", gap: 10, padding: "3px 0" }}>
       <span style={{ fontSize: 11, color: "rgba(var(--trgb),.5)", flex: "0 0 92px" }}>{label}</span>
-      <span
-        style={{
-          fontFamily: mono,
-          fontSize: 11.5,
-          color: accent ? "var(--accTx)" : "rgba(var(--trgb),.85)",
-          minWidth: 0,
-          wordBreak: "break-word",
-        }}
-      >
-        {value}
+      <span style={{ minWidth: 0 }}>
+        <span
+          style={{
+            display: "block",
+            fontFamily: mono,
+            fontSize: 11.5,
+            color: accent ? "var(--accTx)" : "rgba(var(--trgb),.85)",
+            wordBreak: "break-word",
+          }}
+        >
+          {value}
+        </span>
+        {/* The executable path is what tells two `node.exe` apart. */}
+        {hint && (
+          <span
+            style={{
+              display: "block",
+              fontFamily: mono,
+              fontSize: 9.5,
+              color: "rgba(var(--trgb),.45)",
+              wordBreak: "break-all",
+            }}
+          >
+            {hint}
+          </span>
+        )}
       </span>
     </div>
   );

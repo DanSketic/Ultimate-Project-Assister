@@ -140,8 +140,14 @@ const hu = {
   portTitle: "A port már foglalt",
   portHeldByUs:
     "Ezt a portot egy másik, innen indított parancs tartja. Leállíthatod, és akkor ez elindul helyette.",
+  portHeldByProcess:
+    "Ezt a portot egy másik program tartja, amit nem innen indítottunk. Leállítható innen is — nézd meg, mi az, mielőtt rábólintasz.",
+  portHeldBySystem:
+    "Ezt a portot egy rendszerfolyamat tartja, amit az app nem állít le. Indítsd más porton, vagy állítsd le kézzel.",
   portHeldByOther:
-    "Valami más tartja ezt a portot, amit nem innen indítottunk — így nem tudjuk biztonságosan leállítani. Zárd be azt a folyamatot, vagy indítsd el mégis, ha tudod, hogy szabaddá válik.",
+    "Valami tartja ezt a portot, de nem derül ki, mi — így nem tudjuk leállítani. Indítsd el mégis, ha tudod, hogy szabaddá válik.",
+  portKill: "Leállítás:",
+  portFreed: "leállítva, a port szabad:",
   portHolder: "Most használja",
   portWaiting: "Indítanád",
   portResolve: "Leállítás és indítás",
@@ -361,8 +367,14 @@ const en: Dict = {
   portTitle: "That port is already taken",
   portHeldByUs:
     "Another command started from here is holding this port. Stopping it will free the port, and this one starts in its place.",
+  portHeldByProcess:
+    "Another program is holding this port. It can be stopped from here — check what it is before you agree to that.",
+  portHeldBySystem:
+    "A system process is holding this port, and the app will not stop it. Use another port, or stop it yourself.",
   portHeldByOther:
-    "Something this app did not start is holding the port, so it cannot be stopped safely from here. Close that process yourself, or start anyway if you know the port will be free.",
+    "Something is holding the port and it cannot be identified, so it cannot be stopped from here. Start anyway if you know the port will be free.",
+  portKill: "Stop",
+  portFreed: "stopped, port free:",
   portHolder: "Held by",
   portWaiting: "Waiting to start",
   portResolve: "Stop it and start",

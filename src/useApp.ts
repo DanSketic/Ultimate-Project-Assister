@@ -802,13 +802,19 @@ export function useApp() {
     [running, startCommand, stopCommand],
   );
 
-  /** Stops whatever this app has on the port, then starts the waiting command. */
+  /**
+   * Frees the port and starts the waiting command.
+   *
+   * A command this app started is stopped through the runner that owns it. A
+   * process it did not start is ended by the backend, which resolves the holder
+   * itself and refuses system processes — only the port number is sent.
+   */
   const resolvePortAndStart = useCallback(async () => {
     const ask = portAsk;
     if (!ask) return;
     setPortAsk(null);
 
-    const holder = ask.conflict.holder;
+    const { holder, port } = ask.conflict;
     if (holder) {
       const [, cwd = "", cmd = ""] = holder.key.split("|");
       try {
@@ -824,6 +830,14 @@ export function useApp() {
       }
       // A socket is not released the instant the process is asked to stop.
       await new Promise((r) => setTimeout(r, 400));
+    } else {
+      try {
+        const name = await api.freePort(port);
+        flash(`${name} — ${t.portFreed} :${port}`);
+      } catch (e) {
+        flash(String(e));
+        return;
+      }
     }
     await startCommand(ask.project, ask.command);
   }, [portAsk, startCommand, flash, t]);
