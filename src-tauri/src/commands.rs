@@ -11,11 +11,11 @@ use std::time::Instant;
 use tauri::{AppHandle, Emitter, State};
 
 use crate::model::{
-    CleanProgress, Container, DeleteReport, DockerStatus, Project, ScanProgress, ScanResult,
-    SysStats, ToolStatus,
+    CleanProgress, Container, DeleteReport, DockerStatus, PortConflict, PortUser, Project,
+    ScanProgress, ScanResult, SysStats, ToolStatus,
 };
 use crate::store::{Goal, Note, Settings, Store};
-use crate::{clean, docker, platform, runner::Runner, scan, tools, watcher::Watcher};
+use crate::{clean, docker, platform, ports, runner::Runner, scan, tools, watcher::Watcher};
 
 pub const SCAN_PROGRESS: &str = "upa://scan-progress";
 pub const SCAN_DONE: &str = "upa://scan-done";
@@ -379,6 +379,66 @@ fn work_dir(project_path: &str, cwd: &str) -> Result<PathBuf, String> {
         return Err("invalid working directory".into());
     }
     Ok(root.join(cwd.replace('/', std::path::MAIN_SEPARATOR_STR)))
+}
+
+/// Whether the port this command wants is free, and who has it if not.
+///
+/// Called before starting, so a clash is a question the user answers rather
+/// than an `EADDRINUSE` several seconds into a dev server's output.
+#[tauri::command]
+pub async fn check_port(
+    state: State<'_, AppState>,
+    project_id: String,
+    cmd: String,
+    cwd: Option<String>,
+) -> Result<PortConflict, String> {
+    let Some(project) = state.project_by_id(&project_id) else {
+        return Ok(PortConflict::default());
+    };
+    let rel = cwd.unwrap_or_default();
+    let dir = work_dir(&project.path, &rel)?;
+
+    // Manifests of the package the command runs in, not of the whole project:
+    // a Rust backend next to a Vite frontend must not inherit its defaults.
+    let manifests = project
+        .parts
+        .iter()
+        .find(|p| p.rel == rel)
+        .map(|p| p.manifests.clone())
+        .unwrap_or_else(|| project.manifests.clone());
+
+    let Some(port) = ports::port_for(&cmd, &dir, &manifests) else {
+        return Ok(PortConflict::default());
+    };
+
+    // A port held by a command this app started is the case it can actually
+    // offer to resolve, so that is what is looked for: the same derivation,
+    // applied to everything currently running.
+    let holder = state.runner.running_keys().into_iter().find_map(|key| {
+        let (id, rest) = key.split_once('|')?;
+        let (other_cwd, other_cmd) = rest.split_once('|')?;
+        let other = state.project_by_id(id)?;
+        let other_dir = work_dir(&other.path, other_cwd).ok()?;
+        let other_manifests = other
+            .parts
+            .iter()
+            .find(|p| p.rel == other_cwd)
+            .map(|p| p.manifests.clone())
+            .unwrap_or_else(|| other.manifests.clone());
+
+        (ports::port_for(other_cmd, &other_dir, &other_manifests) == Some(port)).then(|| PortUser {
+            key: key.clone(),
+            project_id: other.id,
+            project: other.name,
+            cmd: other_cmd.to_string(),
+        })
+    });
+
+    let taken = tauri::async_runtime::spawn_blocking(move || ports::conflict_for(port, holder))
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(taken)
 }
 
 #[tauri::command]

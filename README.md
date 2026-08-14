@@ -25,7 +25,7 @@ English only.
 | **Cleanup** | Measures build junk per category (`target/debug`, `node_modules`, `.venv`, `__pycache__`, `vendor`, `_build`, …) together with its age, grouped by project. Nothing is removed without confirmation, and the removal is guarded three ways. |
 | **Goals** | Goals and features per project with progress bars. Stored as plain JSON. |
 | **Board** | A free canvas of draggable notes with a project tag, a deadline and three colours. Opened from a project, new notes take that project; opened on its own, it asks which project a note belongs to. |
-| **Commands** | Runnable commands read out of the manifests — every npm/pnpm/yarn/bun script, Makefile targets, cargo, compose — grouped by the file each came from. The ones that start, build or check a project lead their group; any command can be pinned. Start and stop them, with output streamed live. |
+| **Commands** | Runnable commands read out of the manifests — every npm/pnpm/yarn/bun script, Makefile targets, cargo, compose — grouped by the file each came from. The ones that start, build or check a project lead their group; any command can be pinned. Every run gets its own log tab, and a port that is already taken is raised before the process starts rather than after it dies. |
 | **Requirements** | What each project needs installed — Node and the package manager its lockfile names, cargo, Python, Go, Docker, Make, and the rest — checked against PATH, with versions. Anything missing says which manifest asked for it, and offers the install command where the tool is packaged. |
 | **Docker** | Whether the CLI is there, whether the daemon is answering, its version, containers and images, and the compose stack belonging to the open project. |
 | **Settings** | Watched folders, scanning options, cleanup age threshold, window anchoring, language. |
@@ -203,6 +203,7 @@ src-tauri/               Rust backend
   clean.rs               guarded deletion
   docker.rs              daemon state, counts, sizes and a project's containers
   tools.rs               which toolchains a project needs, and whether PATH has them
+  ports.rs               the port a command will ask for, and whether it is free
   cmds.rs                runnable commands read from manifests
   runner.rs              process spawning, log streaming, process-tree kill
   watcher.rs             filesystem watching via notify
@@ -240,6 +241,14 @@ scan rebuilds it.
 - **A tool is found by looking it up on PATH**, so something installed but not
   on PATH reads as missing — which is also what the project's own commands will
   find when they try to run.
+- **The port a command will use is inferred**, from an explicit `--port`, a
+  `.env`, a vite/nuxt/astro config, a compose file, or the framework's default.
+  A project that picks its port some other way is not detected, and the warning
+  simply does not appear. Whether the port is free is not inferred: it is
+  decided by trying to bind it.
+- **A port held by a process this app did not start cannot be freed from here.**
+  Its holder is not named either — the PID behind a socket is not readable for
+  another user's process, and a wrong name would be worse than none.
 - **Filesystem watching is deliberately shallow** — the project root and its
   `.git` directory, not the whole tree — so that `node_modules` cannot drown the
   notify watcher.

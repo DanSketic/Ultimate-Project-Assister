@@ -181,6 +181,26 @@ export interface Container {
   service: string;
 }
 
+/** A command this app started that already holds the port. */
+export interface PortUser {
+  key: string;
+  projectId: string;
+  project: string;
+  cmd: string;
+}
+
+/** The answer to "can this command have its port?". */
+export interface PortConflict {
+  /** 0 when the command serves nothing and no check applies. */
+  port: number;
+  taken: boolean;
+  /**
+   * Set only when the holder is a command this app started. A port held by
+   * something else is reported as taken with no holder, rather than guessed.
+   */
+  holder: PortUser | null;
+}
+
 /** A toolchain a project needs, and whether this machine has it. */
 export interface ToolStatus {
   id: string;

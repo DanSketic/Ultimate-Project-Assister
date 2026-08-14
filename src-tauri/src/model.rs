@@ -257,6 +257,29 @@ pub struct Container {
     pub service: String,
 }
 
+/// A command this app started that already holds the port.
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PortUser {
+    /// Key of the running command, so the UI can offer to stop exactly it.
+    pub key: String,
+    pub project_id: String,
+    pub project: String,
+    pub cmd: String,
+}
+
+/// The answer to "can this command have its port?".
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PortConflict {
+    /// 0 when the command serves nothing and no check applies.
+    pub port: u16,
+    pub taken: bool,
+    /// Set only when the holder is a command this app started. A port held by
+    /// something else is reported as taken with no holder, rather than guessed.
+    pub holder: Option<PortUser>,
+}
+
 /// A toolchain a project needs, and whether this machine has it.
 #[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]

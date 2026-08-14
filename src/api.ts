@@ -13,6 +13,7 @@ import type {
   Goal,
   LogLine,
   Note,
+  PortConflict,
   Project,
   ScanProgress,
   ScanResult,
@@ -127,6 +128,16 @@ export async function installTool(id: string): Promise<string> {
 // ---------------------------------------------------------------------------
 // Command runner
 // ---------------------------------------------------------------------------
+
+/** Whether the port this command wants is free, and who has it if not. */
+export async function checkPort(
+  projectId: string,
+  cmd: string,
+  cwd = "",
+): Promise<PortConflict> {
+  if (!IS_TAURI) return mock.checkPort(projectId, cmd, cwd);
+  return call<PortConflict>("check_port", { projectId, cmd, cwd });
+}
 
 export async function runCommand(projectId: string, cmd: string, cwd = ""): Promise<void> {
   if (!IS_TAURI) return mock.runCommand(projectId, cmd, cwd);

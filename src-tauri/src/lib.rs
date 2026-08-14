@@ -8,6 +8,7 @@ mod geometry;
 mod git;
 mod model;
 mod platform;
+mod ports;
 mod runner;
 mod scan;
 mod store;
@@ -48,6 +49,7 @@ pub fn run() {
             commands::project_containers,
             commands::project_requirements,
             commands::install_tool,
+            commands::check_port,
             commands::run_command,
             commands::stop_command,
             commands::running_commands,
@@ -66,6 +68,11 @@ pub fn run() {
                 if let Some(state) = app.try_state::<AppState>() {
                     state.runner.stop_all();
                     state.watcher.stop();
+                    // Belt and braces: the cache is written after every scan
+                    // anyway, but a session that only ever re-measured single
+                    // projects should not lose that work on the way out.
+                    let projects = state.projects.lock().unwrap().clone();
+                    let _ = state.store.save_projects(&projects);
                 }
             }
         });

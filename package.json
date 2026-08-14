@@ -1,7 +1,7 @@
 {
   "name": "ultimate-project-assister",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
   "description": "Project radar, cleaner, goals and board in one place.",
   "license": "MIT",

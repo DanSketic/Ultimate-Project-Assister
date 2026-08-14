@@ -4,21 +4,17 @@ import { FavouriteButton, RailHeader } from "../components/GroupHeader";
 
 import { DockerChip } from "../components/Requirements";
 import { SearchField } from "../components/SearchField";
-import { Play, Stop } from "../components/Icons";
+import { Close, Play, Stop } from "../components/Icons";
 import { cmdKey, manifestLabel } from "../format";
 import { groupWithFavourites } from "../grouping";
 import type { App } from "../useApp";
 import type { CommandDef } from "../types";
 
 export function CommandsView({ app }: { app: App }) {
-  const { t, projects, cmdSel, running, log } = app;
+  const { t, projects, cmdSel, running } = app;
 
   const [query, setQuery] = useState("");
   const logRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    const el = logRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [log]);
 
   const runnable = projects.filter((p) => p.commands.length > 0);
   // Resolved against every runnable project, not the filtered rail: narrowing
@@ -114,12 +110,42 @@ export function CommandsView({ app }: { app: App }) {
 
   const hasDockerCommands = selected?.commands.some((c) => c.kind === "docker") ?? false;
 
-  const runningLabel = [...running]
-    .map((k) => {
-      const [project = "", cwd = "", cmd = ""] = k.split("|");
-      return `${cmd} → ${project}${cwd ? `/${cwd}` : ""}`;
-    })
-    .join("   ·   ");
+  /**
+   * One tab per run of the open project. Scoped to the project on purpose:
+   * switching projects should show that project's runs, not everything the
+   * session has ever started.
+   */
+  const tabs = useMemo(() => {
+    if (!selected) return [];
+    return Object.keys(app.logs)
+      .filter((key) => key.startsWith(`${selected.id}|`))
+      .map((key) => {
+        const [, cwd = "", cmd = ""] = key.split("|");
+        return {
+          key,
+          label: cwd ? `${cwd}/ ${cmd}` : cmd,
+          title: cwd ? `${cmd}  ·  ${selected.path}\\${cwd}` : `${cmd}  ·  ${selected.path}`,
+          running: running.has(key),
+        };
+      });
+  }, [selected, app.logs, running]);
+
+  // A tab the user picked wins; otherwise follow whatever is running, and fall
+  // back to the newest stream so the pane is never blank while output exists.
+  const activeTab =
+    tabs.find((t2) => t2.key === app.logTab)?.key ??
+    tabs.find((t2) => t2.running)?.key ??
+    tabs[tabs.length - 1]?.key ??
+    "";
+
+  const lines = app.logs[activeTab] ?? [];
+
+  // Follow the tail of whichever stream is on screen, including after a tab
+  // switch — landing mid-scroll in a log you just opened reads as frozen.
+  useEffect(() => {
+    const el = logRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [lines, activeTab]);
 
   return (
     <div
@@ -475,13 +501,16 @@ export function CommandsView({ app }: { app: App }) {
             overflow: "hidden",
           }}
         >
+          {/* One tab per run. Two dev servers in the same project used to
+              interleave into a single pane, which made both unreadable. */}
           <div
             style={{
               display: "flex",
-              alignItems: "center",
-              gap: 9,
-              padding: "9px 14px",
+              alignItems: "stretch",
+              gap: 2,
+              padding: "6px 8px 0",
               borderBottom: "1px solid rgba(var(--wrgb),.07)",
+              overflowX: "auto",
             }}
           >
             <span
@@ -490,33 +519,121 @@ export function CommandsView({ app }: { app: App }) {
                 letterSpacing: ".09em",
                 textTransform: "uppercase",
                 color: "rgba(var(--trgb),.56)",
+                alignSelf: "center",
+                padding: "0 6px 6px",
+                flex: "0 0 auto",
               }}
             >
               {t.logs}
             </span>
-            <span
-              style={{
-                fontFamily: "'JetBrains Mono',monospace",
-                fontSize: 10,
-                color: "rgba(var(--accrgb),.55)",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-              }}
-            >
-              {runningLabel || "idle"}
-            </span>
+
+            {tabs.length === 0 && (
+              <span
+                style={{
+                  alignSelf: "center",
+                  padding: "0 4px 6px",
+                  fontFamily: "'JetBrains Mono',monospace",
+                  fontSize: 10,
+                  color: "rgba(var(--trgb),.42)",
+                }}
+              >
+                {t.idleL}
+              </span>
+            )}
+
+            {tabs.map((tab) => {
+              const on = tab.key === activeTab;
+              return (
+                <span
+                  key={tab.key}
+                  role="button"
+                  tabIndex={0}
+                  aria-pressed={on}
+                  className="h-soft"
+                  onClick={() => app.setLogTab(tab.key)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      app.setLogTab(tab.key);
+                    }
+                  }}
+                  title={tab.title}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    flex: "0 0 auto",
+                    maxWidth: 220,
+                    padding: "5px 9px",
+                    borderRadius: "9px 9px 0 0",
+                    border: "1px solid",
+                    borderColor: on ? "rgba(var(--wrgb),.12)" : "transparent",
+                    borderBottomColor: "transparent",
+                    background: on ? "rgba(var(--wrgb),.06)" : "transparent",
+                    cursor: "pointer",
+                    marginBottom: -1,
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 6,
+                      height: 6,
+                      flex: "0 0 6px",
+                      borderRadius: 99,
+                      background: tab.running ? "var(--acc)" : "rgba(var(--trgb),.28)",
+                      boxShadow: tab.running ? "0 0 8px rgba(var(--accrgb),.8)" : undefined,
+                      animation: tab.running ? "upaPulse 1.8s infinite" : undefined,
+                    }}
+                  />
+                  <span
+                    style={{
+                      fontFamily: "'JetBrains Mono',monospace",
+                      fontSize: 10,
+                      color: on ? "var(--t0)" : "rgba(var(--trgb),.6)",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {tab.label}
+                  </span>
+                  <button
+                    type="button"
+                    className="h-fade-4"
+                    title={t.closeTab}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      app.closeLog(tab.key);
+                    }}
+                    style={{
+                      border: 0,
+                      background: "transparent",
+                      padding: 1,
+                      cursor: "pointer",
+                      color: "rgba(var(--trgb),.6)",
+                      display: "flex",
+                      flex: "0 0 auto",
+                    }}
+                  >
+                    <Close size={10} strokeWidth={2.2} />
+                  </button>
+                </span>
+              );
+            })}
+
             <button
               type="button"
               className="h-ghost"
               onClick={app.clearLog}
               style={{
                 marginLeft: "auto",
+                alignSelf: "center",
                 border: "1px solid rgba(var(--wrgb),.1)",
                 borderRadius: 8,
                 background: "transparent",
                 color: "rgba(var(--trgb),.55)",
                 padding: "3px 9px",
+                marginBottom: 6,
                 cursor: "pointer",
                 fontSize: 10.5,
                 fontWeight: 500,
@@ -538,17 +655,13 @@ export function CommandsView({ app }: { app: App }) {
               lineHeight: 1.6,
             }}
           >
-            {log.length === 0 && (
+            {lines.length === 0 && (
               <div style={{ display: "flex", gap: 11 }}>
                 <span style={{ color: "rgba(var(--trgb),.44)", flex: "0 0 52px" }}>--:--:--</span>
-                <span style={{ color: "rgba(var(--trgb),.52)" }}>
-                  {app.lang === "hu"
-                    ? "Nincs futó parancs. Indíts el egy scriptet a log megjelenítéséhez."
-                    : "Nothing running. Start a script to stream its log here."}
-                </span>
+                <span style={{ color: "rgba(var(--trgb),.52)" }}>{t.logEmpty}</span>
               </div>
             )}
-            {log.map((line, i) => (
+            {lines.map((line, i) => (
               <div key={i} style={{ display: "flex", gap: 11 }}>
                 <span style={{ color: "rgba(var(--trgb),.44)", flex: "0 0 52px" }}>{line.time}</span>
                 <span style={{ color: line.fg, whiteSpace: "pre-wrap", minWidth: 0, wordBreak: "break-word" }}>

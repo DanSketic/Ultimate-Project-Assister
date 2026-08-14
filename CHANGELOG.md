@@ -7,6 +7,52 @@ the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 
 Every change bumps the version — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## [1.1.0] - 2026-08-14
+
+### Fixed
+
+- **The window opened empty even though the previous session had scanned.** The
+  cache carried a version tag, and any release that added a field bumped it and
+  threw the whole file away — so the very releases that added the most were the
+  ones that opened to nothing. It never needed to: every field of a cached
+  project already tolerates being absent, so an older file reads back with the
+  new fields empty and the rescan fills them in. The tag is still written, but
+  nothing is rejected for it.
+
+### Added
+
+- **A cache that gives up much less easily.** One unreadable entry is skipped
+  instead of costing the other thirty-six. A project whose folder has gone is
+  only dropped when the watched folder it lives under is itself reachable — an
+  unplugged external disk or an offline share no longer erases the list, since
+  only a reachable root can prove a project deleted. The cache is also written
+  on the way out, not just after a scan.
+- **The command log is tabbed, one tab per run.** Two dev servers in the same
+  project used to interleave into a single pane, which made both unreadable.
+  Tabs belong to the open project, carry a live dot while the process runs, and
+  can be closed individually; the pane follows the tail of whichever is on
+  screen. Twelve streams are kept, four hundred lines each.
+- **A port that is already taken is now a question, not a surprise.** Half a
+  dozen projects on one machine all default to 3000 or 5173, and the second dev
+  server of the day would die with `EADDRINUSE` several seconds in, in a log
+  nobody was watching. Before starting, the port the command will ask for is
+  worked out from the project's own files — an explicit `--port`, a `.env`, a
+  vite/nuxt/astro config, a compose file's host-side mappings, and only then a
+  framework default — and checked by trying to bind it, which is exactly the
+  question the command itself is about to ask.
+
+  When it is taken, a dialog says so before anything runs. If the holder is a
+  command this app started, it is named and can be stopped and replaced in one
+  click. If it is anything else, that is said plainly and the only offers are
+  *start anyway* or *cancel* — stopping a process the app did not start is not
+  something to do from a dialog.
+
+### Changed
+
+- Sample data in the browser build keys running commands by project id, the way
+  the backend always did. Keying by name meant the running indicator matched
+  nothing there.
+
 ## [1.0.0] - 2026-08-14
 
 The first stable release. Everything the app was meant to do is in place, and
@@ -312,6 +358,7 @@ Hungarian interface, light and dark themes, per-view window sizing, project
 scanning with git analysis, guarded cleanup, and a process runner with live log
 streaming. Never published.
 
+[1.1.0]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v1.1.0
 [1.0.0]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v1.0.0
 [0.11.0]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v0.11.0
 [0.10.0]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v0.10.0

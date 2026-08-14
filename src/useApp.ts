@@ -14,6 +14,7 @@ import type {
   LogLine,
   Note,
   NoteColor,
+  PortConflict,
   Project,
   Settings,
   Theme,
@@ -34,7 +35,21 @@ const VIEW_WIDTH: Record<View, number> = {
 
 const NAV_OPEN = 214;
 const NAV_CLOSED = 58;
-const MAX_LOG_LINES = 200;
+const MAX_LOG_LINES = 400;
+/** How many finished runs keep their output before the oldest is let go. */
+const MAX_LOG_STREAMS = 12;
+
+/**
+ * Bounds how many streams are retained. Insertion order is the order runs first
+ * produced output, so dropping from the front lets the oldest go first.
+ */
+function capStreams(streams: Record<string, LogEntry[]>): Record<string, LogEntry[]> {
+  const keys = Object.keys(streams);
+  if (keys.length <= MAX_LOG_STREAMS) return streams;
+  const kept: Record<string, LogEntry[]> = {};
+  for (const key of keys.slice(keys.length - MAX_LOG_STREAMS)) kept[key] = streams[key]!;
+  return kept;
+}
 /** Ignore recorded widths this far from sane - a stale file should not trap
  *  the window at 40 px. */
 const MIN_CONTENT_WIDTH = 600;
@@ -119,7 +134,6 @@ export function useApp() {
 
   // --- docker and toolchains ----------------------------------------------
   const [docker, setDocker] = useState<DockerStatus | null>(null);
-  const [dockerBusy, setDockerBusy] = useState(false);
   const [containers, setContainers] = useState<Container[]>([]);
   /** Null while the check is still running, so the card can say so. */
   const [requirements, setRequirements] = useState<ToolStatus[] | null>(null);
@@ -130,7 +144,15 @@ export function useApp() {
   const [boardFilter, setBoardFilter] = useState("all");
   const [cmdSel, setCmdSel] = useState("");
   const [running, setRunning] = useState<Set<string>>(new Set());
-  const [log, setLog] = useState<LogEntry[]>([]);
+  /** One stream per run, keyed the same way a running command is. */
+  const [logs, setLogs] = useState<Record<string, LogEntry[]>>({});
+  const [logTab, setLogTab] = useState("");
+  /** A start held back until the user decides what to do about the port. */
+  const [portAsk, setPortAsk] = useState<{
+    project: Project;
+    command: CommandDef;
+    conflict: PortConflict;
+  } | null>(null);
 
   // --- chrome -------------------------------------------------------------
   const [toast, setToast] = useState("");
@@ -218,7 +240,13 @@ export function useApp() {
   // --- live process output ------------------------------------------------
   useEffect(() => {
     const push = (line: LogLine) => {
-      setLog((prev) => [...prev, { time: line.time, text: line.text, fg: logColour(line) }].slice(-MAX_LOG_LINES));
+      // Each run keeps its own stream. Two dev servers in one project used to
+      // interleave into a single pane, which made both unreadable.
+      setLogs((prev) => {
+        const entry: LogEntry = { time: line.time, text: line.text, fg: logColour(line) };
+        const next = { ...prev, [line.key]: [...(prev[line.key] ?? []), entry].slice(-MAX_LOG_LINES) };
+        return capStreams(next);
+      });
       if (line.stream === "exit") {
         setRunning((prev) => {
           const next = new Set(prev);
@@ -312,12 +340,8 @@ export function useApp() {
   // Asking the daemon is slow when it is not listening, so this is deliberately
   // demand-driven: on the views that show it, and on an explicit refresh.
   const refreshDocker = useCallback(async () => {
-    setDockerBusy(true);
-    try {
-      setDocker(await api.dockerStatus());
-    } finally {
-      setDockerBusy(false);
-    }
+    setDocker(null);
+    setDocker(await api.dockerStatus());
   }, []);
 
   useEffect(() => {
@@ -658,28 +682,113 @@ export function useApp() {
     }
   }, [selectedRows, settings, patchSettings, flash, t]);
 
-  const toggleCommand = useCallback(
+  /** Drops one run's output, and moves off its tab if it was the open one. */
+  const closeLog = useCallback((key: string) => {
+    setLogs((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+    setLogTab((current) => (current === key ? "" : current));
+  }, []);
+
+  /** Empties the open stream, leaving the tab in place while it still runs. */
+  const clearLog = useCallback(() => {
+    setLogs((prev) => (logTab && prev[logTab] ? { ...prev, [logTab]: [] } : {}));
+  }, [logTab]);
+
+  /** Starts a command for real, with no further questions. */
+  const startCommand = useCallback(
     async (project: Project, command: CommandDef) => {
       const key = cmdKey(project.id, command);
-      const isRunning = running.has(key);
       try {
-        if (isRunning) {
-          await api.stopCommand(project.id, command.cmd, command.cwd);
-          setRunning((prev) => {
-            const next = new Set(prev);
-            next.delete(key);
-            return next;
-          });
-        } else {
-          await api.runCommand(project.id, command.cmd, command.cwd);
-          setRunning((prev) => new Set(prev).add(key));
-        }
+        await api.runCommand(project.id, command.cmd, command.cwd);
+        setRunning((prev) => new Set(prev).add(key));
+        setLogTab(key);
       } catch (e) {
         flash(`${t.cmdFailed}: ${e}`);
       }
     },
-    [running, flash, t],
+    [flash, t],
   );
+
+  const stopCommand = useCallback(
+    async (project: Project, command: CommandDef) => {
+      const key = cmdKey(project.id, command);
+      try {
+        await api.stopCommand(project.id, command.cmd, command.cwd);
+        setRunning((prev) => {
+          const next = new Set(prev);
+          next.delete(key);
+          return next;
+        });
+      } catch (e) {
+        flash(`${t.cmdFailed}: ${e}`);
+      }
+    },
+    [flash, t],
+  );
+
+  /**
+   * Starting asks first whether the port is free. Half a dozen projects on one
+   * machine all default to 3000 or 5173, and the alternative is a dev server
+   * that dies with EADDRINUSE several seconds after it looked like it started.
+   */
+  const toggleCommand = useCallback(
+    async (project: Project, command: CommandDef) => {
+      const key = cmdKey(project.id, command);
+      if (running.has(key)) {
+        await stopCommand(project, command);
+        return;
+      }
+
+      const conflict = await api
+        .checkPort(project.id, command.cmd, command.cwd)
+        .catch(() => null);
+
+      if (conflict?.taken) {
+        // The decision is the user's; the dialog carries what is known about
+        // who holds the port and what can be done about it.
+        setPortAsk({ project, command, conflict });
+        return;
+      }
+      await startCommand(project, command);
+    },
+    [running, startCommand, stopCommand],
+  );
+
+  /** Stops whatever this app has on the port, then starts the waiting command. */
+  const resolvePortAndStart = useCallback(async () => {
+    const ask = portAsk;
+    if (!ask) return;
+    setPortAsk(null);
+
+    const holder = ask.conflict.holder;
+    if (holder) {
+      const [, cwd = "", cmd = ""] = holder.key.split("|");
+      try {
+        await api.stopCommand(holder.projectId, cmd, cwd);
+        setRunning((prev) => {
+          const next = new Set(prev);
+          next.delete(holder.key);
+          return next;
+        });
+      } catch (e) {
+        flash(`${t.cmdFailed}: ${e}`);
+        return;
+      }
+      // A socket is not released the instant the process is asked to stop.
+      await new Promise((r) => setTimeout(r, 400));
+    }
+    await startCommand(ask.project, ask.command);
+  }, [portAsk, startCommand, flash, t]);
+
+  const startAnyway = useCallback(async () => {
+    const ask = portAsk;
+    if (!ask) return;
+    setPortAsk(null);
+    await startCommand(ask.project, ask.command);
+  }, [portAsk, startCommand]);
 
   // --- goals --------------------------------------------------------------
   const addGoal = useCallback(
@@ -794,7 +903,6 @@ export function useApp() {
     current,
     // docker and toolchains
     docker,
-    dockerBusy,
     refreshDocker,
     containers,
     requirements,
@@ -867,8 +975,15 @@ export function useApp() {
     toggleCommand,
     cmdFavourites,
     toggleCmdFavourite,
-    log,
-    clearLog: () => setLog([]),
+    logs,
+    logTab,
+    setLogTab,
+    closeLog,
+    portAsk,
+    dismissPortAsk: () => setPortAsk(null),
+    resolvePortAndStart,
+    startAnyway,
+    clearLog,
     // chrome
     toast,
     flash,

@@ -13,18 +13,33 @@ use serde::{Deserialize, Serialize};
 
 use crate::model::Project;
 
-/// Bumped whenever `Project` changes shape. A cache written by an older build
-/// is discarded rather than half-read.
+/// Recorded with the cache so a file can be identified, but deliberately *not*
+/// used to reject one.
 ///
-/// 2: added `readme`, `changelog`, and `source` / `primary` on each command.
-const CACHE_VERSION: u32 = 2;
+/// This used to discard the whole cache whenever it did not match, which meant
+/// every release that added a field opened to an empty window. It never needed
+/// to: `Project` carries `#[serde(default)]` on every field, so a file written
+/// by an older build reads back with the new fields empty, and the rescan that
+/// follows fills them in. Reading what is there beats throwing it away.
+const CACHE_VERSION: u32 = 3;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct ProjectCache {
+struct ProjectCache<'a> {
     version: u32,
     saved_at: i64,
-    projects: Vec<Project>,
+    projects: &'a [Project],
+}
+
+/// Read side, kept separate and as forgiving as possible: every field may be
+/// missing, and the projects come in as raw values so one unreadable entry
+/// cannot take the other thirty-six with it.
+#[derive(Debug, Deserialize, Default)]
+#[serde(rename_all = "camelCase", default)]
+struct ProjectCacheIn {
+    version: u32,
+    saved_at: i64,
+    projects: Vec<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -243,16 +258,18 @@ impl Store {
     /// Projects whose directory has since disappeared are dropped here rather
     /// than shown as ghosts until the rescan catches up.
     pub fn load_projects(&self) -> Vec<Project> {
-        let Some(cache) = read_json::<ProjectCache>(&self.dir.join("projects.json")) else {
-            return Vec::new();
-        };
-        if cache.version != CACHE_VERSION {
-            return Vec::new();
-        }
+        let cache: ProjectCacheIn =
+            read_json(&self.dir.join("projects.json")).unwrap_or_default();
+
+        let roots = self.settings.lock().unwrap().folders.clone();
+
         cache
             .projects
             .into_iter()
-            .filter(|p| Path::new(&p.path).is_dir())
+            // Per project: a single entry written by a build whose shape we
+            // cannot read is skipped, not fatal to the rest.
+            .filter_map(|value| serde_json::from_value::<Project>(value).ok())
+            .filter(|p| still_present(p, &roots))
             .collect()
     }
 
@@ -260,7 +277,7 @@ impl Store {
         let cache = ProjectCache {
             version: CACHE_VERSION,
             saved_at: crate::scan::now_secs(),
-            projects: projects.to_vec(),
+            projects,
         };
         write_json(&self.dir.join("projects.json"), &cache)
     }
@@ -277,6 +294,24 @@ impl Store {
         drop(s);
         let _ = write_json(&self.dir.join("settings.json"), &snapshot);
         snapshot
+    }
+}
+
+/// Whether a cached project should still be listed.
+///
+/// A missing directory usually means the project was deleted - but it also
+/// means the external disk is unplugged or the share is offline, and losing the
+/// whole list because a drive is asleep is much worse than briefly showing a
+/// project that has moved. So a project is only dropped when the watched folder
+/// it lives under is itself reachable, which is what makes the absence proof.
+fn still_present(project: &Project, roots: &[String]) -> bool {
+    if Path::new(&project.path).is_dir() {
+        return true;
+    }
+    match roots.iter().find(|root| project.path.starts_with(root.as_str())) {
+        Some(root) => !Path::new(root).is_dir(),
+        // Not under any watched folder any more: nothing can prove it gone.
+        None => true,
     }
 }
 
@@ -458,23 +493,88 @@ mod tests {
         assert_eq!(reloaded[0].name, "demo");
     }
 
+    /// The regression that made every feature release open to an empty window:
+    /// the cache was rejected outright whenever its version tag had moved on.
     #[test]
-    fn a_cached_project_whose_folder_is_gone_is_dropped() {
+    fn a_cache_from_an_older_build_still_loads() {
         let dir = tempfile::tempdir().unwrap();
-        let store = Store::load(dir.path().to_path_buf());
-        store.save_projects(&[project_at("Z:\\definitely\\not\\here")]).unwrap();
+        let live = tempfile::tempdir().unwrap();
+        fs::write(
+            dir.path().join("projects.json"),
+            format!(
+                r#"{{"version": 1, "savedAt": 1, "projects": [
+                     {{"id":"x","name":"old","path":{:?}}}]}}"#,
+                live.path().to_string_lossy()
+            ),
+        )
+        .unwrap();
 
-        assert!(Store::load(dir.path().to_path_buf()).load_projects().is_empty());
+        let loaded = Store::load(dir.path().to_path_buf()).load_projects();
+
+        assert_eq!(loaded.len(), 1, "an older cache must still be shown");
+        assert_eq!(loaded[0].name, "old");
+        // Fields the older build knew nothing about simply come back empty.
+        assert_eq!(loaded[0].readme, "");
+        assert!(loaded[0].changelog.is_empty());
     }
 
     #[test]
-    fn a_cache_from_an_older_format_is_ignored() {
+    fn one_unreadable_entry_does_not_lose_the_others() {
         let dir = tempfile::tempdir().unwrap();
+        let live = tempfile::tempdir().unwrap();
         fs::write(
             dir.path().join("projects.json"),
-            r#"{"version": 0, "savedAt": 1, "projects": [{"id":"x","name":"old"}]}"#,
+            format!(
+                r#"{{"version": 3, "savedAt": 1, "projects": [
+                     {{"id":"a","name":"good","path":{0:?}}},
+                     "this is not a project",
+                     {{"id":"b","name":"also good","path":{0:?}}}]}}"#,
+                live.path().to_string_lossy()
+            ),
         )
         .unwrap();
+
+        let names: Vec<String> = Store::load(dir.path().to_path_buf())
+            .load_projects()
+            .into_iter()
+            .map(|p| p.name)
+            .collect();
+
+        assert_eq!(names, ["good", "also good"]);
+    }
+
+    /// An unplugged external disk must not erase the project list.
+    #[test]
+    fn projects_under_an_unreachable_root_are_kept() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::load(dir.path().to_path_buf());
+
+        store
+            .set_settings(Settings {
+                folders: vec!["Z:\\code".into()],
+                ..Settings::default()
+            })
+            .unwrap();
+        store.save_projects(&[project_at("Z:\\code\\on-the-usb-stick")]).unwrap();
+
+        let reloaded = Store::load(dir.path().to_path_buf()).load_projects();
+        assert_eq!(reloaded.len(), 1, "an offline drive is not proof of deletion");
+    }
+
+    #[test]
+    fn a_project_missing_from_a_reachable_root_is_dropped() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = tempfile::tempdir().unwrap(); // exists, so it can prove absence
+        let store = Store::load(dir.path().to_path_buf());
+
+        store
+            .set_settings(Settings {
+                folders: vec![root.path().to_string_lossy().to_string()],
+                ..Settings::default()
+            })
+            .unwrap();
+        let gone = root.path().join("deleted-yesterday");
+        store.save_projects(&[project_at(&gone.to_string_lossy())]).unwrap();
 
         assert!(Store::load(dir.path().to_path_buf()).load_projects().is_empty());
     }

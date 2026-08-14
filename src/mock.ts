@@ -15,6 +15,7 @@ import type {
   Goal,
   LogLine,
   Note,
+  PortConflict,
   Project,
   Settings,
   ToolStatus,
@@ -568,7 +569,8 @@ function hms(): string {
 }
 
 function emit(key: string, text: string, stream: LogLine["stream"]) {
-  const [project = "", , cmd = ""] = key.split("|");
+  const [projectId = "", , cmd = ""] = key.split("|");
+  const project = projects().find((p) => p.id === projectId)?.name ?? projectId;
   const line: LogLine = { key, project, cmd, text, stream, time: hms() };
   listeners.forEach((l) => l(line));
 }
@@ -590,22 +592,66 @@ export function onLog(handler: (line: LogLine) => void): () => void {
   return () => listeners.delete(handler);
 }
 
+// Keyed by project *id*, exactly as `runner::key_of` does on the Rust side.
+// Keying by name here meant the running indicator and the log tabs matched
+// nothing in the browser build.
 export async function runCommand(projectId: string, cmd: string, cwd = ""): Promise<void> {
-  const project = projects().find((p) => p.id === projectId)?.name ?? projectId;
-  const key = `${project}|${cwd}|${cmd}`;
+  const name = projects().find((p) => p.id === projectId)?.name ?? projectId;
+  const key = `${projectId}|${cwd}|${cmd}`;
   running.add(key);
-  emit(key, `$ ${cmd}  (${project}${cwd ? `/${cwd}` : ""})`, "cmd");
+  emit(key, `$ ${cmd}  (${name}${cwd ? `/${cwd}` : ""})`, "cmd");
 }
 
 export async function stopCommand(projectId: string, cmd: string, cwd = ""): Promise<void> {
-  const project = projects().find((p) => p.id === projectId)?.name ?? projectId;
-  const key = `${project}|${cwd}|${cmd}`;
+  const key = `${projectId}|${cwd}|${cmd}`;
   running.delete(key);
   emit(key, `^C  ${cmd} stopped`, "exit");
 }
 
 export async function runningCommands(): Promise<string[]> {
   return [...running];
+}
+
+/**
+ * A stand-in for the real port check. Ports are derived the same way — the
+ * command line first, then a framework default — and a port is "taken" when
+ * another mock run already claimed it, so the dialog is reachable in the
+ * browser build by starting two dev servers.
+ */
+function mockPortFor(cmd: string): number {
+  const explicit = /(?:--port[= ]|-p[= ]|PORT=)(\d{4,5})/.exec(cmd);
+  if (explicit) return Number(explicit[1]);
+  for (const [needle, port] of [
+    ["vite", 5173], ["nuxt", 3000], ["next", 3000], ["astro", 4321],
+    ["uvicorn", 8000], ["compose up", 8080],
+  ] as Array<[string, number]>) {
+    if (cmd.includes(needle)) return port;
+  }
+  if (cmd.includes(" run dev") || cmd.includes(" run start")) return 3000;
+  return 0;
+}
+
+export async function checkPort(
+  projectId: string,
+  cmd: string,
+  cwd = "",
+): Promise<PortConflict> {
+  const port = mockPortFor(cmd);
+  if (port === 0) return { port: 0, taken: false, holder: null };
+
+  const mine = `${projectId}|${cwd}|${cmd}`;
+  for (const key of running) {
+    if (key === mine) continue;
+    const [otherId = "", , otherCmd = ""] = key.split("|");
+    if (mockPortFor(otherCmd) !== port) continue;
+    const project = projects().find((p) => p.id === otherId);
+    return {
+      port,
+      taken: true,
+      holder: { key, projectId: otherId, project: project?.name ?? otherId, cmd: otherCmd },
+    };
+  }
+  return { port, taken: false, holder: null };
 }
 
 const cleanListeners = new Set<(p: CleanProgress) => void>();

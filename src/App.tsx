@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 
 import { ConfirmDialog } from "./components/ConfirmDialog";
+import { PortDialog } from "./components/PortDialog";
 import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
 import { TitleBar } from "./components/TitleBar";
@@ -205,6 +206,7 @@ export function App() {
       </div>
 
       <ConfirmDialog app={app} />
+      <PortDialog app={app} />
       <Toast message={app.toast} />
     </div>
   );
