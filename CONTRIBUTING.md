@@ -30,32 +30,51 @@ treat the file as binary, so its diffs stop being reviewable. That has happened
 twice, both times from a mistyped placeholder character. The backend currently builds with zero warnings; please
 keep it that way.
 
-## Versioning
+## Changelog
 
-**Every change bumps the version.** The project follows
-[Semantic Versioning](https://semver.org/spec/v2.0.0.html):
+**Every change earns a [CHANGELOG.md](CHANGELOG.md) entry, in the same commit**,
+under `Added`, `Changed`, `Fixed` or `Removed`. Write what changed for the person
+using the app, not which function you edited.
 
-- **patch** (`0.5.0` → `0.5.1`) — a fix with no change to behaviour anyone
-  relied on
-- **minor** (`0.5.0` → `0.6.0`) — a new capability, or a behaviour change that is
-  visible but not disruptive
-- **major** (`0.5.0` → `1.0.0`) — a breaking change to stored data or the IPC
-  surface
+New entries go under an `## [Unreleased]` heading. They stay there until a
+release is actually cut — the version number moves at release time, not on every
+commit, so there are never version numbers that were never shipped.
 
-The version lives in three files and they must agree:
+## Releasing
 
-| File | Field |
-| --- | --- |
-| `package.json` | `version` |
-| `src-tauri/Cargo.toml` | `package.version` |
-| `src-tauri/tauri.conf.json` | `version` |
+Cutting a release is a deliberate, separate step. It is not something a change
+triggers on its own.
 
-The status bar reads the version from `package.json` at build time, so it needs
-no separate update.
+1. Choose the version. The project follows
+   [Semantic Versioning](https://semver.org/spec/v2.0.0.html):
 
-Add a [CHANGELOG.md](CHANGELOG.md) entry in the same commit, under `Added`,
-`Changed`, `Fixed` or `Removed`. Write what changed for the person using the
-app, not which function you edited.
+   - **patch** (`1.2.0` → `1.2.1`) — a fix with no change to behaviour anyone
+     relied on
+   - **minor** (`1.2.0` → `1.3.0`) — a new capability, or a behaviour change
+     that is visible but not disruptive
+   - **major** (`1.2.0` → `2.0.0`) — a breaking change to stored data or the IPC
+     surface
+
+2. Rename the `Unreleased` heading to the version and its date, and add the
+   comparison link at the foot of the file.
+
+3. Set that version in three files, which must agree:
+
+   | File | Field |
+   | --- | --- |
+   | `package.json` | `version` |
+   | `src-tauri/Cargo.toml` | `package.version` |
+   | `src-tauri/tauri.conf.json` | `version` |
+
+   The status bar reads the version from `package.json` at build time, so it
+   needs no separate update. Edit these by hand or with an editor that writes
+   plain UTF-8 — a BOM in any of them stops the build, and PowerShell's
+   `Set-Content` has put one there before.
+
+4. `npm run check`, `npx tsc --noEmit` and `cargo test --lib` all clean.
+
+5. Regenerate the screenshots if anything visible changed, then `npm run build`
+   and attach the three installers to the GitHub release.
 
 ## Regenerating the screenshots
 

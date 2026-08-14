@@ -262,7 +262,7 @@ scan rebuilds it.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Every change bumps the version and adds a
+See [CONTRIBUTING.md](CONTRIBUTING.md). Every change adds a
 [CHANGELOG.md](CHANGELOG.md) entry.
 
 ## License

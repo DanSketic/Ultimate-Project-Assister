@@ -5,7 +5,8 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-Every change bumps the version — see [CONTRIBUTING.md](CONTRIBUTING.md).
+Every change is recorded here as it lands, under `Unreleased`. Version numbers
+are assigned when a release is cut — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## [1.2.0] - 2026-08-14
 
