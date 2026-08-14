@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 
 import { ChipGroup } from "../components/Chips";
-import { FavouriteButton, FolderHeader } from "../components/GroupHeader";
+import { FavouriteButton, FavouritesFilter, FolderHeader } from "../components/GroupHeader";
 import { ChevronRight, GitBranch, Search } from "../components/Icons";
 import { projectCount, size } from "../format";
 import { groupWithFavourites } from "../grouping";
@@ -77,11 +77,16 @@ export function ProjectsView({ app }: { app: App }) {
     return [...filtered].sort(SORTERS[sort]);
   }, [projects, q, stack, sort]);
 
+
+  // Applied after search, before grouping: the pinned block then holds every
+  // row there is, and the folder blocks are empty rather than misleading.
+  const shown = app.favouritesOnly ? rows.filter((p) => app.favourites.has(p.id)) : rows;
+
   // Folders are ordered by the same measure the rows are sorted by, so the
   // chips still drive what comes first.
   const groups = useMemo(
-    () => groupWithFavourites(rows, app.favourites, GROUP_WEIGHT[sort], t.favourites),
-    [rows, sort, app.favourites, t.favourites],
+    () => groupWithFavourites(shown, app.favourites, GROUP_WEIGHT[sort], t.favourites),
+    [shown, sort, app.favourites, t.favourites],
   );
   const showHeaders = groups.length > 1;
 
@@ -121,6 +126,13 @@ export function ProjectsView({ app }: { app: App }) {
             style={{ border: 0, background: "transparent", outline: "none", width: "100%", fontSize: 12.5 }}
           />
         </div>
+
+        <FavouritesFilter
+          on={app.favouritesOnly}
+          onClick={app.toggleFavouritesOnly}
+          label={t.favourites}
+          title={t.favouritesOnlyHint}
+        />
 
         <ChipGroup items={stackChips} active={stack} onPick={app.setStack} />
 
@@ -188,6 +200,8 @@ export function ProjectsView({ app }: { app: App }) {
               label={group.label}
               title={group.favourite ? t.favourites : group.key}
               pinned={group.favourite}
+              collapsed={app.isCollapsed("projects", group.key)}
+              onToggle={() => app.toggleGroup("projects", group.key)}
             >
               <span
                 style={{
@@ -223,7 +237,8 @@ export function ProjectsView({ app }: { app: App }) {
             </FolderHeader>
           )}
 
-          {group.items.map((p) => {
+          {!(showHeaders && app.isCollapsed("projects", group.key)) &&
+            group.items.map((p) => {
         const ratio = app.goalRatio(p.name);
         const gitState = p.git.isRepo
           ? `${p.git.dirty ? `±${p.git.dirty} ` : `${lang === "hu" ? "tiszta" : "clean"} `}↑${p.git.ahead} ↓${p.git.behind}`

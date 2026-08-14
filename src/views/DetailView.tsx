@@ -4,7 +4,7 @@ import * as api from "../api";
 import { Collapsible } from "../components/Collapsible";
 import { Markdown } from "../components/Markdown";
 import { DockerBody, DockerChip, RefreshAction, RequirementsBody } from "../components/Requirements";
-import { ChevronDown, ChevronLeft, ChevronRight, Clock, Play, StickyNote, Stop, Tag, Target } from "../components/Icons";
+import { ChevronDown, ChevronLeft, ChevronRight, Clock, Play, StickyNote, Stop, Tag, Target, Terminal } from "../components/Icons";
 import { ago, cmdKey, dueInfo, num, size } from "../format";
 import type { App } from "../useApp";
 import type { CommandDef } from "../types";
@@ -225,6 +225,23 @@ export function DetailView({ app }: { app: App }) {
           {t.notesL}
           <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 10, color: "rgba(var(--trgb),.52)" }}>
             {projectNotes.length}
+          </span>
+        </button>
+
+        {/* Commands was the one view with no way through from here. */}
+        <button
+          type="button"
+          className="h-accent"
+          onClick={() => {
+            app.setCmdSel(p.id);
+            app.setView("cmd");
+          }}
+          style={toolButton}
+        >
+          <Terminal size={13} />
+          {t.navCmd}
+          <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 10, color: "rgba(var(--trgb),.52)" }}>
+            {p.commands.length}
           </span>
         </button>
 
@@ -700,28 +717,61 @@ export function DetailView({ app }: { app: App }) {
             </Card>
           )}
 
-          <Card title={t.tags} pad="15px 16px">
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {tags.map((tag) => (
+          {/* A tag opens its page on the hosting service. Only linked when
+              there is a remote to link to, so it never looks clickable and
+              then does nothing. */}
+          <Card
+            title={t.tags}
+            pad="15px 16px"
+            action={
+              p.git.remote ? (
                 <span
-                  key={tag}
                   style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 5,
                     fontFamily: "'JetBrains Mono',monospace",
-                    fontSize: 10.5,
-                    border: "1px solid rgba(var(--wrgb),.09)",
-                    background: "rgba(var(--wrgb),.035)",
-                    borderRadius: 99,
-                    padding: "3px 9px",
-                    color: "rgba(var(--trgb),.75)",
+                    fontSize: 10,
+                    color: "rgba(var(--trgb),.4)",
+                    maxWidth: 150,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
                   }}
+                  title={p.git.remote}
                 >
-                  <Tag size={10} style={{ color: "rgba(var(--accrgb),.7)" }} />
-                  {tag}
+                  {p.git.remote.replace(/^https:\/\//, "")}
                 </span>
-              ))}
+              ) : undefined
+            }
+          >
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {tags.map((tag) => {
+                const linked = !!p.git.remote && tag !== t.noTags;
+                return (
+                  <button
+                    key={tag}
+                    type="button"
+                    disabled={!linked}
+                    className={linked ? "h-accent" : undefined}
+                    onClick={() => linked && void app.openTag(p.id, tag)}
+                    title={linked ? `${t.openTag} ${tag}` : undefined}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 5,
+                      fontFamily: "'JetBrains Mono',monospace",
+                      fontSize: 10.5,
+                      border: "1px solid rgba(var(--wrgb),.09)",
+                      background: "rgba(var(--wrgb),.035)",
+                      borderRadius: 99,
+                      padding: "3px 9px",
+                      color: "rgba(var(--trgb),.75)",
+                      cursor: linked ? "pointer" : "default",
+                    }}
+                  >
+                    <Tag size={10} style={{ color: "rgba(var(--accrgb),.7)" }} />
+                    {tag}
+                  </button>
+                );
+              })}
             </div>
           </Card>
 

@@ -61,6 +61,9 @@ pub struct GitInfo {
     pub releases: Vec<Release>,
     pub first_commit: String,
     pub last_commit: String,
+    /// The remote as a browsable page, e.g. `https://github.com/owner/repo`.
+    /// Empty when there is no remote, or none that has a web page.
+    pub remote: String,
 }
 
 /// A directory the cleaner is allowed to remove, with its measured size.

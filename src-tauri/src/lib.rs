@@ -56,6 +56,7 @@ pub fn run() {
             commands::open_editor,
             commands::open_terminal,
             commands::reveal,
+            commands::open_tag,
             commands::sys_stats,
         ])
         .build(tauri::generate_context!())

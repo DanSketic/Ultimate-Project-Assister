@@ -90,6 +90,28 @@ pub fn open_terminal(path: &Path) -> Result<(), String> {
     }
 }
 
+/// Hands an https URL to the default browser.
+///
+/// The scheme is checked here as well as by the caller: this is the one place
+/// in the app that can launch something the user did not name, and `file://` or
+/// a shell scheme reaching it would be a different kind of function entirely.
+pub fn open_url(url: &str) -> Result<(), String> {
+    if !url.starts_with("https://") {
+        return Err(format!("refusing to open {url}"));
+    }
+
+    #[cfg(windows)]
+    // The empty argument is `start`'s title parameter; without it a quoted URL
+    // would be taken as the window title and nothing would open.
+    let result = detached("cmd").args(["/C", "start", "", url]).spawn();
+    #[cfg(target_os = "macos")]
+    let result = Command::new("open").arg(url).spawn();
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let result = Command::new("xdg-open").arg(url).spawn();
+
+    result.map(|_| ()).map_err(|e| e.to_string())
+}
+
 /// Shows the directory in the system file manager.
 pub fn reveal(path: &Path) -> Result<(), String> {
     ok(path)?;

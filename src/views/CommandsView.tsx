@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { FavouriteButton, RailHeader } from "../components/GroupHeader";
+import { FavouriteButton, FavouritesFilter, RailHeader } from "../components/GroupHeader";
 
 import { DockerChip } from "../components/Requirements";
 import { SearchField } from "../components/SearchField";
@@ -29,11 +29,16 @@ export function CommandsView({ app }: { app: App }) {
     );
   }, [runnable, query]);
 
+
+  // Applied after search, before grouping: the pinned block then holds every
+  // row there is, and the folder blocks are empty rather than misleading.
+  const shown = app.favouritesOnly ? listed.filter((p) => app.favourites.has(p.id)) : listed;
+
   // Folders with something running float to the top, then the busiest ones.
   const groups = useMemo(
     () =>
       groupWithFavourites(
-        listed,
+        shown,
         app.favourites,
         (items) => {
           const active = items.filter((p) =>
@@ -43,7 +48,7 @@ export function CommandsView({ app }: { app: App }) {
         },
         t.favourites,
       ),
-    [listed, running, app.favourites, t.favourites],
+    [shown, running, app.favourites, t.favourites],
   );
   const showHeaders = groups.length > 1;
 
@@ -169,6 +174,12 @@ export function CommandsView({ app }: { app: App }) {
           clearTitle={t.clearSearch}
           compact
         />
+        <FavouritesFilter
+          on={app.favouritesOnly}
+          onClick={app.toggleFavouritesOnly}
+          label={t.favourites}
+          title={t.favouritesOnlyHint}
+        />
 
         <div style={{ overflow: "auto", minHeight: 0, display: "flex", flexDirection: "column", gap: 2 }}>
           {groups.length === 0 && (
@@ -183,6 +194,8 @@ export function CommandsView({ app }: { app: App }) {
                 label={group.label}
                 title={group.favourite ? t.favourites : group.key}
                 pinned={group.favourite}
+                collapsed={app.isCollapsed("cmd", group.key)}
+                onToggle={() => app.toggleGroup("cmd", group.key)}
                 meta={
                   <span
                     style={{
@@ -196,7 +209,8 @@ export function CommandsView({ app }: { app: App }) {
                 }
               />
             )}
-            {group.items.map((p) => {
+            {!(showHeaders && app.isCollapsed("cmd", group.key)) &&
+              group.items.map((p) => {
           const on = p.id === selected?.id;
           const hasRunning = p.commands.some((c) => running.has(cmdKey(p.id, c)));
           return (

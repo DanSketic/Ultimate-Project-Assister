@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 
-import { FavouriteButton, RailHeader } from "../components/GroupHeader";
+import { FavouriteButton, FavouritesFilter, RailHeader } from "../components/GroupHeader";
 import { SearchField } from "../components/SearchField";
 import { Check, Close, Plus } from "../components/Icons";
 import { groupWithFavourites } from "../grouping";
@@ -35,11 +35,16 @@ export function GoalsView({ app }: { app: App }) {
     return projects.filter((p) => `${p.name} ${p.path}`.toLowerCase().includes(needle));
   }, [projects, query]);
 
+
+  // Applied after search, before grouping: the pinned block then holds every
+  // row there is, and the folder blocks are empty rather than misleading.
+  const shown = app.favouritesOnly ? listed.filter((p) => app.favourites.has(p.id)) : listed;
+
   // Folders with the most unfinished features first - that is where the work is.
   const groups = useMemo(
     () =>
       groupWithFavourites(
-        listed,
+        shown,
         app.favourites,
         (items) =>
           items.reduce((open, p) => {
@@ -85,6 +90,12 @@ export function GoalsView({ app }: { app: App }) {
           clearTitle={t.clearSearch}
           compact
         />
+        <FavouritesFilter
+          on={app.favouritesOnly}
+          onClick={app.toggleFavouritesOnly}
+          label={t.favourites}
+          title={t.favouritesOnlyHint}
+        />
 
         <div
           style={{
@@ -108,6 +119,8 @@ export function GoalsView({ app }: { app: App }) {
                 label={group.label}
                 title={group.favourite ? t.favourites : group.key}
                 pinned={group.favourite}
+                collapsed={app.isCollapsed("goals", group.key)}
+                onToggle={() => app.toggleGroup("goals", group.key)}
                 meta={
                   <span
                     style={{
@@ -121,7 +134,8 @@ export function GoalsView({ app }: { app: App }) {
                 }
               />
             )}
-            {group.items.map((p) => {
+            {!(showHeaders && app.isCollapsed("goals", group.key)) &&
+              group.items.map((p) => {
           const r = app.goalRatio(p.id);
           const on = p.id === selected?.id;
           return (

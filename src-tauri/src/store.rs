@@ -99,6 +99,12 @@ pub struct Settings {
     pub favourites: Vec<String>,
     /// `<project id>|<cwd>|<command>` for each command the user pinned.
     pub cmd_favourites: Vec<String>,
+    /// Show only pinned projects in the lists.
+    pub favourites_only: bool,
+    /// Group headings the user folded away, as `<view>:<group key>` - the same
+    /// folder can head a block in several lists, and folding it in one is not a
+    /// statement about the others.
+    pub collapsed_groups: Vec<String>,
     /// Cleanup rows the user last had ticked, by target key. Kept even while a
     /// directory is absent: a `target/` that was emptied and has since built up
     /// again should come back already selected.
@@ -126,6 +132,8 @@ impl Default for Settings {
             rules: Vec::new(),
             favourites: Vec::new(),
             cmd_favourites: Vec::new(),
+            favourites_only: false,
+            collapsed_groups: Vec::new(),
             clean_picked: None,
             freed_bytes: 0,
             freed_date: String::new(),
@@ -466,12 +474,35 @@ mod tests {
     }
 
     #[test]
+    fn the_list_layout_choices_survive_a_restart() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().to_path_buf();
+
+        Store::load(dir.clone())
+            .set_settings(Settings {
+                favourites_only: true,
+                // Namespaced by view: the same folder heads a block in three
+                // lists, and folding it in one says nothing about the others.
+                collapsed_groups: vec!["projects:D:\\dev\\web".into(), "goals:D:\\dev\\web".into()],
+                ..Settings::default()
+            })
+            .unwrap();
+
+        let reloaded = Store::load(dir).settings();
+
+        assert!(reloaded.favourites_only);
+        assert_eq!(reloaded.collapsed_groups, ["projects:D:\\dev\\web", "goals:D:\\dev\\web"]);
+    }
+
+    #[test]
     fn settings_written_before_the_selection_was_remembered_still_load() {
         // The file predates both fields; neither may fabricate a selection.
         let s = load_with(WITHOUT_ANCHOR);
 
         assert_eq!(s.clean_picked, None);
         assert!(s.cmd_favourites.is_empty());
+        assert!(!s.favourites_only, "an old file must not hide every project");
+        assert!(s.collapsed_groups.is_empty());
     }
 
     fn project_at(path: &str) -> Project {

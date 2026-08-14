@@ -24,6 +24,59 @@ fn days_since(secs: i64) -> i64 {
     ((now - secs) / 86_400).max(0)
 }
 
+/// Turns a remote into the page a browser can open.
+///
+/// `git@github.com:owner/repo.git` and `https://github.com/owner/repo.git` both
+/// become `https://github.com/owner/repo`. Anything that is not an http or ssh
+/// remote - a local path, a file:// URL - yields nothing, because there is no
+/// page to open for it.
+pub fn web_url(raw: &str) -> String {
+    let raw = raw.trim().trim_end_matches('/');
+    let raw = raw.strip_suffix(".git").unwrap_or(raw);
+
+    // scp-like syntax: [user@]host:path
+    let rest = if let Some(rest) = raw.strip_prefix("git@") {
+        rest.replacen(':', "/", 1)
+    } else if let Some(rest) = raw.strip_prefix("ssh://") {
+        // ssh://git@host/owner/repo, and possibly a port to drop.
+        let rest = rest.split_once('@').map(|(_, r)| r).unwrap_or(rest);
+        match rest.split_once('/') {
+            Some((host, path)) => format!("{}/{path}", host.split(':').next().unwrap_or(host)),
+            None => return String::new(),
+        }
+    } else if let Some(rest) = raw.strip_prefix("https://") {
+        rest.split_once('@').map(|(_, r)| r.to_string()).unwrap_or_else(|| rest.to_string())
+    } else if let Some(rest) = raw.strip_prefix("http://") {
+        rest.to_string()
+    } else {
+        return String::new();
+    };
+
+    // A host *and* a path, or there is nothing to link to. Checking only for a
+    // separator is not enough: `git@github.com:` leaves a bare host.
+    let Some((host, path)) = rest.split_once('/') else { return String::new() };
+    if host.is_empty() || path.is_empty() {
+        return String::new();
+    }
+    format!("https://{host}/{path}")
+}
+
+/// The page for one tag on the hosting service.
+///
+/// GitHub gets its releases page, which is where a tag's notes and downloads
+/// live. Everything else gets the tree view, which every host understands.
+pub fn tag_url(remote: &str, tag: &str) -> String {
+    if remote.is_empty() || tag.is_empty() || tag == "—" {
+        return String::new();
+    }
+    let encoded = tag.replace('#', "%23").replace('?', "%3F").replace(' ', "%20");
+    if remote.starts_with("https://github.com/") {
+        format!("{remote}/releases/tag/{encoded}")
+    } else {
+        format!("{remote}/tree/{encoded}")
+    }
+}
+
 pub fn inspect(root: &Path, deep: bool) -> GitInfo {
     let Ok(repo) = Repository::open(root) else {
         return GitInfo::default();
@@ -38,6 +91,14 @@ pub fn inspect(root: &Path, deep: bool) -> GitInfo {
         .and_then(|h| h.shorthand())
         .unwrap_or("HEAD")
         .to_string();
+
+    // --- remote -----------------------------------------------------------
+    // Whatever the branch tracks, falling back to origin.
+    info.remote = repo
+        .find_remote("origin")
+        .ok()
+        .and_then(|r| r.url().map(web_url))
+        .unwrap_or_default();
 
     // --- working tree state ----------------------------------------------
     let mut opts = StatusOptions::new();
@@ -154,4 +215,48 @@ pub fn inspect(root: &Path, deep: bool) -> GitInfo {
     }
 
     info
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn every_shape_of_remote_becomes_the_same_page() {
+        let want = "https://github.com/DanSketic/Ultimate-Project-Assister";
+        for raw in [
+            "git@github.com:DanSketic/Ultimate-Project-Assister.git",
+            "https://github.com/DanSketic/Ultimate-Project-Assister.git",
+            "https://github.com/DanSketic/Ultimate-Project-Assister",
+            "https://token@github.com/DanSketic/Ultimate-Project-Assister.git",
+            "ssh://git@github.com/DanSketic/Ultimate-Project-Assister.git",
+            "https://github.com/DanSketic/Ultimate-Project-Assister/",
+        ] {
+            assert_eq!(web_url(raw), want, "from {raw}");
+        }
+    }
+
+    #[test]
+    fn a_remote_with_no_page_yields_nothing() {
+        for raw in ["", "D:\\mirrors\\repo.git", "file:///srv/git/repo.git", "git@github.com:"] {
+            assert_eq!(web_url(raw), "", "from {raw:?}");
+        }
+    }
+
+    #[test]
+    fn github_tags_point_at_the_release_and_others_at_the_tree() {
+        let gh = "https://github.com/owner/repo";
+        assert_eq!(tag_url(gh, "v1.1.0"), "https://github.com/owner/repo/releases/tag/v1.1.0");
+
+        let gl = "https://gitlab.com/owner/repo";
+        assert_eq!(tag_url(gl, "v1.1.0"), "https://gitlab.com/owner/repo/tree/v1.1.0");
+    }
+
+    #[test]
+    fn nothing_is_linked_without_a_remote_or_a_tag() {
+        assert_eq!(tag_url("", "v1.0.0"), "");
+        assert_eq!(tag_url("https://github.com/o/r", ""), "");
+        // The placeholder the UI shows when a repo carries no tags.
+        assert_eq!(tag_url("https://github.com/o/r", "—"), "");
+    }
 }

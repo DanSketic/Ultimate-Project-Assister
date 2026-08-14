@@ -166,6 +166,16 @@ export async function openTerminal(path: string): Promise<void> {
   if (IS_TAURI) await call<void>("open_terminal", { path });
 }
 
+/**
+ * Opens a tag's page on the hosting service. Only a project and a tag cross
+ * the boundary — the backend builds the URL from that project's own remote,
+ * so this cannot be asked to open something else.
+ */
+export async function openTag(projectId: string, tag: string): Promise<string> {
+  if (!IS_TAURI) return `https://github.com/example/${projectId}/releases/tag/${tag}`;
+  return call<string>("open_tag", { projectId, tag });
+}
+
 export async function reveal(path: string): Promise<void> {
   if (IS_TAURI) await call<void>("reveal", { path });
 }

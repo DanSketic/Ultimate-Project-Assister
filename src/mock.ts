@@ -440,6 +440,9 @@ export function projects(): Project[] {
               ],
         firstCommit: `${2019 + (i % 6)}-0${1 + (i % 8)}-1${i % 9}`,
         lastCommit: "",
+        // A couple of projects have no remote, so the unlinked tag chips are
+        // reachable in the browser build too.
+        remote: i % 6 === 4 ? "" : `https://github.com/DanSketic/${name}`,
       },
       scannedAt: Math.floor(Date.now() / 1000),
     };
@@ -458,6 +461,8 @@ export function settings(): Settings {
     toggles: { scanStart: true, watchFs: true, deepGit: true, docker: false },
     ageDays: 30,
     cmdFavourites: [],
+    favouritesOnly: false,
+    collapsedGroups: [],
     cleanPicked: null,
     rules: [
       { pattern: "node_modules", scope: "keep: shopflow-web" },

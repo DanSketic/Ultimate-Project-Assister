@@ -492,6 +492,27 @@ pub fn reveal(path: String) -> Result<(), String> {
     platform::reveal(Path::new(&path))
 }
 
+/// Opens a tag's page on whichever service the project is hosted on.
+///
+/// The URL is built here from the project's own remote, and the tag has to be
+/// one this project actually has. The frontend names a project and a tag; it
+/// cannot name a URL, so this stays a link to the user's own repository rather
+/// than a way to open anything at all.
+#[tauri::command]
+pub fn open_tag(state: State<'_, AppState>, project_id: String, tag: String) -> Result<String, String> {
+    let project = state.project_by_id(&project_id).ok_or("unknown project")?;
+
+    if !project.git.tags.contains(&tag) && project.git.tag != tag {
+        return Err(format!("{tag} is not a tag of this project"));
+    }
+    let url = crate::git::tag_url(&project.git.remote, &tag);
+    if url.is_empty() {
+        return Err("this project has no remote to open".into());
+    }
+
+    platform::open_url(&url).map(|()| url)
+}
+
 #[tauri::command]
 pub async fn sys_stats() -> Result<SysStats, String> {
     tauri::async_runtime::spawn_blocking(|| SysStats { rss_bytes: platform::rss_bytes() })

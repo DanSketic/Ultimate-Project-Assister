@@ -603,6 +603,51 @@ export function useApp() {
     [cmdFavourites, patchSettings],
   );
 
+  const favouritesOnly = settings?.favouritesOnly ?? false;
+
+  const toggleFavouritesOnly = useCallback(
+    () => patchSettings({ favouritesOnly: !favouritesOnly }),
+    [patchSettings, favouritesOnly],
+  );
+
+  /**
+   * Folded group headings, remembered across sessions.
+   *
+   * Namespaced by view: the same folder heads a block in Projects, Goals and
+   * Commands, and folding it in one is not a statement about the others.
+   */
+  const collapsedGroups = useMemo(
+    () => new Set(settings?.collapsedGroups ?? []),
+    [settings?.collapsedGroups],
+  );
+
+  const isCollapsed = useCallback(
+    (view: string, key: string) => collapsedGroups.has(`${view}:${key}`),
+    [collapsedGroups],
+  );
+
+  const toggleGroup = useCallback(
+    (view: string, key: string) => {
+      const id = `${view}:${key}`;
+      const next = new Set(collapsedGroups);
+      if (!next.delete(id)) next.add(id);
+      patchSettings({ collapsedGroups: [...next] });
+    },
+    [collapsedGroups, patchSettings],
+  );
+
+  /** Opens a tag on the hosting service; reports why when it cannot. */
+  const openTag = useCallback(
+    async (projectId: string, tag: string) => {
+      try {
+        await api.openTag(projectId, tag);
+      } catch (e) {
+        flash(String(e));
+      }
+    },
+    [flash],
+  );
+
   const toggleMax = useCallback(async () => {
     setMaxed(await api.toggleMaximizeWindow());
   }, []);
@@ -923,6 +968,11 @@ export function useApp() {
     toggleNav,
     favourites,
     toggleFavourite,
+    favouritesOnly,
+    toggleFavouritesOnly,
+    isCollapsed,
+    toggleGroup,
+    openTag,
     maxed,
     toggleMax,
     // list controls

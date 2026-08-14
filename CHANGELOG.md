@@ -7,6 +7,28 @@ the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 
 Every change bumps the version — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## [1.2.0] - 2026-08-14
+
+### Added
+
+- **A way through to Commands from the project detail.** It was the one view
+  with no route from there — Goals and the board had one, Commands did not. The
+  button carries the command count and opens that project's commands.
+- **Tags link to the release they name.** Clicking one opens its page on
+  whichever service the project is hosted on: GitHub gets the releases page,
+  everything else the tree view. The URL is built in the backend from that
+  project's own remote and the tag has to be one the project actually has — the
+  frontend names a project and a tag, never a URL, so this stays a link to your
+  own repository rather than a way to open anything at all. A project with no
+  remote shows its tags plainly instead of pretending to be clickable.
+- **Group headings fold.** Every grouped list — Projects, Goals, Commands —
+  collapses a block from its heading, and which ones are folded is remembered.
+  The state is namespaced per list, since the same folder heads a block in all
+  three and folding it in one says nothing about the others.
+- **A favourites-only filter**, on all three lists and driven by one setting, so
+  the answer is the same wherever it is asked. Also remembered: it is a way of
+  working rather than a momentary filter.
+
 ## [1.1.0] - 2026-08-14
 
 ### Fixed
@@ -358,6 +380,7 @@ Hungarian interface, light and dark themes, per-view window sizing, project
 scanning with git analysis, guarded cleanup, and a process runner with live log
 streaming. Never published.
 
+[1.2.0]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v1.2.0
 [1.1.0]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v1.1.0
 [1.0.0]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v1.0.0
 [0.11.0]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v0.11.0

@@ -46,6 +46,11 @@ export interface GitInfo {
   releases: Release[];
   firstCommit: string;
   lastCommit: string;
+  /**
+   * The remote as a browsable page, e.g. `https://github.com/owner/repo`.
+   * Empty when there is no remote, or none with a web page.
+   */
+  remote: string;
 }
 
 export interface CleanTarget {
@@ -250,6 +255,10 @@ export interface Settings {
   favourites: string[];
   /** `<project id>|<cwd>|<command>` for each command the user pinned. */
   cmdFavourites: string[];
+  /** Show only pinned projects in the lists. */
+  favouritesOnly: boolean;
+  /** Folded group headings, as `<view>:<group key>`. */
+  collapsedGroups: string[];
   /**
    * Cleanup target keys last ticked, kept even while a directory is absent.
    * `null` means never chosen, so the cleaner picks by age instead; an empty

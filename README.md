@@ -39,7 +39,9 @@ group by the folder the projects live in; Cleanup groups by project. Headings
 carry the totals for the block, and disappear when there is only one of them.
 
 Starring a project pins it to a **Favourites** block above the folders — in all
-three lists, so a favourite is in the same place wherever you look.
+three lists, so a favourite is in the same place wherever you look. Every
+heading folds, and one filter narrows all three lists to the pinned projects.
+Both are remembered between sessions.
 
 ### Cleanup
 
