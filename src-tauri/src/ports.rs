@@ -17,35 +17,62 @@ use crate::model::{PortConflict, PortProcess, PortUser};
 /// Ports below this are system services nothing here would start.
 const MIN_PORT: u16 = 1024;
 
+/// Sub-commands that build or check rather than serve, whatever tool runs them.
+const NOT_A_SERVER: &[&str] =
+    &["build", "lint", "test", "typecheck", "check", "format", "generate", "compile", "prepare"];
+
 /// Default a framework listens on when nothing says otherwise. Only consulted
 /// when the project declares no port of its own.
+///
+/// Matched on tokens rather than on substrings: `vite build` is not a server,
+/// and `vitest` is not vite at all - both of which a `contains("vite")` test
+/// gets wrong, and gets wrong silently.
 fn default_port(cmd: &str, manifests: &[String]) -> Option<u16> {
-    let has = |m: &str| manifests.iter().any(|x| x == m);
+    // Leading `PORT=3000`-style assignments are environment, not the program.
+    let tokens: Vec<&str> = cmd.split_whitespace().skip_while(|t| t.contains('=')).collect();
 
-    // Ordered most specific first: `next dev` is also an npm script.
-    for (needle, port) in [
-        ("vite", 5173u16),
-        ("nuxt", 3000),
-        ("next", 3000),
-        ("astro", 4321),
-        ("remix", 3000),
-        ("ng serve", 4200),
-        ("react-scripts", 3000),
-        ("storybook", 6006),
-        ("uvicorn", 8000),
-        ("manage.py runserver", 8000),
-        ("flask", 5000),
-        ("rails", 3000),
-        ("php -s", 8000),
-        ("mix phx.server", 4000),
-    ] {
-        if cmd.contains(needle) {
-            return Some(port);
-        }
+    let program = tokens.first().copied().unwrap_or_default();
+    // `node_modules/.bin/vite` is still vite.
+    let program = program.rsplit(['/', '\\']).next().unwrap_or(program);
+    let sub = tokens.get(1).copied().filter(|t| !t.starts_with('-')).unwrap_or_default();
+
+    if NOT_A_SERVER.contains(&sub) {
+        return None;
     }
 
-    // A bare `dev`/`start` script on a Node project: 3000 is the convention.
-    if (cmd.contains(" run dev") || cmd.contains(" run start")) && has("package.json") {
+    match (program, sub) {
+        ("vite", "preview") => return Some(4173),
+        ("vite", _) => return Some(5173),
+        ("next", "dev" | "start") => return Some(3000),
+        ("nuxt", "dev" | "start" | "preview") => return Some(3000),
+        ("astro", "dev" | "preview") => return Some(4321),
+        ("ng", "serve") => return Some(4200),
+        ("remix", "dev") => return Some(3000),
+        ("react-scripts", "start") => return Some(3000),
+        ("storybook", _) => return Some(6006),
+        ("uvicorn", _) => return Some(8000),
+        ("flask", "run") => return Some(5000),
+        ("rails", "s" | "server") => return Some(3000),
+        _ => {}
+    }
+
+    // Forms that carry their own shape rather than a program name.
+    if cmd.contains("manage.py runserver") {
+        return Some(8000);
+    }
+    if cmd.contains("phx.server") {
+        return Some(4000);
+    }
+    if cmd.contains("php -S") {
+        return Some(8000);
+    }
+
+    // A bare `dev`/`start` script on a Node project whose body we could not
+    // read: 3000 is the convention, and a wrong guess here only costs a
+    // question that turns out not to have been needed.
+    if (cmd.contains(" run dev") || cmd.contains(" run start"))
+        && manifests.iter().any(|m| m == "package.json")
+    {
         return Some(3000);
     }
     None
@@ -159,6 +186,22 @@ pub fn ports_in_compose(raw: &str) -> BTreeSet<u16> {
     out
 }
 
+/// What `npm run dev` actually runs, read out of package.json.
+///
+/// Without this, every script looks alike and the guess has to be the generic
+/// 3000 - wrong for a Vite project, which serves on 5173. Resolving the script
+/// turns `npm run dev` into `vite` and the guess into the right one.
+fn script_body(dir: &Path, cmd: &str) -> Option<String> {
+    let (_, rest) = cmd.split_once(" run ")?;
+    let name = rest.split_whitespace().next()?;
+
+    let raw = fs::read_to_string(dir.join("package.json")).ok()?;
+    let json = serde_json::from_str::<serde_json::Value>(&raw).ok()?;
+    let body = json.get("scripts")?.get(name)?.as_str()?.trim().to_string();
+
+    (!body.is_empty()).then_some(body)
+}
+
 /// The port a command is expected to take, or none when it does not serve.
 pub fn port_for(cmd: &str, dir: &Path, manifests: &[String]) -> Option<u16> {
     // A compose stack publishes whatever the file says, whichever command
@@ -178,6 +221,13 @@ pub fn port_for(cmd: &str, dir: &Path, manifests: &[String]) -> Option<u16> {
     port_in_command(cmd)
         .or_else(|| port_in_env(dir))
         .or_else(|| port_in_config(dir))
+        // What the script runs decides the default, when it can be read: a
+        // `dev` script is only generic until you look at what is inside it.
+        .or_else(|| script_body(dir, cmd).and_then(|body| port_in_command(&body)))
+        .or_else(|| {
+            let body = script_body(dir, cmd)?;
+            default_port(&body, manifests)
+        })
         .or_else(|| default_port(cmd, manifests))
 }
 
@@ -516,6 +566,66 @@ services:
     }
 
     #[test]
+    fn the_script_body_decides_the_default_not_the_script_name() {
+        let tmp = tempfile::tempdir().unwrap();
+        fs::write(
+            tmp.path().join("package.json"),
+            r#"{"scripts":{"dev":"vite","serve":"next dev","api":"uvicorn app:api"}}"#,
+        )
+        .unwrap();
+        let manifests = vec!["package.json".to_string()];
+
+        // Vite serves on 5173, not the generic 3000 a bare `dev` would suggest.
+        assert_eq!(port_for("npm run dev", tmp.path(), &manifests), Some(5173));
+        assert_eq!(port_for("npm run serve", tmp.path(), &manifests), Some(3000));
+        assert_eq!(port_for("npm run api", tmp.path(), &manifests), Some(8000));
+    }
+
+    #[test]
+    fn a_tool_that_merely_looks_like_a_server_is_not_one() {
+        let tmp = tempfile::tempdir().unwrap();
+        // `vitest` contains "vite" and is not a dev server; matching on
+        // substrings got both of these wrong, and got them wrong quietly.
+        assert_eq!(port_for("vitest", tmp.path(), &[]), None);
+        assert_eq!(port_for("vitest run", tmp.path(), &[]), None);
+        assert_eq!(port_for("vite build", tmp.path(), &[]), None);
+        assert_eq!(port_for("next build", tmp.path(), &[]), None);
+        // But the real ones still resolve, including through a bin path.
+        assert_eq!(port_for("node_modules/.bin/vite", tmp.path(), &[]), Some(5173));
+        assert_eq!(port_for("vite preview", tmp.path(), &[]), Some(4173));
+    }
+
+    #[test]
+    fn a_port_inside_the_script_is_found() {
+        let tmp = tempfile::tempdir().unwrap();
+        fs::write(
+            tmp.path().join("package.json"),
+            r#"{"scripts":{"dev":"vite --port 4300"}}"#,
+        )
+        .unwrap();
+
+        assert_eq!(
+            port_for("npm run dev", tmp.path(), &["package.json".to_string()]),
+            Some(4300),
+            "the script's own --port is what the server will use",
+        );
+    }
+
+    #[test]
+    fn a_script_that_serves_nothing_still_has_no_port() {
+        let tmp = tempfile::tempdir().unwrap();
+        fs::write(
+            tmp.path().join("package.json"),
+            r#"{"scripts":{"lint":"eslint .","build":"vite build"}}"#,
+        )
+        .unwrap();
+        let manifests = vec!["package.json".to_string()];
+
+        assert_eq!(port_for("npm run lint", tmp.path(), &manifests), None);
+        assert_eq!(port_for("npm run build", tmp.path(), &manifests), None, "a build does not listen");
+    }
+
+    #[test]
     fn a_framework_default_is_the_last_resort() {
         let tmp = tempfile::tempdir().unwrap();
         assert_eq!(port_for("npm run dev -- --host", tmp.path(), &["package.json".into()]), Some(3000));
@@ -529,6 +639,23 @@ services:
         assert_eq!(port_for("cargo build --release", tmp.path(), &[]), None);
         assert_eq!(port_for("npm run lint", tmp.path(), &["package.json".into()]), None);
         assert_eq!(port_for("cargo test --all", tmp.path(), &[]), None);
+    }
+
+    /// This repository is its own fixture: a Vite config pinning 1420, and an
+    /// `npm run dev` that has to be recognised as wanting that port.
+    #[test]
+    fn this_project_is_detected_as_wanting_1420() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        assert!(root.join("vite.config.ts").is_file(), "fixture moved: {}", root.display());
+
+        let manifests = vec!["package.json".to_string()];
+        for cmd in ["npm run dev", "npm run dev:vite"] {
+            assert_eq!(
+                port_for(cmd, root, &manifests),
+                Some(1420),
+                "`{cmd}` must be recognised as wanting the port vite.config.ts pins",
+            );
+        }
     }
 
     #[test]

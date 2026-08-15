@@ -10,6 +10,18 @@ are assigned when a release is cut — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## [Unreleased]
 
+### Fixed
+
+- **The port a script will use is read from the script, not from its name.**
+  `npm run dev` told us nothing, so every Node project was guessed at 3000 —
+  wrong for Vite, which serves on 5173, and a wrong port means the check finds
+  it free and says nothing. The script body is now resolved out of package.json
+  first, so `dev` is recognised as whatever it actually runs.
+- **A build is no longer mistaken for a server.** The framework defaults matched
+  on substrings, so `vite build` looked like Vite and `vitest` looked like it
+  too — both answered 5173, and both quietly. Matching is on the program and its
+  sub-command now, with build, lint, test and friends excluded outright.
+
 ### Added
 
 - **A busy port can be stepped around instead of fought over.** The first thing
