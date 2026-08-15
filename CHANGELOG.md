@@ -17,6 +17,10 @@ are assigned when a release is cut — see [CONTRIBUTING.md](CONTRIBUTING.md).
   wrong for Vite, which serves on 5173, and a wrong port means the check finds
   it free and says nothing. The script body is now resolved out of package.json
   first, so `dev` is recognised as whatever it actually runs.
+- **A failed port check no longer passes silently.** It was caught and
+  discarded, and the command started anyway — indistinguishable from the
+  feature not being there at all: no dialog, then a command that dies on a port
+  nobody asked about. It now says what went wrong.
 - **A build is no longer mistaken for a server.** The framework defaults matched
   on substrings, so `vite build` looked like Vite and `vitest` looked like it
   too — both answered 5173, and both quietly. Matching is on the program and its

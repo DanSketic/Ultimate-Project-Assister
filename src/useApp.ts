@@ -787,9 +787,15 @@ export function useApp() {
         return;
       }
 
+      // A failed check used to be swallowed and the command started anyway,
+      // which looks exactly like the feature not existing: no dialog, then the
+      // command dies on a port it was never asked about. Say so instead.
       const conflict = await api
         .checkPort(project.id, command.cmd, command.cwd)
-        .catch(() => null);
+        .catch((e) => {
+          flash(`${t.portCheckFailed}: ${e}`);
+          return null;
+        });
 
       if (conflict?.taken) {
         // The decision is the user's; the dialog carries what is known about
@@ -799,7 +805,7 @@ export function useApp() {
       }
       await startCommand(project, command);
     },
-    [running, startCommand, stopCommand],
+    [running, startCommand, stopCommand, flash, t],
   );
 
   /**
