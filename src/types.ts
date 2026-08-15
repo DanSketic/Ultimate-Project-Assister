@@ -1,6 +1,14 @@
 // Mirrors src-tauri/src/model.rs and src-tauri/src/store.rs.
 
-export type View = "projects" | "detail" | "clean" | "goals" | "board" | "cmd" | "set";
+export type View =
+  | "projects"
+  | "detail"
+  | "clean"
+  | "goals"
+  | "board"
+  | "cmd"
+  | "procs"
+  | "set";
 export type Lang = "hu" | "en";
 export type Theme = "auto" | "light" | "dark";
 export type NoteColor = "paper" | "accent" | "ink";

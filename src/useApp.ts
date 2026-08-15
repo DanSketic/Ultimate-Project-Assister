@@ -31,6 +31,7 @@ const VIEW_WIDTH: Record<View, number> = {
   goals: 1030,
   board: 1740,
   cmd: 1120,
+  procs: 1120,
   set: 840,
 };
 
@@ -154,8 +155,6 @@ export function useApp() {
     command: CommandDef;
     conflict: PortConflict;
   } | null>(null);
-  /** Which half of the Commands view is on screen. */
-  const [cmdTab, setCmdTab] = useState<"commands" | "processes">("commands");
   const [processes, setProcesses] = useState<ProcessInfo[] | null>(null);
   const [stopping, setStopping] = useState<Set<number>>(new Set());
 
@@ -626,19 +625,36 @@ export function useApp() {
     [settings?.collapsedGroups],
   );
 
+  /**
+   * Whether a group is folded.
+   *
+   * `byDefault` lets a block start closed — the processes that belong to no
+   * project, say, which are context rather than work. Because "absent" then no
+   * longer means "open", an explicit choice to open such a group is recorded
+   * under an `open:` prefix; the two together give three states out of one list.
+   */
   const isCollapsed = useCallback(
-    (view: string, key: string) => collapsedGroups.has(`${view}:${key}`),
+    (view: string, key: string, byDefault = false) => {
+      const id = `${view}:${key}`;
+      if (collapsedGroups.has(id)) return true;
+      if (collapsedGroups.has(`open:${id}`)) return false;
+      return byDefault;
+    },
     [collapsedGroups],
   );
 
   const toggleGroup = useCallback(
-    (view: string, key: string) => {
+    (view: string, key: string, byDefault = false) => {
       const id = `${view}:${key}`;
       const next = new Set(collapsedGroups);
-      if (!next.delete(id)) next.add(id);
+      // Whichever way it was decided, the old answer goes before the new one.
+      next.delete(id);
+      next.delete(`open:${id}`);
+      if (isCollapsed(view, key, byDefault)) next.add(`open:${id}`);
+      else next.add(id);
       patchSettings({ collapsedGroups: [...next] });
     },
-    [collapsedGroups, patchSettings],
+    [collapsedGroups, isCollapsed, patchSettings],
   );
 
   /** Opens a tag on the hosting service; reports why when it cannot. */
@@ -747,7 +763,7 @@ export function useApp() {
    * business doing it every few seconds.
    */
   useEffect(() => {
-    if (view !== "cmd" || cmdTab !== "processes") return;
+    if (view !== "procs") return;
     let alive = true;
 
     const tick = async () => {
@@ -760,7 +776,7 @@ export function useApp() {
       alive = false;
       window.clearInterval(id);
     };
-  }, [view, cmdTab]);
+  }, [view]);
 
   /**
    * Stops a process. One this app started goes through the runner that owns it,
@@ -1131,8 +1147,6 @@ export function useApp() {
     logTab,
     setLogTab,
     closeLog,
-    cmdTab,
-    setCmdTab,
     processes,
     refreshProcesses,
     stopProcess,

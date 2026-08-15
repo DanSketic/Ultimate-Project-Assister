@@ -10,6 +10,7 @@ import { isOverdue, projectCount, size } from "./format";
 import { BoardView } from "./views/BoardView";
 import { CleanView } from "./views/CleanView";
 import { CommandsView } from "./views/CommandsView";
+import { ProcessesView } from "./views/ProcessesView";
 import { DetailView } from "./views/DetailView";
 import { GoalsView } from "./views/GoalsView";
 import { ProjectsView } from "./views/ProjectsView";
@@ -85,6 +86,13 @@ export function App() {
       kicker: t.navCmd,
       title: cmdProject?.name ?? "—",
       meta: `${cmdProject?.commands.length ?? 0} ${t.cmdL} · ${app.running.size} ${t.runningL}`,
+    },
+    procs: {
+      kicker: t.processes,
+      title: t.processes,
+      meta: app.processes
+        ? `${app.processes.length} ${t.processesRunning} · ${size(app.processes.reduce((a, p) => a + p.memoryBytes, 0))}`
+        : t.checking,
     },
     set: {
       kicker: t.navSet,
@@ -196,6 +204,7 @@ export function App() {
             {view === "goals" && <GoalsView app={app} />}
             {view === "board" && <BoardView app={app} />}
             {view === "cmd" && <CommandsView app={app} />}
+            {view === "procs" && <ProcessesView app={app} />}
             {view === "set" && <SettingsView app={app} />}
           </div>
 

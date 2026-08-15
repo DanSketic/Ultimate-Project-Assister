@@ -51,6 +51,12 @@ export const ChevronDown = (p: IconProps) => (
   </Svg>
 );
 
+export const Activity = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M3 12h4l3 8 4-16 3 8h4" />
+  </Svg>
+);
+
 export const Monitor = (p: IconProps) => (
   <Svg strokeWidth={1.9} {...p}>
     <rect x="2.5" y="4" width="19" height="12.5" rx="2.5" />

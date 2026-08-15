@@ -1,7 +1,17 @@
 import type { ReactNode } from "react";
 
 import { isOverdue, size } from "../format";
-import { Folder, PanelLeft, Refresh, Sliders, StickyNote, Target, Terminal, Trash } from "./Icons";
+import {
+  Activity,
+  Folder,
+  PanelLeft,
+  Refresh,
+  Sliders,
+  StickyNote,
+  Target,
+  Terminal,
+  Trash,
+} from "./Icons";
 import type { App } from "../useApp";
 import type { View } from "../types";
 
@@ -163,6 +173,12 @@ export function Sidebar({ app }: { app: App }) {
           />
           {running.size}
         </span>,
+      )}
+      {item(
+        "procs",
+        <Activity size={16} style={{ flex: "0 0 16px" }} />,
+        t.processes,
+        <span style={mono()}>{app.processes?.length ?? ""}</span>,
       )}
 
       {/* Settings sits at the foot with Rescan rather than among the views:

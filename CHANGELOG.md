@@ -41,10 +41,13 @@ are assigned when a release is cut — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Added
 
-- **A running-processes overview, under Commands.** A second tab beside the
-  command list showing what is actually running: which project each process
-  belongs to, the ports it holds, how much memory it is using, how long it has
-  been up, and its PID — with a stop button on each.
+- **A running-processes view, in the sidebar under Commands.** What is actually
+  running: which project each process belongs to, the ports it holds, how much
+  memory it is using, how long it has been up, and its PID — with a stop button
+  on each. Processes that belong to no project start folded, since they are
+  context for the ones that do rather than the thing being looked at; opening
+  one is remembered, so a group can now default to closed and still keep
+  whichever answer you gave it.
 
   Deliberately not a task manager. Three things earn a row: this app started it,
   it is listening on a port, or it is working inside a project you watch.

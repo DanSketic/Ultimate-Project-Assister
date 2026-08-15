@@ -56,7 +56,15 @@ export function ProcessesView({ app }: { app: App }) {
   const total = processes.reduce((sum, p) => sum + p.memoryBytes, 0);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", minHeight: 0, height: "100%" }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        minHeight: 0,
+        height: "100%",
+        padding: "0 20px 20px",
+      }}
+    >
       <div
         style={{
           display: "flex",
@@ -98,11 +106,13 @@ export function ProcessesView({ app }: { app: App }) {
       <div style={{ overflow: "auto", minHeight: 0, paddingBottom: 10 }}>
         {groups.map((group) => (
           <div key={group.key}>
+            {/* Processes belonging to no project start folded: they are
+                context for the ones that do, not the thing being looked at. */}
             <FolderHeader
               label={group.label}
               title={group.orphan ? t.otherProcesses : group.label}
-              collapsed={app.isCollapsed("procs", group.key)}
-              onToggle={() => app.toggleGroup("procs", group.key)}
+              collapsed={app.isCollapsed("procs", group.key, group.orphan)}
+              onToggle={() => app.toggleGroup("procs", group.key, group.orphan)}
             >
               <span style={{ fontFamily: mono, fontSize: 10, color: "rgba(var(--trgb),.45)" }}>
                 {group.ports.length ? group.ports.map((p) => `:${p}`).join(" ") : ""}
@@ -112,7 +122,7 @@ export function ProcessesView({ app }: { app: App }) {
               </span>
             </FolderHeader>
 
-            {!app.isCollapsed("procs", group.key) &&
+            {!app.isCollapsed("procs", group.key, group.orphan) &&
               group.items.map((p) => <Row key={p.pid} process={p} app={app} />)}
           </div>
         ))}
