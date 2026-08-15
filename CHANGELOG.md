@@ -12,6 +12,19 @@ are assigned when a release is cut — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Fixed
 
+- **A dev server listening on IPv6 was invisible to the port check.** Node
+  resolves `localhost` to `::1` before `127.0.0.1`, so a Vite dev server holds
+  IPv6 loopback and nothing else. The check bound only the two IPv4 addresses,
+  found them genuinely free, and reported the port available while the server
+  was plainly running on it — so no warning appeared and the command was started
+  straight into `Port 1420 is already in use`. All four addresses are tried now,
+  and only a refusal that actually says "in use" counts, so a machine without an
+  IPv6 stack is not mistaken for a busy port.
+
+  The same blind spot hid the holder: `netstat -ano -p TCP` means IPv4 only on
+  Windows, so the process was never found either. The protocol filter is gone
+  and the protocol column is read instead.
+
 - **The port a script will use is read from the script, not from its name.**
   `npm run dev` told us nothing, so every Node project was guessed at 3000 —
   wrong for Vite, which serves on 5173, and a wrong port means the check finds

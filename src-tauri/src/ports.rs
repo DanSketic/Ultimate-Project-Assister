@@ -8,7 +8,7 @@
 
 use std::collections::BTreeSet;
 use std::fs;
-use std::net::{Ipv4Addr, SocketAddrV4, TcpListener};
+use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, TcpListener};
 use std::path::Path;
 use std::process::Command;
 
@@ -236,13 +236,27 @@ pub fn port_for(cmd: &str, dir: &Path, manifests: &[String]) -> Option<u16> {
 /// Decided by trying to bind it, which is exactly the question the command
 /// about to start will ask - no parsing of `netstat` output, and no false
 /// negative from a listener the current user cannot see.
+///
+/// All four addresses, and IPv6 is not optional: Node resolves `localhost` to
+/// `::1` first, so a Vite dev server listens on IPv6 loopback alone. Checking
+/// only the IPv4 addresses found them genuinely free and reported the port
+/// available while the server was plainly running on it.
 pub fn is_taken(port: u16) -> bool {
-    // Both, because a server bound to 127.0.0.1 does not block 0.0.0.0 on
-    // Windows and the reverse is true elsewhere.
-    for addr in [Ipv4Addr::UNSPECIFIED, Ipv4Addr::LOCALHOST] {
-        match TcpListener::bind(SocketAddrV4::new(addr, port)) {
+    let addresses = [
+        SocketAddr::from((Ipv4Addr::LOCALHOST, port)),
+        SocketAddr::from((Ipv4Addr::UNSPECIFIED, port)),
+        SocketAddr::from((Ipv6Addr::LOCALHOST, port)),
+        SocketAddr::from((Ipv6Addr::UNSPECIFIED, port)),
+    ];
+
+    for addr in addresses {
+        match TcpListener::bind(addr) {
             Ok(listener) => drop(listener),
-            Err(_) => return true,
+            Err(e) if e.kind() == std::io::ErrorKind::AddrInUse => return true,
+            // Any other refusal says this address family is unusable here - no
+            // IPv6 stack, a privileged port - which is not evidence that
+            // somebody is holding the port.
+            Err(_) => continue,
         }
     }
     false
@@ -366,7 +380,10 @@ fn listening_pid(port: u16) -> Option<u32> {
     use std::os::windows::process::CommandExt;
 
     let mut cmd = Command::new("netstat");
-    cmd.args(["-ano", "-p", "TCP"]);
+    // No `-p TCP`: on Windows that means IPv4 only, and a dev server listening
+    // on `[::1]` would not appear at all. Unfiltered output carries both
+    // families, with the protocol in the first column.
+    cmd.args(["-ano"]);
     cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
     let out = cmd.output().ok()?;
     let text = String::from_utf8_lossy(&out.stdout);
@@ -376,10 +393,12 @@ fn listening_pid(port: u16) -> Option<u32> {
         let fields: Vec<&str> = line.split_whitespace().collect();
         // Proto, local address, foreign address, [state], pid. The state word
         // is translated on a localised Windows, so it is never matched on -
-        // only the local address and the trailing pid are read.
-        if fields.len() < 4 {
+        // only the protocol, the local address and the trailing pid are read.
+        if fields.len() < 4 || !fields[0].eq_ignore_ascii_case("TCP") {
             continue;
         }
+        // `[::1]:1420` and `127.0.0.1:1420` both end this way; a local port of
+        // 11420 does not, because the colon has to match too.
         if !fields[1].ends_with(&needle) {
             continue;
         }
@@ -641,6 +660,55 @@ services:
         assert_eq!(port_for("cargo test --all", tmp.path(), &[]), None);
     }
 
+    /// Diagnostic, run by hand against a live dev server:
+    /// `cargo test --lib probe_live_port -- --ignored --nocapture`
+    #[test]
+    #[ignore = "depends on what is running on this machine right now"]
+    fn probe_live_port() {
+        for port in [1420u16, 1421] {
+            println!("port {port}: is_taken={} holder={:?}", is_taken(port), holder_process(port));
+            println!("  listening_pid={:?}", listening_pid(port));
+        }
+    }
+
+    /// Walks the real project exactly as the app does - scan it, take the
+    /// command the user actually presses, and ask for its port with the same
+    /// directory and manifests `check_port` would pass.
+    #[test]
+    fn the_real_npm_run_dev_of_this_project_resolves_to_a_port() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let project = crate::scan::measure(root, &crate::store::Settings::default())
+            .expect("this repository must scan as a project");
+
+        println!("parts:");
+        for part in &project.parts {
+            println!("  rel={:?} stack={} manifests={:?}", part.rel, part.stack, part.manifests);
+        }
+        println!("commands:");
+        for c in &project.commands {
+            println!("  name={:?} cmd={:?} cwd={:?}", c.name, c.cmd, c.cwd);
+        }
+
+        let dev = project
+            .commands
+            .iter()
+            .find(|c| c.cmd == "npm run dev")
+            .expect("`npm run dev` must be offered for this project");
+
+        let dir = if dev.cwd.is_empty() { root.to_path_buf() } else { root.join(&dev.cwd) };
+        let manifests = project
+            .parts
+            .iter()
+            .find(|p| p.rel == dev.cwd)
+            .map(|p| p.manifests.clone())
+            .unwrap_or_else(|| project.manifests.clone());
+
+        let port = port_for(&dev.cmd, &dir, &manifests);
+        println!("cwd={:?} dir={} -> port={:?}", dev.cwd, dir.display(), port);
+
+        assert_eq!(port, Some(1420), "the command the user presses must resolve to 1420");
+    }
+
     /// This repository is its own fixture: a Vite config pinning 1420, and an
     /// `npm run dev` that has to be recognised as wanting that port.
     #[test]
@@ -779,6 +847,29 @@ services:
         drop(listener);
 
         assert!(free(port).is_err(), "there is nothing to free");
+    }
+
+    /// The bug this whole feature failed on: Node resolves `localhost` to `::1`
+    /// first, so a Vite dev server holds IPv6 loopback and nothing else. The
+    /// check looked only at IPv4, found it free, and waved the command straight
+    /// into `EADDRINUSE`.
+    #[test]
+    fn a_server_on_ipv6_loopback_alone_reads_as_taken() {
+        let Ok(listener) = TcpListener::bind((Ipv6Addr::LOCALHOST, 0)) else {
+            eprintln!("no IPv6 stack here; nothing to assert");
+            return;
+        };
+        let port = listener.local_addr().unwrap().port();
+
+        // The IPv4 addresses really are free - that is exactly why this was
+        // missed - so a check that only looked there would say "not taken".
+        assert!(
+            TcpListener::bind((Ipv4Addr::LOCALHOST, port)).is_ok(),
+            "fixture is only meaningful while IPv4 is free",
+        );
+
+        assert!(is_taken(port), "a server on ::1 alone must still count as holding the port");
+        assert_eq!(listening_pid(port), Some(std::process::id()), "and must be findable");
     }
 
     #[test]
