@@ -53,8 +53,6 @@ export function ProcessesView({ app }: { app: App }) {
     return <Note text={t.noProcesses} />;
   }
 
-  const total = processes.reduce((sum, p) => sum + p.memoryBytes, 0);
-
   return (
     <div
       style={{
@@ -74,9 +72,9 @@ export function ProcessesView({ app }: { app: App }) {
           flex: "0 0 auto",
         }}
       >
-        <span style={{ fontSize: 11.5, color: "rgba(var(--trgb),.55)" }}>
-          {processes.length} {t.processesRunning} · {size(total)}
-        </span>
+        {/* The count and the total are already in the page header; repeating
+            them here would just be the same sentence twice. */}
+        <span style={{ fontSize: 11, color: "rgba(var(--trgb),.42)" }}>{t.processesHint}</span>
         <span style={{ marginLeft: "auto" }}>
           <RefreshAction onClick={() => void app.refreshProcesses()} title={t.recheck} />
         </span>

@@ -26,6 +26,7 @@ English only.
 | **Goals** | Goals and features per project with progress bars. Stored as plain JSON. |
 | **Board** | A free canvas of draggable notes with a project tag, a deadline and three colours. Opened from a project, new notes take that project; opened on its own, it asks which project a note belongs to. |
 | **Commands** | Runnable commands read out of the manifests — every npm/pnpm/yarn/bun script, Makefile targets, cargo, compose — grouped by the file each came from. The ones that start, build or check a project lead their group; any command can be pinned. Every run gets its own log tab, and a port that is already taken is raised before the process starts rather than after it dies. |
+| **Running** | What is actually running, under Commands: which project each process belongs to, the ports it holds, its memory and uptime, and a stop button. Not a task manager — a process earns a row by being started from here, listening on a port, or working inside a watched project. |
 | **Requirements** | What each project needs installed — Node and the package manager its lockfile names, cargo, Python, Go, Docker, Make, and the rest — checked against PATH, with versions. Anything missing says which manifest asked for it, and offers the install command where the tool is packaged. |
 | **Docker** | Whether the CLI is there, whether the daemon is answering, its version, containers and images, and the compose stack belonging to the open project. |
 | **Settings** | Watched folders, scanning options, cleanup age threshold, window anchoring, language. |
@@ -67,6 +68,15 @@ project uses it, tags, notes and quick run, all pinned while the page scrolls.
 ### Board
 
 ![The notes board](docs/screenshots/board.png)
+
+### Running
+
+Grouped by the project each process belongs to, with per-group ports and memory.
+Anything belonging to no project is folded away by default. A process started
+from here is stopped through the runner that owns it; anything else goes by PID,
+and system processes are listed without a button at all.
+
+![The running processes view](docs/screenshots/procs.png)
 
 ### Commands
 

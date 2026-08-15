@@ -25,6 +25,7 @@ const VIEWS = {
   goals: [1440, 900],
   board: [1600, 900],
   cmd: [1440, 900],
+  procs: [1440, 900],
 };
 
 const CANDIDATES = [
