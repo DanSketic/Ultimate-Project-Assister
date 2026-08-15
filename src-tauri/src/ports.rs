@@ -6,7 +6,7 @@
 //! ask for out of the project's own files, and checks whether anything is
 //! already listening before the process is spawned.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, TcpListener};
 use std::path::Path;
@@ -368,56 +368,88 @@ fn rewrite_host_port(cmd: &str, port: u16) -> String {
 /// Processes that must never be killed to free a port, whatever they are
 /// listening on. Some of these genuinely do hold ports, and ending one takes
 /// the session or the machine with it.
-const NEVER_KILL: &[&str] = &[
+pub const NEVER_KILL: &[&str] = &[
     "system", "idle", "smss", "csrss", "wininit", "winlogon", "services", "lsass",
     "svchost", "explorer", "dwm", "fontdrvhost", "sihost", "runtimebroker",
     "systemd", "init", "launchd", "kernel_task", "windowserver", "loginwindow",
 ];
 
-/// The PID listening on a TCP port, from the operating system's own tables.
+/// Every process holding a listening TCP port, and which ports it holds.
+///
+/// One pass over the OS tables, shared by the port check and the process
+/// overview so the two can never disagree about who has what.
 #[cfg(windows)]
-fn listening_pid(port: u16) -> Option<u32> {
+pub fn listening_map() -> BTreeMap<u32, BTreeSet<u16>> {
     use std::os::windows::process::CommandExt;
 
+    let mut out: BTreeMap<u32, BTreeSet<u16>> = BTreeMap::new();
     let mut cmd = Command::new("netstat");
     // No `-p TCP`: on Windows that means IPv4 only, and a dev server listening
     // on `[::1]` would not appear at all. Unfiltered output carries both
     // families, with the protocol in the first column.
     cmd.args(["-ano"]);
     cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
-    let out = cmd.output().ok()?;
-    let text = String::from_utf8_lossy(&out.stdout);
 
-    let needle = format!(":{port}");
+    let Ok(result) = cmd.output() else { return out };
+    let text = String::from_utf8_lossy(&result.stdout);
+
     for line in text.lines() {
         let fields: Vec<&str> = line.split_whitespace().collect();
         // Proto, local address, foreign address, [state], pid. The state word
-        // is translated on a localised Windows, so it is never matched on -
-        // only the protocol, the local address and the trailing pid are read.
-        if fields.len() < 4 || !fields[0].eq_ignore_ascii_case("TCP") {
+        // is translated on a localised Windows, so it is never matched on: a
+        // wildcard foreign address is what marks a listening socket, in every
+        // language.
+        if fields.len() < 5 || !fields[0].eq_ignore_ascii_case("TCP") {
             continue;
         }
-        // `[::1]:1420` and `127.0.0.1:1420` both end this way; a local port of
-        // 11420 does not, because the colon has to match too.
-        if !fields[1].ends_with(&needle) {
+        if !matches!(fields[2], "0.0.0.0:0" | "[::]:0" | "*:*") {
             continue;
         }
-        if let Ok(pid) = fields[fields.len() - 1].parse::<u32>() {
-            if pid > 4 {
-                return Some(pid);
-            }
+        let Some(port) = local_port(fields[1]) else { continue };
+        let Ok(pid) = fields[fields.len() - 1].parse::<u32>() else { continue };
+        if pid > 4 && port >= MIN_PORT {
+            out.entry(pid).or_default().insert(port);
         }
     }
-    None
+    out
 }
 
 #[cfg(not(windows))]
+pub fn listening_map() -> BTreeMap<u32, BTreeSet<u16>> {
+    let mut out: BTreeMap<u32, BTreeSet<u16>> = BTreeMap::new();
+    let Ok(result) = Command::new("lsof").args(["-nP", "-iTCP", "-sTCP:LISTEN", "-Fpn"]).output()
+    else {
+        return out;
+    };
+
+    // `-F` output is one field per line: `p<pid>` then `n<addr>` for each.
+    let mut pid = 0u32;
+    for line in String::from_utf8_lossy(&result.stdout).lines() {
+        match line.split_at(1) {
+            ("p", rest) => pid = rest.parse().unwrap_or(0),
+            ("n", rest) => {
+                if let Some(port) = local_port(rest) {
+                    if pid > 0 && port >= MIN_PORT {
+                        out.entry(pid).or_default().insert(port);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    out
+}
+
+/// `127.0.0.1:1420`, `[::1]:1420` and `*:1420` all yield 1420.
+fn local_port(address: &str) -> Option<u16> {
+    address.rsplit(':').next()?.parse().ok()
+}
+
+/// The PID listening on one port.
 fn listening_pid(port: u16) -> Option<u32> {
-    let out = Command::new("lsof")
-        .args(["-nP", &format!("-iTCP:{port}"), "-sTCP:LISTEN", "-t"])
-        .output()
-        .ok()?;
-    String::from_utf8_lossy(&out.stdout).lines().next()?.trim().parse().ok()
+    listening_map()
+        .into_iter()
+        .find_map(|(pid, ports)| ports.contains(&port).then_some(pid))
 }
 
 /// Names the process holding a port, so the user can see what they are about to

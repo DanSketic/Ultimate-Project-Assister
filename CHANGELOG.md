@@ -41,6 +41,26 @@ are assigned when a release is cut — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Added
 
+- **A running-processes overview, under Commands.** A second tab beside the
+  command list showing what is actually running: which project each process
+  belongs to, the ports it holds, how much memory it is using, how long it has
+  been up, and its PID — with a stop button on each.
+
+  Deliberately not a task manager. Three things earn a row: this app started it,
+  it is listening on a port, or it is working inside a project you watch.
+  Everything else on the machine is somebody else's business while you are
+  looking at your projects. Processes are grouped by project, with per-group
+  port and memory totals, and anything belonging to no project falls to the
+  bottom under its own heading.
+
+  Children count as well, so a `npm run dev` is followed through the shell to
+  the node process that actually holds the port — that relationship is the whole
+  reason a stray dev server is hard to find otherwise. A process this app
+  started is stopped through the runner that owns it, so its log tab and its
+  Run button stay correct; anything else is stopped by PID, with system
+  processes refused and shown without a button at all. The list refreshes while
+  it is on screen and stops polling when it is not.
+
 - **A busy port can be stepped around instead of fought over.** The first thing
   the dialog now offers is running the command on the free port next door — the
   wanted port stays with whoever has it, and nothing is stopped. The rewritten

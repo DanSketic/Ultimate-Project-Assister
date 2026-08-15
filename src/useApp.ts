@@ -15,6 +15,7 @@ import type {
   Note,
   NoteColor,
   PortConflict,
+  ProcessInfo,
   Project,
   Settings,
   Theme,
@@ -153,6 +154,10 @@ export function useApp() {
     command: CommandDef;
     conflict: PortConflict;
   } | null>(null);
+  /** Which half of the Commands view is on screen. */
+  const [cmdTab, setCmdTab] = useState<"commands" | "processes">("commands");
+  const [processes, setProcesses] = useState<ProcessInfo[] | null>(null);
+  const [stopping, setStopping] = useState<Set<number>>(new Set());
 
   // --- chrome -------------------------------------------------------------
   const [toast, setToast] = useState("");
@@ -727,6 +732,71 @@ export function useApp() {
     }
   }, [selectedRows, settings, patchSettings, flash, t]);
 
+  // --- running processes ----------------------------------------------------
+  const refreshProcesses = useCallback(async () => {
+    try {
+      setProcesses(await api.runningProcesses());
+    } catch (e) {
+      flash(String(e));
+    }
+  }, [flash]);
+
+  /**
+   * Polled only while the list is on screen. Reading the whole process table
+   * and the socket tables is not free, and a panel nobody is looking at has no
+   * business doing it every few seconds.
+   */
+  useEffect(() => {
+    if (view !== "cmd" || cmdTab !== "processes") return;
+    let alive = true;
+
+    const tick = async () => {
+      const found = await api.runningProcesses().catch(() => null);
+      if (alive && found) setProcesses(found);
+    };
+    void tick();
+    const id = window.setInterval(tick, 4000);
+    return () => {
+      alive = false;
+      window.clearInterval(id);
+    };
+  }, [view, cmdTab]);
+
+  /**
+   * Stops a process. One this app started goes through the runner that owns it,
+   * so its bookkeeping and its log tab stay correct; anything else is stopped
+   * by pid, with the backend refusing system processes.
+   */
+  const stopProcess = useCallback(
+    async (process: ProcessInfo) => {
+      setStopping((prev) => new Set(prev).add(process.pid));
+      try {
+        if (process.commandKey) {
+          const [projectId = "", cwd = "", cmd = ""] = process.commandKey.split("|");
+          await api.stopCommand(projectId, cmd, cwd);
+          setRunning((prev) => {
+            const next = new Set(prev);
+            next.delete(process.commandKey);
+            return next;
+          });
+        } else {
+          const name = await api.stopProcess(process.pid);
+          flash(`${name} · PID ${process.pid} — ${t.stopped}`);
+        }
+      } catch (e) {
+        flash(String(e));
+      } finally {
+        setStopping((prev) => {
+          const next = new Set(prev);
+          next.delete(process.pid);
+          return next;
+        });
+        await refreshProcesses();
+      }
+    },
+    [flash, t, refreshProcesses],
+  );
+
   /** Drops one run's output, and moves off its tab if it was the open one. */
   const closeLog = useCallback((key: string) => {
     setLogs((prev) => {
@@ -1061,6 +1131,12 @@ export function useApp() {
     logTab,
     setLogTab,
     closeLog,
+    cmdTab,
+    setCmdTab,
+    processes,
+    refreshProcesses,
+    stopProcess,
+    stopping,
     portAsk,
     dismissPortAsk: () => setPortAsk(null),
     resolvePortAndStart,

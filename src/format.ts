@@ -42,6 +42,21 @@ export function since(unixSeconds: number, lang: Lang, now = Date.now()): string
   return ago(Math.round(hours / 24), lang);
 }
 
+/**
+ * A span of time, for "how long has this been running". Distinct from `since`,
+ * which takes a moment rather than a length.
+ */
+export function duration(seconds: number, lang: Lang): string {
+  const secs = Math.max(0, Math.round(seconds));
+  if (secs < 60) return `${secs}s`;
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ${mins % 60}m`;
+  const days = Math.floor(hours / 24);
+  return lang === "hu" ? `${days} napja` : `${days}d ${hours % 24}h`;
+}
+
 export interface DueInfo {
   label: string;
   bd: string;

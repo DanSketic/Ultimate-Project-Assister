@@ -9,6 +9,7 @@ mod git;
 mod model;
 mod platform;
 mod ports;
+mod procs;
 mod runner;
 mod scan;
 mod store;
@@ -54,6 +55,8 @@ pub fn run() {
             commands::run_command,
             commands::stop_command,
             commands::running_commands,
+            commands::running_processes,
+            commands::stop_process,
             commands::open_editor,
             commands::open_terminal,
             commands::reveal,

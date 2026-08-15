@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { FavouriteButton, FavouritesFilter, RailHeader } from "../components/GroupHeader";
 
 import { DockerChip } from "../components/Requirements";
+import { ProcessesView } from "./ProcessesView";
 import { SearchField } from "../components/SearchField";
 import { Close, Play, Stop } from "../components/Icons";
 import { cmdKey, manifestLabel } from "../format";
@@ -11,6 +12,63 @@ import type { App } from "../useApp";
 import type { CommandDef } from "../types";
 
 export function CommandsView({ app }: { app: App }) {
+  // The overview of what is running is a second half of this view rather than
+  // a menu entry of its own: it answers questions about the commands here.
+  if (app.cmdTab === "processes") {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0, padding: "0 20px 20px" }}>
+        <CmdTabs app={app} />
+        <ProcessesView app={app} />
+      </div>
+    );
+  }
+  return <CommandList app={app} />;
+}
+
+/** Switches between the commands of one project and everything running. */
+function CmdTabs({ app }: { app: App }) {
+  const { t } = app;
+  const tab = (key: "commands" | "processes", label: string, meta?: string) => {
+    const on = app.cmdTab === key;
+    return (
+      <button
+        type="button"
+        className={on ? undefined : "h-ghost"}
+        aria-pressed={on}
+        onClick={() => app.setCmdTab(key)}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 7,
+          border: `1px solid ${on ? "rgba(var(--wrgb),.12)" : "transparent"}`,
+          borderRadius: 10,
+          background: on ? "rgba(var(--wrgb),.06)" : "transparent",
+          color: on ? "var(--t0)" : "rgba(var(--trgb),.6)",
+          padding: "6px 12px",
+          cursor: "pointer",
+          fontSize: 12,
+          fontWeight: 500,
+        }}
+      >
+        {label}
+        {meta && (
+          <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 10, color: "rgba(var(--trgb),.5)" }}>
+            {meta}
+          </span>
+        )}
+      </button>
+    );
+  };
+
+  return (
+    <div style={{ display: "flex", gap: 4, padding: "0 0 12px", flex: "0 0 auto" }}>
+      {tab("commands", t.navCmd)}
+      {tab("processes", t.processes, app.processes ? String(app.processes.length) : undefined)}
+    </div>
+  );
+}
+
+function CommandList({ app }: { app: App }) {
   const { t, projects, cmdSel, running } = app;
 
   const [query, setQuery] = useState("");
@@ -298,6 +356,7 @@ export function CommandsView({ app }: { app: App }) {
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", minHeight: 0, gap: 14 }}>
+        <CmdTabs app={app} />
         <div
           style={{
             flex: 1,

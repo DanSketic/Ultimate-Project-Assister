@@ -301,6 +301,30 @@ pub struct PortConflict {
     pub suggested_cmd: String,
 }
 
+/// One running process worth showing next to the projects.
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProcessInfo {
+    pub pid: u32,
+    pub parent_pid: u32,
+    pub name: String,
+    pub exe: String,
+    pub cmd: String,
+    pub cwd: String,
+    pub memory_bytes: u64,
+    /// Seconds since the process started.
+    pub run_secs: u64,
+    /// TCP ports it is listening on.
+    pub ports: Vec<u16>,
+    /// The project it is working inside, when it is inside one.
+    pub project_id: String,
+    pub project: String,
+    /// Key of the command this app started, empty when it started elsewhere.
+    pub command_key: String,
+    /// False for a system process, which will not be stopped.
+    pub killable: bool,
+}
+
 /// A toolchain a project needs, and whether this machine has it.
 #[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]

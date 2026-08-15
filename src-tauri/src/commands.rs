@@ -11,11 +11,11 @@ use std::time::Instant;
 use tauri::{AppHandle, Emitter, State};
 
 use crate::model::{
-    CleanProgress, Container, DeleteReport, DockerStatus, PortConflict, PortUser, Project,
-    ScanProgress, ScanResult, SysStats, ToolStatus,
+    CleanProgress, Container, DeleteReport, DockerStatus, PortConflict, PortUser, ProcessInfo,
+    Project, ScanProgress, ScanResult, SysStats, ToolStatus,
 };
 use crate::store::{Goal, Note, Settings, Store};
-use crate::{clean, docker, platform, ports, runner::Runner, scan, tools, watcher::Watcher};
+use crate::{clean, docker, platform, ports, procs, runner::Runner, scan, tools, watcher::Watcher};
 
 pub const SCAN_PROGRESS: &str = "upa://scan-progress";
 pub const SCAN_DONE: &str = "upa://scan-done";
@@ -494,6 +494,31 @@ pub fn stop_command(
 #[tauri::command]
 pub fn running_commands(state: State<'_, AppState>) -> Vec<String> {
     state.runner.running_keys()
+}
+
+/// Everything running that belongs to a project, holds a port, or was started
+/// from here - with what it is using and what it belongs to.
+#[tauri::command]
+pub async fn running_processes(state: State<'_, AppState>) -> Result<Vec<ProcessInfo>, String> {
+    let projects = state.projects.lock().unwrap().clone();
+    let ours = state.runner.spawned();
+
+    // Reading the whole process table is not instant, and neither is netstat.
+    tauri::async_runtime::spawn_blocking(move || procs::snapshot(&projects, &ours))
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Stops a process by pid, refusing system processes.
+///
+/// A command this app started is stopped through the runner instead, so its
+/// bookkeeping stays correct; the frontend picks that path when the row has a
+/// command key.
+#[tauri::command]
+pub async fn stop_process(pid: u32) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || procs::stop(pid))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 // ---------------------------------------------------------------------------

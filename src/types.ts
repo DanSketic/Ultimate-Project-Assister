@@ -221,6 +221,28 @@ export interface PortConflict {
   suggestedCmd: string;
 }
 
+/** One running process worth showing next to the projects. */
+export interface ProcessInfo {
+  pid: number;
+  parentPid: number;
+  name: string;
+  exe: string;
+  cmd: string;
+  cwd: string;
+  memoryBytes: number;
+  /** Seconds since the process started. */
+  runSecs: number;
+  /** TCP ports it is listening on. */
+  ports: number[];
+  /** The project it is working inside, when it is inside one. */
+  projectId: string;
+  project: string;
+  /** Key of the command this app started; empty when it started elsewhere. */
+  commandKey: string;
+  /** False for a system process, which will not be stopped. */
+  killable: boolean;
+}
+
 /** A toolchain a project needs, and whether this machine has it. */
 export interface ToolStatus {
   id: string;

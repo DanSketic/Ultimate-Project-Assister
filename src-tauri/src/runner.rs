@@ -101,7 +101,7 @@ fn shell(cmd: &str) -> Command {
 }
 
 /// Kills a process and everything it spawned.
-fn kill_tree(pid: u32) -> Result<(), String> {
+pub fn kill_tree(pid: u32) -> Result<(), String> {
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
@@ -135,6 +135,12 @@ impl Runner {
 
     pub fn running_keys(&self) -> Vec<String> {
         self.procs.lock().unwrap().keys().cloned().collect()
+    }
+
+    /// Command key to the PID spawned for it, so the process overview can tell
+    /// its own children from everything else on the machine.
+    pub fn spawned(&self) -> HashMap<String, u32> {
+        self.procs.lock().unwrap().clone()
     }
 
     pub fn is_running(&self, key: &str) -> bool {

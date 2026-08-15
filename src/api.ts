@@ -14,6 +14,7 @@ import type {
   LogLine,
   Note,
   PortConflict,
+  ProcessInfo,
   Project,
   ScanProgress,
   ScanResult,
@@ -166,6 +167,21 @@ export async function runCommand(
 export async function stopCommand(projectId: string, cmd: string, cwd = ""): Promise<void> {
   if (!IS_TAURI) return mock.stopCommand(projectId, cmd, cwd);
   await call<void>("stop_command", { projectId, cmd, cwd });
+}
+
+/** Everything running that belongs to a project, holds a port, or is ours. */
+export async function runningProcesses(): Promise<ProcessInfo[]> {
+  if (!IS_TAURI) return mock.runningProcesses();
+  return call<ProcessInfo[]>("running_processes");
+}
+
+/**
+ * Stops a process by pid. Only the pid crosses the boundary — the backend
+ * resolves the name and refuses system processes.
+ */
+export async function stopProcess(pid: number): Promise<string> {
+  if (!IS_TAURI) return mock.stopProcess(pid);
+  return call<string>("stop_process", { pid });
 }
 
 export async function runningCommands(): Promise<string[]> {

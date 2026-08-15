@@ -16,6 +16,7 @@ import type {
   LogLine,
   Note,
   PortConflict,
+  ProcessInfo,
   Project,
   Settings,
   ToolStatus,
@@ -693,6 +694,53 @@ export async function checkPort(
     };
   }
   return { port, taken: false, holder: null, process: null, suggestedPort: 0, suggestedCmd: "" };
+}
+
+/**
+ * A believable machine: two dev servers this app started, a stray one it did
+ * not, a database, and a system process that may not be stopped.
+ */
+export function runningProcesses(): ProcessInfo[] {
+  const all = projects();
+  const shopflow = all.find((p) => p.name === "shopflow-web");
+  const api = all.find((p) => p.name === "api-gateway");
+
+  const row = (o: Partial<ProcessInfo> & { pid: number; name: string }): ProcessInfo => ({
+    parentPid: 0, exe: "", cmd: "", cwd: "", memoryBytes: 0, runSecs: 0, ports: [],
+    projectId: "", project: "", commandKey: "", killable: true, ...o,
+  });
+
+  return [
+    row({
+      pid: 21088, name: "node.exe", memoryBytes: 412 * MB, runSecs: 2 * 3600 + 900, ports: [1420],
+      cmd: "node vite.js", projectId: all[0]?.id ?? "", project: all[0]?.name ?? "",
+      commandKey: `${all[0]?.id}||npm run dev`,
+    }),
+    row({
+      pid: 33912, name: "node.exe", memoryBytes: 286 * MB, runSecs: 1840, ports: [3000],
+      cmd: "node server.js", projectId: shopflow?.id ?? "", project: shopflow?.name ?? "",
+      commandKey: `${shopflow?.id}|frontend|npm run dev`,
+    }),
+    row({
+      pid: 14204, name: "go.exe", memoryBytes: 96 * MB, runSecs: 640, ports: [8080],
+      cmd: "go run ./...", projectId: api?.id ?? "", project: api?.name ?? "",
+    }),
+    row({
+      pid: 9088, name: "node.exe", memoryBytes: 198 * MB, runSecs: 26 * 3600, ports: [5173],
+      cmd: "node vite.js  (started from a terminal two days ago)",
+      cwd: "C:\\_DEV\\_GIT\\_GITHUB\\_OWN\\ultimate-network-assister",
+    }),
+    row({
+      pid: 7720, name: "postgres.exe", memoryBytes: 148 * MB, runSecs: 5 * 86400, ports: [5432],
+      cmd: "postgres -D data",
+    }),
+    row({ pid: 1284, name: "svchost.exe", memoryBytes: 24 * MB, runSecs: 9 * 86400, ports: [135], killable: false }),
+  ];
+}
+
+export async function stopProcess(pid: number): Promise<string> {
+  await pause(320);
+  return `node.exe (${pid})`;
 }
 
 export async function freePort(port: number): Promise<string> {
