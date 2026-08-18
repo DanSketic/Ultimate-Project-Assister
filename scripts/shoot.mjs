@@ -85,6 +85,14 @@ for (const [view, [width, height]] of Object.entries(VIEWS)) {
     );
     console.log(`docs/screenshots/${view}.png  ${width}x${height} @2x`);
   } finally {
-    rmSync(profile, { recursive: true, force: true });
+    // Windows releases the browser's handles on the profile a moment after the
+    // process exits, so a delete straight afterwards can still find the
+    // directory in use. Retry, and if it still will not go, leave it: a stray
+    // temp directory is not worth losing the captures already taken to.
+    try {
+      rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 250 });
+    } catch {
+      console.warn(`could not remove ${profile}; it can be deleted by hand.`);
+    }
   }
 }
