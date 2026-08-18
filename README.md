@@ -1,19 +1,35 @@
-<img src="src-tauri/icons/icon.png" width="88" align="left" alt="" hspace="16" />
+<div align="center">
+
+<img src="src-tauri/icons/128x128@2x.png" alt="Ultimate Project Assister" width="96" height="96">
 
 # Ultimate Project Assister
 
-A desktop dashboard for a folder full of side projects: see what you have, find
-out what is eating your disk, keep track of what you meant to finish, and run
-the project's own commands without leaving the window.
+**A desktop dashboard for a folder full of side projects.**
 
-<br clear="left" />
+See what you have, find out what is eating the disk, keep track of what you
+meant to finish, and run each project's own commands without leaving the window.
 
-**Rust (Tauri 2) backend · TypeScript + React frontend · Windows, macOS, Linux**
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-1.3.0-informational.svg)](CHANGELOG.md)
+[![Installers](https://img.shields.io/badge/installers-Windows-lightgrey.svg)](#install)
 
-The interface is available in **English and Hungarian**; the documentation is
-English only.
+<sub>Rust (Tauri 2) backend · TypeScript + React frontend · builds on Windows,
+macOS and Linux · interface in English and Hungarian, documentation English
+only</sub>
 
-![The projects list](docs/screenshots/projects.png)
+</div>
+
+---
+
+<div align="center">
+
+<img src="docs/screenshots/projects.png" alt="The projects list, grouped by folder, with size, reclaimable space and git state per project" width="900">
+
+<sub>Every project in the watched folders, grouped by the directory that holds
+them. Size on disk, reclaimable build junk, git state and goal progress, with
+the pinned ones in a block of their own above the folders.</sub>
+
+</div>
 
 ---
 
