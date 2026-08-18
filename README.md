@@ -43,9 +43,10 @@ the pinned ones in a block of their own above the folders.</sub>
 | **Board** | A free canvas of draggable notes with a project tag, a deadline and three colours. Opened from a project, new notes take that project; opened on its own, it asks which project a note belongs to. |
 | **Commands** | Runnable commands read out of the manifests — every npm/pnpm/yarn/bun script, Makefile targets, cargo, compose — grouped by the file each came from. The ones that start, build or check a project lead their group; any command can be pinned. Every run gets its own log tab, and a port that is already taken is raised before the process starts rather than after it dies. |
 | **Running** | What is actually running, under Commands: which project each process belongs to, the ports it holds, its memory and uptime, and a stop button. Not a task manager — a process earns a row by being started from here, listening on a port, or working inside a watched project. |
+| **Git sync** | Whether a project has fallen behind the branch it tracks, which only a fetch can answer — so there is one button that fetches every remote, and a badge on the projects that have moved. Opening one says who pushed what, and offers the single operation that fits: a fast-forward when nothing of yours is in the way, a rebase when both sides have moved. Uncommitted work is stashed and put back; a rebase that stops on a conflict says which files, and can be undone in one click. |
 | **Requirements** | What each project needs installed — Node and the package manager its lockfile names, cargo, Python, Go, Docker, Make, and the rest — checked against PATH, with versions. Anything missing says which manifest asked for it, and offers the install command where the tool is packaged. |
 | **Docker** | Whether the CLI is there, whether the daemon is answering, its version, containers and images, and the compose stack belonging to the open project. |
-| **Settings** | Watched folders, scanning options, cleanup age threshold, desktop notifications, window anchoring, language. |
+| **Settings** | Watched folders, scanning options, cleanup age threshold, checking remotes after a scan, desktop notifications, window anchoring, language. |
 
 ---
 
@@ -283,6 +284,17 @@ scan rebuilds it.
 - **A port held by a process this app did not start cannot be freed from here.**
   Its holder is not named either — the PID behind a socket is not readable for
   another user's process, and a wrong name would be worse than none.
+- **A fetch goes through the `git` command line**, not through libgit2, so it
+  uses the credential helper, ssh agent and proxy settings you already have. It
+  never waits on a terminal prompt: a remote that needs a credential no helper
+  can supply fails and says so, rather than hanging. `behind` is only ever as
+  fresh as the last fetch, which is why the dialog says when that was.
+
+- **A rebase that stops on a conflict is not resolved here.** The files are
+  listed and a terminal opens on the project, because resolving a conflict is
+  an editor's job. Undoing the rebase is one button, and puts the branch back
+  exactly where it was.
+
 - **Filesystem watching is deliberately shallow** — the project root and its
   `.git` directory, not the whole tree — so that `node_modules` cannot drown the
   notify watcher.

@@ -18,7 +18,9 @@ import type {
   PortConflict,
   ProcessInfo,
   Project,
+  RebaseReport,
   Settings,
+  SyncStatus,
   Theme,
   ToolStatus,
   View,
@@ -181,6 +183,22 @@ export function useApp() {
   } | null>(null);
   const [processes, setProcesses] = useState<ProcessInfo[] | null>(null);
   const [stopping, setStopping] = useState<Set<number>>(new Set());
+
+  // --- git sync -----------------------------------------------------------
+  /** The project the sync dialog is open on; empty when it is closed. */
+  const [syncFor, setSyncFor] = useState("");
+  /** Null while the first read is still running, so the dialog can say so. */
+  const [sync, setSync] = useState<SyncStatus | null>(null);
+  const [syncReport, setSyncReport] = useState<RebaseReport | null>(null);
+  const [syncBusy, setSyncBusy] = useState(false);
+  /** Progress of a run across every project, for the status bar. */
+  const [syncNote, setSyncNote] = useState("");
+  /**
+   * Held in a ref because a scan can ask for it, and `rescan` is written above
+   * the action itself. The ref is what lets the scan reach the current one
+   * rather than the copy that existed when it was first built.
+   */
+  const checkAllRef = useRef<() => Promise<void>>(async () => {});
 
   // --- chrome -------------------------------------------------------------
   const [notices, setNotices] = useState<Notice[]>([]);
@@ -346,6 +364,12 @@ export function useApp() {
       .then((un) => (alive ? stops.push(un) : un()));
 
     void api
+      .onSyncProgress((p) =>
+        setSyncNote(p.done >= p.total ? "" : `${p.current} · ${p.done} / ${p.total}`),
+      )
+      .then((un) => (alive ? stops.push(un) : un()));
+
+    void api
       .onProjectsChanged(async (ids) => {
         for (const id of ids) {
           const updated = await api.rescanProject(id);
@@ -493,6 +517,11 @@ export function useApp() {
         flash(
           `${d.rescanToast} ${result.projects.length} ${d.rescanIn} · ${(result.elapsedMs / 1000).toFixed(1)} s`,
         );
+
+        // Only when asked for. A scan reads the disk; this reaches the network
+        // once per project, which on twenty repositories is the slow part - and
+        // it carries on behind the scan rather than holding it open.
+        if (active.toggles.fetchOnScan) void checkAllRef.current();
       } catch (e) {
         flash(String(e));
       } finally {
@@ -1045,6 +1074,154 @@ export function useApp() {
     flash(`${ask.command.name} → :${ask.conflict.suggestedPort}`);
   }, [portAsk, startCommand, flash]);
 
+  // --- git sync -------------------------------------------------------------
+  /** Pulls the backend's refreshed copy of the projects into the UI. */
+  const reloadProjects = useCallback(async () => {
+    setProjects(await api.cachedProjects());
+  }, []);
+
+  const checkRemoteFor = useCallback(
+    async (projectId: string) => {
+      setSyncBusy(true);
+      try {
+        const status = await api.gitFetch(projectId);
+        setSync(status);
+        await reloadProjects();
+        if (status.error) notify("warn", t.syncFetchFailed, status.error);
+      } catch (e) {
+        notify("error", t.syncFetchFailed, String(e));
+      } finally {
+        setSyncBusy(false);
+      }
+    },
+    [notify, reloadProjects, t],
+  );
+
+  /**
+   * Reads the state from disk, opens the dialog on it, and only then goes to
+   * the remote - and only when what it read is stale.
+   *
+   * `behind` is counted against a ref that moves on a fetch and at no other
+   * time, so a number from last month is not an answer to "am I behind". One
+   * from today is, and re-fetching it would be a round trip nobody asked for.
+   */
+  const openSync = useCallback(
+    async (project: Project) => {
+      setSyncFor(project.id);
+      setSyncReport(null);
+      setSync(null);
+
+      const status = await api.gitSyncStatus(project.id);
+      setSync(status);
+
+      const stale = status.fetchDays === null || status.fetchDays >= 1;
+      const worth = status.state !== "not-a-repo" && status.state !== "no-remote";
+      if (stale && worth) await checkRemoteFor(project.id);
+    },
+    [checkRemoteFor],
+  );
+
+  const closeSync = useCallback(() => {
+    setSyncFor("");
+    setSync(null);
+    setSyncReport(null);
+  }, []);
+
+  const checkRemote = useCallback(async () => {
+    if (syncFor) await checkRemoteFor(syncFor);
+  }, [syncFor, checkRemoteFor]);
+
+  /**
+   * Fetches every project that has a remote.
+   *
+   * This is what makes the badge in the list worth anything: without it a
+   * project is only as behind as it was the last time somebody happened to
+   * fetch it by hand, which for most of them is the day they were cloned.
+   */
+  const checkAllRemotes = useCallback(async () => {
+    setSyncBusy(true);
+    try {
+      const all = await api.gitFetchAll();
+      await reloadProjects();
+
+      const behind = all.filter((s) => s.behind > 0);
+      const failed = all.filter((s) => s.error);
+      if (behind.length === 0) {
+        notify(
+          "success",
+          t.syncAllCurrent,
+          failed.length ? `${failed.length} · ${t.syncFetchFailed}` : undefined,
+        );
+      } else {
+        // Naming them is the point: the summary is what sends the user to the
+        // project that has moved, rather than to a number.
+        notify(
+          "warn",
+          `${behind.length} ${t.syncBehindSummary}`,
+          behind
+            .slice(0, 6)
+            .map((s) => `${s.project} ↓${s.behind}`)
+            .join(" · "),
+          true,
+        );
+      }
+    } catch (e) {
+      notify("error", t.syncFetchFailed, String(e));
+    } finally {
+      setSyncBusy(false);
+      setSyncNote("");
+    }
+  }, [notify, reloadProjects, t]);
+
+  /** What to say about a finished attempt, by outcome. */
+  const reportNotice = useCallback(
+    (report: RebaseReport) => {
+      switch (report.outcome) {
+        case "up-to-date":
+          return notify("info", t.syncUpToDate);
+        case "fast-forward":
+          return notify("success", t.syncFfDone, report.status.branch, true);
+        case "rebased":
+          return notify("success", t.syncRebasedDone, report.status.branch, true);
+        case "conflict":
+          return notify("warn", t.syncConflictNote, report.conflicts.join(", "), true);
+        case "stash-conflict":
+          return notify("warn", t.syncStashConflictB, report.conflicts.join(", "), true);
+        case "aborted":
+          return notify("info", t.syncAbortedNote);
+        default:
+          return notify("error", t.syncFailedNote, report.output);
+      }
+    },
+    [notify, t],
+  );
+
+  const runRebase = useCallback(
+    async (attempt: (id: string) => Promise<RebaseReport>) => {
+      if (!syncFor) return;
+      setSyncBusy(true);
+      try {
+        const report = await attempt(syncFor);
+        setSyncReport(report);
+        setSync(report.status);
+        await reloadProjects();
+        reportNotice(report);
+      } catch (e) {
+        notify("error", t.syncFailedNote, String(e));
+      } finally {
+        setSyncBusy(false);
+      }
+    },
+    [syncFor, notify, reloadProjects, reportNotice, t],
+  );
+
+  const rebaseProject = useCallback(() => runRebase(api.gitRebase), [runRebase]);
+  const abortRebase = useCallback(() => runRebase(api.gitRebaseAbort), [runRebase]);
+
+  useEffect(() => {
+    checkAllRef.current = checkAllRemotes;
+  }, [checkAllRemotes]);
+
   // --- goals --------------------------------------------------------------
   const addGoal = useCallback(
     (project: string, title: string) => {
@@ -1246,6 +1423,18 @@ export function useApp() {
     stopping,
     portAsk,
     dismissPortAsk: () => setPortAsk(null),
+    // git sync
+    syncFor,
+    sync,
+    syncReport,
+    syncBusy,
+    syncNote,
+    openSync,
+    closeSync,
+    checkRemote,
+    checkAllRemotes,
+    rebaseProject,
+    abortRebase,
     resolvePortAndStart,
     startAnyway,
     startOnFreePort,

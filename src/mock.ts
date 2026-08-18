@@ -9,6 +9,7 @@ import type {
   CleanProgress,
   CleanTarget,
   CommandDef,
+  Commit,
   Container,
   DeleteReport,
   DockerStatus,
@@ -18,7 +19,9 @@ import type {
   PortConflict,
   ProcessInfo,
   Project,
+  RebaseReport,
   Settings,
+  SyncStatus,
   ToolStatus,
 } from "./types";
 
@@ -423,6 +426,7 @@ export function projects(): Project[] {
           msg: MSG[(i + k) % MSG.length]!,
           days: days + k * 2,
           date: "",
+          author: "DanSketic",
         })),
         releases:
           tag === "—"
@@ -444,6 +448,7 @@ export function projects(): Project[] {
         // A couple of projects have no remote, so the unlinked tag chips are
         // reachable in the browser build too.
         remote: i % 6 === 4 ? "" : `https://github.com/DanSketic/${name}`,
+        fetchDays: mockFetchDays(i),
       },
       scannedAt: Math.floor(Date.now() / 1000),
     };
@@ -459,7 +464,7 @@ export function settings(): Settings {
     navCollapsed: false,
     anchor: "left",
     folders: ["D:\\dev\\rust", "D:\\dev\\web", "D:\\dev\\py", "D:\\dev\\go", "D:\\dev\\ops"],
-    toggles: { scanStart: true, watchFs: true, deepGit: true, docker: false },
+    toggles: { scanStart: true, watchFs: true, deepGit: true, fetchOnScan: false, docker: false },
     ageDays: 30,
     cmdFavourites: [],
     favouritesOnly: false,
@@ -896,4 +901,167 @@ export async function installTool(id: string): Promise<string> {
   }
   emit(key, "exit 0", "exit");
   return cmd;
+}
+
+// ---------------------------------------------------------------------------
+// Git sync
+// ---------------------------------------------------------------------------
+
+/** The rest of the team, so "somebody else pushed" has a name on it. */
+const AUTHORS = ["Kovács Anna", "Tóth Bence", "Nagy Eszter", "Szabó Márk", "Varga Dóra"];
+
+/** What the others have been committing while this checkout was not looking. */
+const INCOMING_MSG = [
+  "feat: add invoice export to the reporting screen",
+  "fix: retry the upload once before giving up",
+  "refactor: pull the session store out of the router",
+  "chore: bump the lockfile after the security advisory",
+  "fix: stop the sidebar from scrolling the whole page",
+  "test: cover the empty-cart checkout path",
+];
+
+/** Days since the last fetch, spread so the staleness warning is reachable. */
+function mockFetchDays(i: number): number | null {
+  if (i % 9 === 4) return null; // never fetched
+  return [0, 0, 1, 3, 11, 26][i % 6]!;
+}
+
+function mockCommits(seed: number, count: number, from: number): Commit[] {
+  return Array.from({ length: Math.min(count, 12) }, (_, k) => ({
+    sha: ((seed + 1) * 977_213 + k * 4_231_777).toString(16).padStart(7, "0").slice(0, 7),
+    msg: INCOMING_MSG[(seed + k) % INCOMING_MSG.length]!,
+    days: from + k,
+    date: "",
+    author: AUTHORS[(seed + k) % AUTHORS.length]!,
+  }));
+}
+
+/** Fetches that have already happened this session, by project id. */
+const fetched = new Set<string>();
+
+export function syncStatus(projectId: string): SyncStatus {
+  const all = projects();
+  const i = all.findIndex((p) => p.id === projectId);
+  const project = all[i];
+
+  if (!project || !project.git.isRepo) {
+    return { ...EMPTY_SYNC, projectId, project: project?.name ?? "", state: "not-a-repo" };
+  }
+
+  const { ahead, behind, branch, dirty } = project.git;
+  // A project with no remote cannot be behind anything, and saying so is the
+  // whole of the answer for it.
+  if (!project.git.remote) {
+    return { ...EMPTY_SYNC, projectId, project: project.name, branch, dirty, state: "no-remote" };
+  }
+
+  const state = ahead > 0 && behind > 0 ? "diverged" : behind > 0 ? "behind" : ahead > 0 ? "ahead" : "ok";
+  const incoming = mockCommits(i, behind, 0);
+
+  return {
+    projectId,
+    project: project.name,
+    state,
+    branch,
+    upstream: `origin/${branch}`,
+    ahead,
+    behind,
+    dirty,
+    incoming,
+    outgoing: project.git.commits.slice(0, ahead),
+    authors: [...new Set(incoming.map((c) => c.author))],
+    fetchDays: fetched.has(projectId) ? 0 : mockFetchDays(i),
+    conflicts: [],
+    error: "",
+  };
+}
+
+const EMPTY_SYNC: SyncStatus = {
+  projectId: "",
+  project: "",
+  state: "ok",
+  branch: "",
+  upstream: "",
+  ahead: 0,
+  behind: 0,
+  dirty: 0,
+  incoming: [],
+  outgoing: [],
+  authors: [],
+  fetchDays: null,
+  conflicts: [],
+  error: "",
+};
+
+export async function gitFetch(projectId: string): Promise<SyncStatus> {
+  await new Promise((r) => setTimeout(r, 700));
+
+  // One project stands in for a remote that cannot be reached, so the error
+  // path is reachable in the browser build. It is deliberately not marked as
+  // fetched: a failed fetch leaves the counts as stale as it found them, and
+  // the dialog has to keep saying so.
+  const all = projects();
+  if (all.findIndex((p) => p.id === projectId) % 11 === 5) {
+    return { ...syncStatus(projectId), error: "fatal: could not read from remote repository" };
+  }
+
+  fetched.add(projectId);
+  return syncStatus(projectId);
+}
+
+export async function gitFetchAll(): Promise<SyncStatus[]> {
+  const repos = projects().filter((p) => p.git.isRepo && p.git.remote);
+  const out: SyncStatus[] = [];
+  for (const project of repos) {
+    await new Promise((r) => setTimeout(r, 60));
+    fetched.add(project.id);
+    out.push(syncStatus(project.id));
+  }
+  return out;
+}
+
+/** Projects whose mock rebase stops on a conflict, so that path is reachable. */
+const CONFLICTING = 1;
+
+export async function gitRebase(projectId: string): Promise<RebaseReport> {
+  await new Promise((r) => setTimeout(r, 900));
+  const before = syncStatus(projectId);
+  const all = projects();
+  const i = all.findIndex((p) => p.id === projectId);
+  const project = all[i];
+
+  if (before.behind === 0) return { outcome: "up-to-date", output: "", conflicts: [], status: before };
+
+  if (i % 7 === CONFLICTING) {
+    const conflicts = ["src/store/session.ts", "src/router/index.ts"];
+    return {
+      outcome: "conflict",
+      output: `Auto-merging src/store/session.ts\nCONFLICT (content): Merge conflict in src/store/session.ts\nerror: could not apply ${before.outgoing[0]?.sha ?? "1a2b3c4"}... ${before.outgoing[0]?.msg ?? ""}`,
+      conflicts,
+      status: { ...before, state: "rebasing", conflicts },
+    };
+  }
+
+  // The mock projects are a fixed list, so a successful rebase is reflected by
+  // moving this one's counts rather than by rebuilding the dataset.
+  if (project) {
+    project.git.behind = 0;
+    project.git.ahead = before.ahead;
+  }
+  return {
+    outcome: before.outgoing.length === 0 ? "fast-forward" : "rebased",
+    output: `Successfully rebased and updated refs/heads/${before.branch}.`,
+    conflicts: [],
+    status: { ...syncStatus(projectId), behind: 0, state: before.ahead > 0 ? "ahead" : "ok" },
+  };
+}
+
+export async function gitRebaseAbort(projectId: string): Promise<RebaseReport> {
+  await new Promise((r) => setTimeout(r, 500));
+  return {
+    outcome: "aborted",
+    output: "",
+    conflicts: [],
+    status: syncStatus(projectId),
+  };
 }

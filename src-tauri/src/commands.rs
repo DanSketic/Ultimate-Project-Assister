@@ -12,7 +12,7 @@ use tauri::{AppHandle, Emitter, State};
 
 use crate::model::{
     CleanProgress, Container, DeleteReport, DockerStatus, PortConflict, PortUser, ProcessInfo,
-    Project, ScanProgress, ScanResult, SysStats, ToolStatus,
+    Project, RebaseReport, ScanProgress, ScanResult, SyncStatus, SysStats, ToolStatus,
 };
 use crate::store::{Goal, Note, Settings, Store};
 use crate::{clean, docker, platform, ports, procs, runner::Runner, scan, tools, watcher::Watcher};
@@ -20,6 +20,9 @@ use crate::{clean, docker, platform, ports, procs, runner::Runner, scan, tools, 
 pub const SCAN_PROGRESS: &str = "upa://scan-progress";
 pub const SCAN_DONE: &str = "upa://scan-done";
 pub const CLEAN_PROGRESS: &str = "upa://clean-progress";
+/// Reuses `ScanProgress`: "this many of that many, currently on X" is the
+/// same report, and the status bar renders it the same way.
+pub const SYNC_PROGRESS: &str = "upa://sync-progress";
 
 pub struct AppState {
     pub store: Store,
@@ -547,6 +550,176 @@ pub async fn stop_process(pid: u32) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || procs::stop(pid))
         .await
         .map_err(|e| e.to_string())?
+}
+
+// ---------------------------------------------------------------------------
+// Git sync
+// ---------------------------------------------------------------------------
+
+/// Re-reads one project's git data into the cache after the refs have moved.
+///
+/// Cheaper than a rescan on purpose: a fetch changes the refs and nothing on
+/// disk, so re-walking the tree to measure sizes again would be work nobody
+/// asked for.
+fn refresh_git(state: &AppState, id: &str) {
+    // Read before taking the project lock rather than inside it: two locks held
+    // at once is how the next person to add a caller introduces a deadlock.
+    let deep = state.store.settings().toggles.deep_git;
+    let root = {
+        let cache = state.projects.lock().unwrap();
+        let Some(project) = cache.iter().find(|p| p.id == id) else { return };
+        PathBuf::from(&project.path)
+    };
+
+    let info = crate::git::inspect(&root, deep);
+    let snapshot = {
+        let mut cache = state.projects.lock().unwrap();
+        let Some(slot) = cache.iter_mut().find(|p| p.id == id) else { return };
+        slot.git = info;
+        cache.clone()
+    };
+    let _ = state.store.save_projects(&snapshot);
+}
+
+/// Where a project stands against the branch it tracks, read from disk.
+///
+/// No network: this is the state as of the last fetch, which is what the badge
+/// in the list is drawn from and what the dialog opens with.
+#[tauri::command]
+pub fn git_sync_status(state: State<'_, AppState>, project_id: String) -> Result<SyncStatus, String> {
+    let project = state.project_by_id(&project_id).ok_or("unknown project")?;
+    let mut status = crate::git::sync_status(Path::new(&project.path));
+    status.project_id = project.id;
+    status.project = project.name;
+    Ok(status)
+}
+
+/// Asks the remote what it has, then reports where that leaves this checkout.
+///
+/// Only the project id crosses the boundary; the path and the remote are the
+/// project's own, so this cannot be talked into fetching something else. The
+/// working tree is not touched - a fetch moves remote-tracking refs and
+/// nothing more.
+#[tauri::command]
+pub async fn git_fetch(state: State<'_, AppState>, project_id: String) -> Result<SyncStatus, String> {
+    let project = state.project_by_id(&project_id).ok_or("unknown project")?;
+    let root = PathBuf::from(&project.path);
+
+    let fetched = tauri::async_runtime::spawn_blocking(move || {
+        crate::git::fetch(&root).map(|_| crate::git::sync_status(&root))
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+
+    // A remote that cannot be reached is reported as a status carrying the
+    // reason, not as a failed call: the branch, the counts and the last fetch
+    // date are all still worth showing while the network is not.
+    let mut status = match fetched {
+        Ok(status) => {
+            refresh_git(&state, &project_id);
+            status
+        }
+        Err(error) => {
+            let mut status = crate::git::sync_status(Path::new(&project.path));
+            status.error = error;
+            status
+        }
+    };
+
+    status.project_id = project.id;
+    status.project = project.name;
+    Ok(status)
+}
+
+/// Fetches every project that has a remote, reporting as it goes.
+///
+/// Sequential rather than parallel: twenty repositories asking one host at once
+/// is how a fetch turns into a rate limit, and the point of this is to leave
+/// the numbers trustworthy, not to be quick.
+#[tauri::command]
+pub async fn git_fetch_all(app: AppHandle, state: State<'_, AppState>) -> Result<Vec<SyncStatus>, String> {
+    let projects: Vec<Project> = state
+        .projects
+        .lock()
+        .unwrap()
+        .iter()
+        .filter(|p| p.git.is_repo && !p.git.remote.is_empty())
+        .cloned()
+        .collect();
+
+    let total = projects.len();
+    let mut done = Vec::with_capacity(total);
+
+    for (i, project) in projects.into_iter().enumerate() {
+        let _ = app.emit(
+            SYNC_PROGRESS,
+            ScanProgress { done: i, total, current: project.name.clone() },
+        );
+
+        let root = PathBuf::from(&project.path);
+        let outcome = tauri::async_runtime::spawn_blocking(move || {
+            crate::git::fetch(&root).map(|_| crate::git::sync_status(&root))
+        })
+        .await
+        .map_err(|e| e.to_string())?;
+
+        let mut status = match outcome {
+            Ok(status) => {
+                refresh_git(&state, &project.id);
+                status
+            }
+            Err(error) => {
+                let mut status = crate::git::sync_status(Path::new(&project.path));
+                status.error = error;
+                status
+            }
+        };
+        status.project_id = project.id.clone();
+        status.project = project.name.clone();
+        done.push(status);
+    }
+
+    let _ = app.emit(
+        SYNC_PROGRESS,
+        ScanProgress { done: total, total, current: String::new() },
+    );
+    Ok(done)
+}
+
+/// Replays this project's local commits on top of the remote's.
+///
+/// The command is built here from the project's own upstream: the frontend can
+/// ask for "rebase this project", it cannot hand this a branch or a flag of its
+/// choosing.
+#[tauri::command]
+pub async fn git_rebase(state: State<'_, AppState>, project_id: String) -> Result<RebaseReport, String> {
+    let project = state.project_by_id(&project_id).ok_or("unknown project")?;
+    let root = PathBuf::from(&project.path);
+
+    let mut report = tauri::async_runtime::spawn_blocking(move || crate::git::rebase(&root))
+        .await
+        .map_err(|e| e.to_string())?;
+
+    refresh_git(&state, &project_id);
+    report.status.project_id = project.id;
+    report.status.project = project.name;
+    Ok(report)
+}
+
+/// Undoes a rebase that stopped, putting the branch back where it was.
+#[tauri::command]
+pub async fn git_rebase_abort(state: State<'_, AppState>, project_id: String) -> Result<RebaseReport, String> {
+    let project = state.project_by_id(&project_id).ok_or("unknown project")?;
+    let root = PathBuf::from(&project.path);
+
+    let mut report = tauri::async_runtime::spawn_blocking(move || crate::git::rebase_abort(&root))
+        .await
+        .map_err(|e| e.to_string())?;
+
+    refresh_git(&state, &project_id);
+    report.status.project_id = project.id;
+    report.status.project = project.name;
+    Ok(report)
 }
 
 // ---------------------------------------------------------------------------

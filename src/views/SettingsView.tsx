@@ -45,6 +45,7 @@ export function SettingsView({ app }: { app: App }) {
     { key: "scanStart", label: t.scanStart, hint: t.scanStartH },
     { key: "watchFs", label: t.watchFs, hint: t.watchFsH },
     { key: "deepGit", label: t.deepGit, hint: t.deepGitH },
+    { key: "fetchOnScan", label: t.fetchOnScan, hint: t.fetchOnScanH },
     { key: "docker", label: t.dockerL, hint: t.dockerH },
   ];
 

@@ -2,7 +2,7 @@ import { projectCount, since, size, tailPath } from "../format";
 import type { App } from "../useApp";
 
 export function StatusBar({ app }: { app: App }) {
-  const { t, lang, projects, running, settings, scanning, scanNote, elapsedMs, rss } = app;
+  const { t, lang, projects, running, settings, scanning, scanNote, syncNote, elapsedMs, rss } = app;
   const clean = app.cleanProgress;
 
   // Measured in bytes: a single three-gigabyte directory is one step out of
@@ -96,6 +96,15 @@ export function StatusBar({ app }: { app: App }) {
           >
             {clean.current ? tailPath(clean.current, 34) : ""}
           </span>
+        </span>
+      )}
+
+      {/* Checking every remote takes a while and is worth watching, but it is
+          not what the user is doing - so it reports here rather than in front
+          of them. */}
+      {syncNote && (
+        <span style={{ color: "var(--accTx)", whiteSpace: "nowrap" }}>
+          {t.syncCheckAll} · {syncNote}
         </span>
       )}
 

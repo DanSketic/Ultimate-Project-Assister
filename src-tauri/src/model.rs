@@ -13,7 +13,7 @@ pub struct LangShare {
     pub pct: f64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Commit {
     pub sha: String,
@@ -21,6 +21,11 @@ pub struct Commit {
     /// Whole days between the commit and "now".
     pub days: i64,
     pub date: String,
+    /// Who wrote it. `default` so a cache written before this field existed
+    /// still loads - the project simply comes back with the author blank
+    /// instead of being dropped from the list.
+    #[serde(default)]
+    pub author: String,
 }
 
 /// One changelog block, derived from an annotated or lightweight git tag.
@@ -46,7 +51,7 @@ pub struct ChangeEntry {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", default)]
 pub struct GitInfo {
     pub is_repo: bool,
     pub branch: String,
@@ -64,6 +69,15 @@ pub struct GitInfo {
     /// The remote as a browsable page, e.g. `https://github.com/owner/repo`.
     /// Empty when there is no remote, or none that has a web page.
     pub remote: String,
+    /// Days since this repository was last fetched. `None` when it never was,
+    /// and when a cache written before this field existed is loaded - both are
+    /// "we do not know", which is what the UI has to say.
+    ///
+    /// `behind` is counted against the remote-tracking ref on disk, which only
+    /// moves on a fetch. Without this the UI would report "up to date" with the
+    /// same confidence whether the last look at the remote was a minute or a
+    /// month ago.
+    pub fetch_days: Option<i64>,
 }
 
 /// A directory the cleaner is allowed to remove, with its measured size.
@@ -342,4 +356,61 @@ pub struct ToolStatus {
     /// Ready-to-run install command, empty when there is no packaged install.
     pub install: String,
     pub docs: String,
+}
+
+/// Where a project's branch stands against the branch it tracks.
+///
+/// Built from refs on disk, so it costs nothing and can be asked for whenever
+/// the UI needs it. Only `fetch` goes to the network, and what it changes is
+/// the remote-tracking ref this is then read from.
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncStatus {
+    pub project_id: String,
+    pub project: String,
+    /// `ok` | `behind` | `ahead` | `diverged` | `detached` | `no-upstream` |
+    /// `no-remote` | `not-a-repo` | `unborn` | `rebasing` | `merging`.
+    ///
+    /// One word for the whole situation, because every part of the UI that
+    /// reacts to it - the badge, the dialog's headline, which button is
+    /// offered - is answering the same question.
+    pub state: String,
+    pub branch: String,
+    /// `origin/main`, or empty when the branch tracks nothing.
+    pub upstream: String,
+    pub ahead: usize,
+    pub behind: usize,
+    /// Uncommitted changes in the working tree. A rebase has to move these out
+    /// of the way first, which is the one part of the answer that changes what
+    /// the button does.
+    pub dirty: usize,
+    /// Commits on the upstream that this checkout does not have - what somebody
+    /// else pushed while it was not looking.
+    pub incoming: Vec<Commit>,
+    /// Local commits that a rebase would replay on top of them.
+    pub outgoing: Vec<Commit>,
+    /// Everyone who wrote the incoming commits, most recent first.
+    pub authors: Vec<String>,
+    /// Days since the last fetch; `None` when the repository has never been
+    /// fetched, so the counts above have never been checked against a remote.
+    pub fetch_days: Option<i64>,
+    /// Files git reports as conflicted. Non-empty only after a rebase stopped.
+    pub conflicts: Vec<String>,
+    /// Why the last remote check failed; empty when it did not.
+    pub error: String,
+}
+
+/// What a rebase did, in the terms the dialog has to report it.
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RebaseReport {
+    /// `up-to-date` | `fast-forward` | `rebased` | `conflict` | `aborted` |
+    /// `stash-conflict` | `failed`.
+    pub outcome: String,
+    /// Git's own output, kept whole. When a rebase stops, what git printed is
+    /// the instruction the user needs, and paraphrasing it would lose it.
+    pub output: String,
+    pub conflicts: Vec<String>,
+    /// The state after the attempt, so the dialog never has to guess.
+    pub status: SyncStatus,
 }

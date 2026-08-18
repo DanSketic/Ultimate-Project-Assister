@@ -10,6 +10,24 @@ are assigned when a release is cut — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## [Unreleased]
 
+### Added
+
+- **A project says when somebody else has been working on it.** `behind` is
+  counted against a ref that only a fetch moves, so a project could sit weeks
+  out of date and still report itself level with the remote. One button in
+  Projects fetches every remote, the projects that have moved get a badge with
+  the count, and the summary names them. Checking after every scan is a setting,
+  off until asked for — it is the one thing here that reaches the network.
+
+- **A window that explains the rebase and then does it.** It says what happened
+  in words, lists the commits that arrived and who wrote them, shows what of
+  yours would be replayed, and prints the commands before running them. It
+  offers the one operation that fits: a fast-forward when nothing of yours is in
+  the way, a rebase when both sides have moved. Uncommitted work is stashed and
+  put back. A rebase that stops on a conflict names the files, opens a terminal
+  on the project, and can be undone in one click, which puts the branch back
+  exactly where it was.
+
 ### Fixed
 
 - **The project detail view no longer scrolls sideways.** The main column was

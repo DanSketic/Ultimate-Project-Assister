@@ -243,6 +243,80 @@ const hu = {
   dockerBusy: "Docker lekérdezése…",
   dockerOff: "A Docker nem érhető el",
   dockerReclaim: "Docker által visszanyerhető",
+  // --- git sync ------------------------------------------------------------
+  syncTitle: "Git szinkron",
+  syncOpen: "Szinkron",
+  syncCheck: "Ellenőrzés",
+  syncCheckAll: "Távoli ellenőrzés",
+  syncChecking: "Távoli ellenőrzése…",
+  syncClose: "Bezárás",
+  syncRebase: "Rebase a távoli tetejére",
+  syncFf: "Behúzás (előretekerés)",
+  syncAbort: "Rebase megszakítása",
+  syncCommit: "commit",
+  syncCommits: "commit",
+  syncBranchL: "Ág",
+  syncUpstreamL: "Követi",
+  syncIncomingL: "Érkező commitok",
+  syncOutgoingL: "A te commitjaid",
+  syncFrom: "Tőlük",
+  syncCheckedL: "Ellenőrizve",
+  syncNever: "még soha",
+  syncStale: "Az adat régi — ellenőrizd a távolit, mielőtt döntesz.",
+  syncConflictsL: "Ütköző fájlok",
+  syncOutputL: "git kimenet",
+  syncRuns: "Ezt futtatja",
+  // Egy szó az egész helyzetre, a párbeszédablak címsorába.
+  syncOkT: "Naprakész",
+  syncBehindT: "Le vagy maradva",
+  syncAheadT: "Nálad van több",
+  syncDivergedT: "Kettévált a történet",
+  syncNoUpstreamT: "Ez az ág nincs feltöltve",
+  syncNoRemoteT: "Nincs távoli repó",
+  syncDetachedT: "Levált HEAD",
+  syncUnbornT: "Még nincs commit",
+  syncRebasingT: "Félbehagyott rebase",
+  syncMergingT: "Félbehagyott merge",
+  syncBusyT: "A repó egy művelet közepén áll",
+  // És a magyarázat: mi történt, és mit csinál a gomb.
+  syncOkB: "Ez az ág ott tart, ahol a távoli. Nincs mit behúzni.",
+  syncBehindB:
+    "Más dolgozott rajta: a távolin vannak commitok, amik itt még nincsenek meg. Neked nincs saját commitod, így ez sima előretekerés — semmi nem íródik át.",
+  syncAheadB:
+    "Nálad vannak commitok, amik a távolin nincsenek. Nincs mit behúzni; ezt push-sal tudod kivinni.",
+  syncDivergedB:
+    "Mindkét oldalon születtek commitok. A rebase a távoli ág tetejére fűzi a te commitjaidat: egyenes marad a történet, és nem lesz felesleges merge commit. A te munkád megmarad, csak új sorszámot kap.",
+  syncDirtyB:
+    "A nem commitolt módosításaidat a rebase automatikusan félreteszi (autostash), és a végén visszateszi őket.",
+  syncNoUpstreamB:
+    "Ez az ág nem követ távoli ágat, így nincs mihez képest lemaradni. Első feltöltés: git push -u origin ",
+  syncNoRemoteB: "Ehhez a projekthez nincs távoli repó, tehát csak helyben létezik.",
+  syncDetachedB:
+    "A HEAD nem ágon áll, hanem egy konkrét commiton. Válts ágra, mielőtt rebase-elnél.",
+  syncUnbornB: "Ebben a repóban még nincs commit.",
+  syncRebasingB:
+    "Egy rebase félbemaradt. Oldd fel az ütközéseket és futtasd a git rebase --continue-t, vagy szakítsd meg — a megszakítás mindent visszaállít.",
+  syncMergingB:
+    "Egy merge félbemaradt. Fejezd be vagy szakítsd meg, mielőtt bármi mást csinálnál ebben a repóban.",
+  syncBusyB: "A repó egy művelet közepén áll. Fejezd be, mielőtt rebase-elnél.",
+  syncConflictB:
+    "A rebase ütközésen állt meg. Nyisd meg a fájlokat, oldd fel az ütközéseket, majd git add és git rebase --continue. Ha inkább mégsem: a megszakítás pontosan oda állítja vissza az ágat, ahol volt.",
+  syncStashConflictB:
+    "A rebase lefutott, de a félretett módosítások nem mentek vissza ütközés nélkül. A fájlokban a jelölések feloldásra várnak; a munkád nem veszett el.",
+  // Értesítések.
+  syncUpToDate: "Már naprakész",
+  syncFfDone: "Előretekerve",
+  syncRebasedDone: "Rebase kész",
+  syncConflictNote: "A rebase ütközésen megállt",
+  syncAbortedNote: "Rebase megszakítva",
+  syncFailedNote: "A rebase nem sikerült",
+  syncFetchFailed: "Nem sikerült elérni a távolit",
+  syncAllChecked: "Távoli ellenőrzés kész",
+  syncAllCurrent: "Minden projekt naprakész",
+  syncBehindSummary: "projekt le van maradva",
+  fetchOnScan: "Távoli ellenőrzés olvasás után",
+  fetchOnScanH:
+    "Olvasás után minden projektnél lefut egy git fetch, hogy a lemaradás valós legyen. Hálózatot használ.",
 };
 
 // Values stay plain `string`, so `en` only has to match the key set.
@@ -487,6 +561,80 @@ const en: Dict = {
   dockerBusy: "Querying Docker…",
   dockerOff: "Docker is not reachable",
   dockerReclaim: "Reclaimable by Docker",
+  // --- git sync ------------------------------------------------------------
+  syncTitle: "Git sync",
+  syncOpen: "Sync",
+  syncCheck: "Check remote",
+  syncCheckAll: "Check remotes",
+  syncChecking: "Checking the remote…",
+  syncClose: "Close",
+  syncRebase: "Rebase onto the remote",
+  syncFf: "Bring up to date (fast-forward)",
+  syncAbort: "Abort the rebase",
+  syncCommit: "commit",
+  syncCommits: "commits",
+  syncBranchL: "Branch",
+  syncUpstreamL: "Tracks",
+  syncIncomingL: "Incoming commits",
+  syncOutgoingL: "Your commits",
+  syncFrom: "From",
+  syncCheckedL: "Checked",
+  syncNever: "never",
+  syncStale: "This is old — check the remote before deciding.",
+  syncConflictsL: "Conflicting files",
+  syncOutputL: "git output",
+  syncRuns: "What this runs",
+  // One word for the whole situation, for the dialog headline.
+  syncOkT: "Up to date",
+  syncBehindT: "Behind the remote",
+  syncAheadT: "Ahead of the remote",
+  syncDivergedT: "The histories have diverged",
+  syncNoUpstreamT: "This branch was never pushed",
+  syncNoRemoteT: "No remote",
+  syncDetachedT: "Detached HEAD",
+  syncUnbornT: "No commits yet",
+  syncRebasingT: "A rebase is unfinished",
+  syncMergingT: "A merge is unfinished",
+  syncBusyT: "The repository is mid-operation",
+  // And the explanation: what happened, and what the button will do.
+  syncOkB: "This branch is level with the remote. There is nothing to bring in.",
+  syncBehindB:
+    "Somebody else has been working here: the remote has commits this checkout does not. You have none of your own, so this is a plain fast-forward — nothing gets rewritten.",
+  syncAheadB:
+    "You have commits the remote does not. There is nothing to bring in; a push is what sends them.",
+  syncDivergedB:
+    "Both sides have moved on. A rebase replays your commits on top of the remote's, so the history stays a straight line and no merge commit is invented. Your work survives — it only gets new identities.",
+  syncDirtyB:
+    "Your uncommitted changes are stashed automatically (autostash) and put back when the rebase is done.",
+  syncNoUpstreamB:
+    "This branch tracks no remote branch, so there is nothing for it to fall behind. To publish it: git push -u origin ",
+  syncNoRemoteB: "This project has no remote, so it only exists on this machine.",
+  syncDetachedB:
+    "HEAD is on a commit rather than on a branch. Check a branch out before rebasing.",
+  syncUnbornB: "This repository has no commits yet.",
+  syncRebasingB:
+    "A rebase was left unfinished. Resolve the conflicts and run git rebase --continue, or abort it — aborting puts everything back.",
+  syncMergingB:
+    "A merge was left unfinished. Finish or abort it before doing anything else in this repository.",
+  syncBusyB: "The repository is in the middle of an operation. Finish that before rebasing.",
+  syncConflictB:
+    "The rebase stopped on a conflict. Open the files, resolve the markers, then git add and git rebase --continue. If you would rather not: aborting puts the branch back exactly where it was.",
+  syncStashConflictB:
+    "The rebase finished, but the stashed changes did not go back cleanly. The markers in those files are waiting to be resolved; nothing has been lost.",
+  // Notices.
+  syncUpToDate: "Already up to date",
+  syncFfDone: "Fast-forwarded",
+  syncRebasedDone: "Rebase complete",
+  syncConflictNote: "The rebase stopped on a conflict",
+  syncAbortedNote: "Rebase aborted",
+  syncFailedNote: "The rebase failed",
+  syncFetchFailed: "Could not reach the remote",
+  syncAllChecked: "Remotes checked",
+  syncAllCurrent: "Every project is up to date",
+  syncBehindSummary: "projects are behind",
+  fetchOnScan: "Check remotes after a scan",
+  fetchOnScanH:
+    "Runs a git fetch for every project after a scan, so the behind count is real. Uses the network.",
 };
 
 export const DICTS: Record<Lang, Dict> = { hu, en };

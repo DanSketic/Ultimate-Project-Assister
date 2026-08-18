@@ -49,11 +49,16 @@ pub struct Toggles {
     pub watch_fs: bool,
     pub deep_git: bool,
     pub docker: bool,
+    /// Fetch every project's remote after a scan, so `behind` is measured
+    /// against what the remote actually has. Off until asked for: this is the
+    /// one setting here that reaches the network on its own.
+    #[serde(default)]
+    pub fetch_on_scan: bool,
 }
 
 impl Default for Toggles {
     fn default() -> Self {
-        Self { scan_start: true, watch_fs: true, deep_git: true, docker: false }
+        Self { scan_start: true, watch_fs: true, deep_git: true, docker: false, fetch_on_scan: false }
     }
 }
 

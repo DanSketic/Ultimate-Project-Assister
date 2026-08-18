@@ -2,6 +2,7 @@ import { useEffect } from "react";
 
 import { ConfirmDialog } from "./components/ConfirmDialog";
 import { PortDialog } from "./components/PortDialog";
+import { SyncDialog } from "./components/SyncDialog";
 import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
 import { TitleBar } from "./components/TitleBar";
@@ -216,6 +217,7 @@ export function App() {
 
       <ConfirmDialog app={app} />
       <PortDialog app={app} />
+      <SyncDialog app={app} />
       <Notifications notices={app.notices} onDismiss={app.dismissNotice} />
     </div>
   );

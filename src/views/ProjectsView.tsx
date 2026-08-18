@@ -90,6 +90,11 @@ export function ProjectsView({ app }: { app: App }) {
   );
   const showHeaders = groups.length > 1;
 
+  // Counted over every project rather than the filtered rows: this is the
+  // reason to press the button, and hiding it behind a search would be the one
+  // way to miss it.
+  const behind = projects.filter((p) => p.git.behind > 0).length;
+
   return (
     <div style={{ display: "flex", flexDirection: "column", padding: "0 12px 16px" }}>
       {/* Toolbar and column titles pin as one block. Pinning them separately
@@ -137,6 +142,50 @@ export function ProjectsView({ app }: { app: App }) {
         <ChipGroup items={stackChips} active={stack} onPick={app.setStack} />
 
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+          {/* Nothing else in the app knows a project is behind until this has
+              run: the count is measured against a ref that only a fetch moves. */}
+          <button
+            type="button"
+            className="h-ghost"
+            onClick={() => void app.checkAllRemotes()}
+            disabled={app.syncBusy}
+            title={t.fetchOnScanH}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 7,
+              border: "1px solid rgba(var(--wrgb),.1)",
+              borderRadius: 10,
+              background: "rgba(var(--wrgb),.035)",
+              color: "rgba(var(--trgb),.8)",
+              padding: "7px 11px",
+              cursor: app.syncBusy ? "default" : "pointer",
+              fontSize: 11.5,
+              fontWeight: 500,
+              opacity: app.syncBusy ? 0.55 : 1,
+            }}
+          >
+            <GitBranch size={12} />
+            {app.syncBusy ? t.syncChecking : t.syncCheckAll}
+            {behind > 0 && !app.syncBusy && (
+              <span
+                style={{
+                  fontFamily: "'JetBrains Mono',monospace",
+                  fontSize: 9.5,
+                  fontWeight: 700,
+                  color: "var(--warnTx)",
+                  border: "1px solid rgba(255,212,121,.42)",
+                  background: "rgba(255,212,121,.12)",
+                  borderRadius: 99,
+                  padding: "0 6px",
+                  lineHeight: "15px",
+                }}
+              >
+                ↓{behind}
+              </span>
+            )}
+          </button>
+
           <span
             style={{
               fontSize: 10.5,
@@ -240,8 +289,11 @@ export function ProjectsView({ app }: { app: App }) {
           {!(showHeaders && app.isCollapsed("projects", group.key)) &&
             group.items.map((p) => {
         const ratio = app.goalRatio(p.name);
+        // The behind count is left out of the string when there is one: it
+        // gets its own chip below, because it is the only number here that is
+        // somebody else's doing and has something to be done about it.
         const gitState = p.git.isRepo
-          ? `${p.git.dirty ? `±${p.git.dirty} ` : `${lang === "hu" ? "tiszta" : "clean"} `}↑${p.git.ahead} ↓${p.git.behind}`
+          ? `${p.git.dirty ? `±${p.git.dirty} ` : `${lang === "hu" ? "tiszta" : "clean"} `}↑${p.git.ahead}${p.git.behind ? "" : " ↓0"}`
           : t.notARepo;
 
         return (
@@ -330,10 +382,40 @@ export function ProjectsView({ app }: { app: App }) {
                     fontFamily: "'JetBrains Mono',monospace",
                     fontSize: 10,
                     color: p.git.dirty > 5 ? "var(--danTx)" : "rgba(var(--trgb),.54)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 5,
                     whiteSpace: "nowrap",
                   }}
                 >
-                  {gitState}
+                  <span>{gitState}</span>
+                  {p.git.behind > 0 && (
+                    <button
+                      type="button"
+                      className="h-fade"
+                      title={t.syncTitle}
+                      onClick={(e) => {
+                        // The row opens the project; this opens the one thing
+                        // the row is warning about.
+                        e.stopPropagation();
+                        void app.openSync(p);
+                      }}
+                      style={{
+                        border: "1px solid rgba(255,212,121,.42)",
+                        background: "rgba(255,212,121,.12)",
+                        color: "var(--warnTx)",
+                        borderRadius: 99,
+                        padding: "0 6px",
+                        cursor: "pointer",
+                        fontFamily: "'JetBrains Mono',monospace",
+                        fontSize: 9.5,
+                        fontWeight: 700,
+                        lineHeight: "15px",
+                      }}
+                    >
+                      ↓{p.git.behind}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

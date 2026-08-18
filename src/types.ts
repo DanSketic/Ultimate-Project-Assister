@@ -25,6 +25,8 @@ export interface Commit {
   msg: string;
   days: number;
   date: string;
+  /** Who wrote it; empty on a project cached before this was recorded. */
+  author: string;
 }
 
 export interface Release {
@@ -59,6 +61,70 @@ export interface GitInfo {
    * Empty when there is no remote, or none with a web page.
    */
   remote: string;
+  /**
+   * Days since the last fetch; null when the repo has never been fetched, and
+   * on a project cached before this was recorded. `behind` is only as fresh as
+   * this, because the ref it is counted against moves on a fetch and at no
+   * other time.
+   */
+  fetchDays: number | null;
+}
+
+/** Where a checkout stands against the branch it tracks. */
+export interface SyncStatus {
+  projectId: string;
+  project: string;
+  /**
+   * The whole situation in one word. `ok` is level with the remote; `behind`
+   * means somebody else has pushed; `diverged` means both sides have moved,
+   * which is the case a rebase is for.
+   */
+  state:
+    | "ok"
+    | "behind"
+    | "ahead"
+    | "diverged"
+    | "detached"
+    | "no-upstream"
+    | "no-remote"
+    | "not-a-repo"
+    | "unborn"
+    | "rebasing"
+    | "merging"
+    | "busy";
+  branch: string;
+  /** `origin/main`, or empty when the branch tracks nothing. */
+  upstream: string;
+  ahead: number;
+  behind: number;
+  /** Uncommitted changes; a rebase has to move these aside first. */
+  dirty: number;
+  /** Commits the remote has and this checkout does not. */
+  incoming: Commit[];
+  /** Local commits a rebase would replay on top of them. */
+  outgoing: Commit[];
+  /** Everyone who wrote the incoming commits, most recent first. */
+  authors: string[];
+  fetchDays: number | null;
+  /** Files git reports as conflicted; only after a rebase has stopped. */
+  conflicts: string[];
+  /** Why the last remote check failed; empty when it did not. */
+  error: string;
+}
+
+export interface RebaseReport {
+  outcome:
+    | "up-to-date"
+    | "fast-forward"
+    | "rebased"
+    | "conflict"
+    | "aborted"
+    | "stash-conflict"
+    | "failed";
+  /** Git's own output, kept whole: when a rebase stops, that is the instruction. */
+  output: string;
+  conflicts: string[];
+  status: SyncStatus;
 }
 
 export interface CleanTarget {
@@ -272,6 +338,8 @@ export interface Toggles {
   scanStart: boolean;
   watchFs: boolean;
   deepGit: boolean;
+  /** Fetch every remote after a scan, so `behind` is real. Off by default. */
+  fetchOnScan: boolean;
   docker: boolean;
 }
 

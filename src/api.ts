@@ -16,9 +16,11 @@ import type {
   PortConflict,
   ProcessInfo,
   Project,
+  RebaseReport,
   ScanProgress,
   ScanResult,
   Settings,
+  SyncStatus,
   ToolStatus,
 } from "./types";
 import * as mock from "./mock";
@@ -190,6 +192,52 @@ export async function runningCommands(): Promise<string[]> {
 }
 
 // ---------------------------------------------------------------------------
+// Git sync
+// ---------------------------------------------------------------------------
+
+/**
+ * Where a project stands against the branch it tracks, read from refs on disk.
+ * Costs nothing and never touches the network, so it is safe to ask for
+ * whenever a view needs it.
+ */
+export async function gitSyncStatus(projectId: string): Promise<SyncStatus> {
+  if (!IS_TAURI) return mock.syncStatus(projectId);
+  return call<SyncStatus>("git_sync_status", { projectId });
+}
+
+/**
+ * Asks the remote what it has. Only the project id crosses the boundary - the
+ * path and the remote are the project's own - and nothing in the working tree
+ * is touched: a fetch moves remote-tracking refs and nothing else.
+ */
+export async function gitFetch(projectId: string): Promise<SyncStatus> {
+  if (!IS_TAURI) return mock.gitFetch(projectId);
+  return call<SyncStatus>("git_fetch", { projectId });
+}
+
+/** The same, for every project that has a remote. Reports on `sync-progress`. */
+export async function gitFetchAll(): Promise<SyncStatus[]> {
+  if (!IS_TAURI) return mock.gitFetchAll();
+  return call<SyncStatus[]>("git_fetch_all");
+}
+
+/**
+ * Replays the project's local commits on top of the remote's. The backend
+ * builds the command from that project's own upstream, so this cannot be asked
+ * to rebase onto a branch of the caller's choosing.
+ */
+export async function gitRebase(projectId: string): Promise<RebaseReport> {
+  if (!IS_TAURI) return mock.gitRebase(projectId);
+  return call<RebaseReport>("git_rebase", { projectId });
+}
+
+/** Puts the branch back where it was before a rebase stopped. */
+export async function gitRebaseAbort(projectId: string): Promise<RebaseReport> {
+  if (!IS_TAURI) return mock.gitRebaseAbort(projectId);
+  return call<RebaseReport>("git_rebase_abort", { projectId });
+}
+
+// ---------------------------------------------------------------------------
 // Shell integration
 // ---------------------------------------------------------------------------
 
@@ -247,6 +295,8 @@ export const onCleanProgress = (h: (p: CleanProgress) => void): Promise<Unlisten
     : Promise.resolve(mock.onCleanProgress(h));
 export const onScanProgress = (h: (p: ScanProgress) => void) =>
   on<ScanProgress>("upa://scan-progress", h);
+export const onSyncProgress = (h: (p: ScanProgress) => void) =>
+  on<ScanProgress>("upa://sync-progress", h);
 export const onProjectsChanged = (h: (ids: string[]) => void) =>
   on<string[]>("upa://projects-changed", h);
 

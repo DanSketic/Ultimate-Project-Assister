@@ -62,6 +62,11 @@ pub fn run() {
             commands::open_terminal,
             commands::reveal,
             commands::open_tag,
+            commands::git_sync_status,
+            commands::git_fetch,
+            commands::git_fetch_all,
+            commands::git_rebase,
+            commands::git_rebase_abort,
             commands::sys_stats,
         ])
         .build(tauri::generate_context!())

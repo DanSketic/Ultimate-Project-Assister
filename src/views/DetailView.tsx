@@ -4,7 +4,7 @@ import * as api from "../api";
 import { Collapsible } from "../components/Collapsible";
 import { Markdown } from "../components/Markdown";
 import { DockerBody, DockerChip, RefreshAction, RequirementsBody } from "../components/Requirements";
-import { ChevronDown, ChevronLeft, ChevronRight, Clock, Play, StickyNote, Stop, Tag, Target, Terminal } from "../components/Icons";
+import { ChevronDown, ChevronLeft, ChevronRight, Clock, GitBranch, Play, StickyNote, Stop, Tag, Target, Terminal } from "../components/Icons";
 import { ago, cmdKey, dueInfo, num, size } from "../format";
 import type { App } from "../useApp";
 import type { CommandDef } from "../types";
@@ -146,7 +146,18 @@ export function DetailView({ app }: { app: App }) {
     { k: t.reclaim, v: `−${size(p.reclaimBytes)}`, fg: "var(--danTx)" },
     { k: t.branchL, v: p.git.branch || "—" },
     { k: t.dirtyL, v: p.git.dirty ? `±${p.git.dirty}` : "0", fg: p.git.dirty ? "var(--danTx)" : undefined },
-    { k: t.aheadL, v: `↑${p.git.ahead} ↓${p.git.behind}` },
+    {
+      k: t.aheadL,
+      v: `↑${p.git.ahead} ↓${p.git.behind}`,
+      // Behind means somebody else has pushed, which is the one of the two
+      // that asks something of the user.
+      fg: p.git.behind ? "var(--warnTx)" : undefined,
+    },
+    {
+      k: t.syncCheckedL,
+      v: p.git.fetchDays === null ? t.syncNever : ago(p.git.fetchDays, lang),
+      fg: p.git.fetchDays === null || p.git.fetchDays >= 7 ? "rgba(var(--trgb),.44)" : undefined,
+    },
     { k: t.lastC, v: p.git.days >= 0 ? ago(p.git.days, lang) : "—" },
     { k: t.created, v: p.git.firstCommit || "—" },
     { k: t.buildL, v: lastBuild },
@@ -247,6 +258,35 @@ export function DetailView({ app }: { app: App }) {
           <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 10, color: "rgba(var(--trgb),.52)" }}>
             {p.commands.length}
           </span>
+        </button>
+
+        {/* Behind is the state worth interrupting for: it means the project on
+            disk is not what the team has. The button carries the count so the
+            toolbar says it without being opened. */}
+        <button
+          type="button"
+          className={p.git.behind ? "h-accent-soft" : "h-accent"}
+          onClick={() => void app.openSync(p)}
+          title={t.syncTitle}
+          style={
+            p.git.behind
+              ? {
+                  ...toolButton,
+                  border: "1px solid rgba(255,212,121,.42)",
+                  background: "rgba(255,212,121,.12)",
+                  color: "var(--warnTx)",
+                  fontWeight: 600,
+                }
+              : toolButton
+          }
+        >
+          <GitBranch size={13} />
+          {t.syncOpen}
+          {p.git.behind > 0 && (
+            <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 10, fontWeight: 700 }}>
+              ↓{p.git.behind}
+            </span>
+          )}
         </button>
 
         <div style={{ marginLeft: "auto", display: "flex", gap: 7 }}>
