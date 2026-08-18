@@ -10,7 +10,7 @@ See what you have, find out what is eating the disk, keep track of what you
 meant to finish, and run each project's own commands without leaving the window.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.3.0-informational.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.4.0-informational.svg)](CHANGELOG.md)
 [![Installers](https://img.shields.io/badge/installers-Windows-lightgrey.svg)](#install)
 
 <sub>Rust (Tauri 2) backend · TypeScript + React frontend · builds on Windows,
@@ -45,7 +45,7 @@ the pinned ones in a block of their own above the folders.</sub>
 | **Running** | What is actually running, under Commands: which project each process belongs to, the ports it holds, its memory and uptime, and a stop button. Not a task manager — a process earns a row by being started from here, listening on a port, or working inside a watched project. |
 | **Requirements** | What each project needs installed — Node and the package manager its lockfile names, cargo, Python, Go, Docker, Make, and the rest — checked against PATH, with versions. Anything missing says which manifest asked for it, and offers the install command where the tool is packaged. |
 | **Docker** | Whether the CLI is there, whether the daemon is answering, its version, containers and images, and the compose stack belonging to the open project. |
-| **Settings** | Watched folders, scanning options, cleanup age threshold, window anchoring, language. |
+| **Settings** | Watched folders, scanning options, cleanup age threshold, desktop notifications, window anchoring, language. |
 
 ---
 
@@ -65,6 +65,12 @@ Both are remembered between sessions.
 Grouped by project, biggest first, with per-project totals and a tri-state group
 checkbox. Category badges turn red for directories that regenerate on the next
 build. The blue chips mark which package of a monorepo a directory belongs to.
+
+Confirming a cleanup closes the dialog and the removal carries on behind it, so
+the app stays usable while it works. Progress is reported in the status bar and
+measured in bytes, not directories — a single three-gigabyte `node_modules` is
+one directory but most of the wait. A notification says when it is done, and can
+reach the desktop as well if that is switched on in Settings.
 
 ![The cleanup view](docs/screenshots/clean.png)
 
