@@ -8,6 +8,17 @@ the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 Every change is recorded here as it lands, under `Unreleased`. Version numbers
 are assigned when a release is cut — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## [Unreleased]
+
+### Fixed
+
+- **The project detail view no longer scrolls sideways.** The main column was
+  sized by its widest line, so one long commit subject or a code block in the
+  README pushed the layout past the window and put a horizontal scrollbar under
+  the whole page. The column now takes the room that is left, and the toolbar
+  above it wraps like every other toolbar in the app instead of running off the
+  edge in a narrow window.
+
 ## [1.4.0] - 2026-08-18
 
 ### Added

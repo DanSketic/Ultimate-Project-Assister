@@ -181,6 +181,10 @@ export function DetailView({ app }: { app: App }) {
         style={{
           display: "flex",
           alignItems: "center",
+          // Every other toolbar in the app wraps, and the measurement above
+          // already expects this one to: without it a narrow window pushed the
+          // right-hand buttons off the edge and scrolled the page sideways.
+          flexWrap: "wrap",
           gap: 8,
           padding: "0 0 14px",
           position: "sticky",
@@ -272,8 +276,12 @@ export function DetailView({ app }: { app: App }) {
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 328px", gap: 16, alignItems: "start" }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      {/* minmax(0,1fr) rather than a bare 1fr: an auto-sized track never shrinks
+          below its content's min-content width, so a long commit subject or a
+          README code block widened the column past the window and put a
+          horizontal scrollbar under the whole page. */}
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 328px", gap: 16, alignItems: "start" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
           <Card
             title={t.desc}
             action={
