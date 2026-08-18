@@ -153,6 +153,9 @@ export interface CleanProgress {
   total: number;
   current: string;
   freedBytes: number;
+  /** Bytes the whole run expects to free, so the bar can move within one
+   *  large directory rather than only between directories. */
+  totalBytes: number;
 }
 
 export interface DeleteReport {
@@ -302,6 +305,8 @@ export interface Settings {
   cmdFavourites: string[];
   /** Show only pinned projects in the lists. */
   favouritesOnly: boolean;
+  /** Post desktop notifications as well as the in-app ones. */
+  osNotifications: boolean;
   /** Folded group headings, as `<view>:<group key>`. */
   collapsedGroups: string[];
   /**

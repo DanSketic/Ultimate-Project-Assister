@@ -8,6 +8,37 @@ the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 Every change is recorded here as it lands, under `Unreleased`. Version numbers
 are assigned when a release is cut — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## [Unreleased]
+
+### Added
+
+- **One notification system for the whole app.** Notices stack instead of
+  replacing one another, carry a kind, and can be dismissed. A failure now stays
+  until it is read rather than disappearing after three seconds like every other
+  message — the single-slot toast gave a freed-space report and a delete failure
+  exactly the same weight and the same three seconds.
+- **Windows notifications, off until asked for.** A switch in Settings lets the
+  system announce the end of longer jobs, so a cleanup that runs for minutes
+  reaches you when the window is not in front. Turning it on asks the operating
+  system first and says so if it refuses, rather than leaving a switch that
+  looks on and does nothing; a confirming notification is sent so the switch
+  proves itself.
+
+### Changed
+
+- **A cleanup no longer holds the app hostage.** The confirmation dialog used to
+  stay open as a progress view for the whole removal, which meant the one thing
+  you could not do while tidying up was use the app. It closes as soon as you
+  confirm, the work carries on behind it, and the status bar reports from every
+  view. When it finishes you get a notification — including a desktop one, since
+  the window will not be the one you are looking at.
+- **Deletion progress is measured in bytes, not directories.** A single
+  three-gigabyte `node_modules` was one step out of the total, so the bar sat
+  still for the whole removal. Directories are now walked and removed a file at
+  a time, and the running total is reported as it goes.
+- A read-only file no longer stops a removal: the attribute is cleared and the
+  file removed, rather than leaving behind junk the cleaner said it had taken.
+
 ## [1.3.0] - 2026-08-15
 
 ### Fixed

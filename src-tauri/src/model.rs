@@ -206,6 +206,9 @@ pub struct CleanProgress {
     pub total: usize,
     pub current: String,
     pub freed_bytes: u64,
+    /// Bytes the whole run expects to free, so the bar can move smoothly
+    /// through one large directory instead of per completed directory.
+    pub total_bytes: u64,
 }
 
 #[derive(Debug, Clone, Serialize)]

@@ -56,7 +56,16 @@ fn today() -> String {
     chrono::Local::now().format("%Y-%m-%d").to_string()
 }
 
-fn progress(app: &AppHandle, phase: &str, done: usize, total: usize, current: &str, freed: u64) {
+#[allow(clippy::too_many_arguments)]
+fn progress(
+    app: &AppHandle,
+    phase: &str,
+    done: usize,
+    total: usize,
+    current: &str,
+    freed: u64,
+    total_bytes: u64,
+) {
     let _ = app.emit(
         CLEAN_PROGRESS,
         CleanProgress {
@@ -65,6 +74,7 @@ fn progress(app: &AppHandle, phase: &str, done: usize, total: usize, current: &s
             total,
             current: current.to_string(),
             freed_bytes: freed,
+            total_bytes,
         },
     );
 }
@@ -219,6 +229,9 @@ pub async fn delete_targets(
         .collect();
 
     let total = jobs.len();
+    // What the run is expected to free, so progress can be measured in bytes
+    // rather than in directories completed.
+    let total_bytes: u64 = jobs.iter().map(|(t, _)| t.bytes).sum();
     let delete_app = app.clone();
 
     let report = tauri::async_runtime::spawn_blocking(move || {
@@ -227,9 +240,24 @@ pub async fn delete_targets(
         for (done, (target, root)) in jobs.into_iter().enumerate() {
             // Announce the directory before removing it: a multi-gigabyte
             // node_modules can take a while, and the UI should say which one.
-            progress(&delete_app, "delete", done, total, &target.path, report.freed_bytes);
+            let before = report.freed_bytes;
+            progress(&delete_app, "delete", done, total, &target.path, before, total_bytes);
 
-            match clean::delete_target(&target, &root) {
+            // Reported from inside the removal, so the bar keeps moving while a
+            // single huge directory is being walked.
+            let mut on_progress = |so_far: u64, path: &std::path::Path| {
+                progress(
+                    &delete_app,
+                    "delete",
+                    done,
+                    total,
+                    &path.to_string_lossy(),
+                    before + so_far,
+                    total_bytes,
+                );
+            };
+
+            match clean::delete_target(&target, &root, &mut on_progress) {
                 Ok(freed) => {
                     report.freed_bytes += freed;
                     report.removed.push(target.path.clone());
@@ -262,7 +290,7 @@ pub async fn delete_targets(
             .enumerate()
             .filter_map(|(done, root)| {
                 // Re-measuring is the other half of the wait, so it reports too.
-                progress(&rescan_app, "rescan", done, rescan_total, &root.to_string_lossy(), freed);
+                progress(&rescan_app, "rescan", done, rescan_total, &root.to_string_lossy(), freed, freed);
                 scan::measure(root, &settings)
             })
             .collect::<Vec<Project>>()
@@ -270,7 +298,7 @@ pub async fn delete_targets(
     .await
     .map_err(|e| e.to_string())?;
 
-    progress(&app, "done", rescan_total, rescan_total, "", freed);
+    progress(&app, "done", rescan_total, rescan_total, "", freed, freed);
 
     let snapshot = {
         let mut cache = state.projects.lock().unwrap();

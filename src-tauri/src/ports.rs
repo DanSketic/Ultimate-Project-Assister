@@ -802,13 +802,17 @@ services:
 
     #[test]
     fn the_offered_port_is_next_door_and_actually_free() {
-        let held = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
-        let port = held.local_addr().unwrap().port();
+        // Held in a fixed range below Windows' dynamic start (49152). Searching
+        // upward from an ephemeral port would land in the range the sibling
+        // tests are binding, and the answer could be taken before it is used.
+        let port = (45_200..45_300).find(|p| !is_taken(*p)).expect("a port to hold");
+        let _held = TcpListener::bind((Ipv4Addr::LOCALHOST, port)).unwrap();
 
         let free = free_near(port).expect("a free port near by");
+
         assert!(free > port, "the search goes upward from the wanted port");
         assert!(free <= port + 64);
-        assert!(!is_taken(free));
+        assert!(!is_taken(free), "the offered port has to actually be free");
     }
 
     #[test]

@@ -1,8 +1,17 @@
-import { projectCount, since, size } from "../format";
+import { projectCount, since, size, tailPath } from "../format";
 import type { App } from "../useApp";
 
 export function StatusBar({ app }: { app: App }) {
   const { t, lang, projects, running, settings, scanning, scanNote, elapsedMs, rss } = app;
+  const clean = app.cleanProgress;
+
+  // Measured in bytes: a single three-gigabyte directory is one step out of
+  // `total`, and counting steps would hold the bar still for the whole removal.
+  const cleanPct = clean?.totalBytes
+    ? Math.min(100, Math.round((clean.freedBytes / clean.totalBytes) * 100))
+    : clean?.total
+      ? Math.round((clean.done / clean.total) * 100)
+      : 0;
 
   // Before the first scan of this session finishes, whatever is on screen came
   // out of the previous session's cache - say so rather than claiming a scan.
@@ -43,6 +52,53 @@ export function StatusBar({ app }: { app: App }) {
         />
         {scanLabel}
       </span>
+      {/* The cleanup runs behind the rest of the app, so this is where it
+          reports - visible from every view, and in nobody's way. */}
+      {clean && (
+        <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+          <span style={{ color: "var(--accTx)", whiteSpace: "nowrap" }}>
+            {clean.phase === "rescan" ? t.cleaningRescan : t.cleaningDelete} {cleanPct}%
+          </span>
+          <span
+            style={{
+              width: 90,
+              height: 4,
+              borderRadius: 99,
+              background: "rgba(var(--wrgb),.12)",
+              overflow: "hidden",
+              flex: "0 0 90px",
+            }}
+          >
+            <span
+              style={{
+                display: "block",
+                height: 4,
+                borderRadius: 99,
+                background: "var(--acc)",
+                width: `${cleanPct}%`,
+                transition: "width 200ms",
+              }}
+            />
+          </span>
+          <span style={{ color: "rgba(var(--trgb),.45)", whiteSpace: "nowrap" }}>
+            {size(clean.freedBytes)}
+            {clean.totalBytes > 0 && ` / ${size(clean.totalBytes)}`}
+          </span>
+          <span
+            style={{
+              color: "rgba(var(--trgb),.35)",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              maxWidth: 220,
+            }}
+            title={clean.current}
+          >
+            {clean.current ? tailPath(clean.current, 34) : ""}
+          </span>
+        </span>
+      )}
+
       <span>{projectCount(projects.length, t)}</span>
       <span>
         {running.size} {t.runningL}

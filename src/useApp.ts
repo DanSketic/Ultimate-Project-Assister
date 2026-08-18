@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as api from "./api";
 import { dict, type T } from "./i18n";
 import { bindToProjects, cmdKey, isExcluded, newId, size, todayIso } from "./format";
+import { ensurePermission as requestOsPermission, send as sendOsNotification } from "./notify";
 import type {
   CleanProgress,
   CommandDef,
@@ -87,6 +88,29 @@ export interface LogEntry {
   fg: string;
 }
 
+export type NoticeKind = "success" | "info" | "warn" | "error";
+
+export interface Notice {
+  id: string;
+  kind: NoticeKind;
+  title: string;
+  body?: string;
+}
+
+/**
+ * How long a notice stays before it goes on its own. A failure never does: an
+ * error that vanishes after three seconds is an error nobody read.
+ */
+const NOTICE_LIFE: Record<NoticeKind, number> = {
+  success: 3600,
+  info: 3600,
+  warn: 6000,
+  error: 0,
+};
+
+/** How many notices are on screen at once before the oldest is dropped. */
+const MAX_NOTICES = 4;
+
 export interface GoalRatio {
   all: number;
   done: number;
@@ -159,15 +183,15 @@ export function useApp() {
   const [stopping, setStopping] = useState<Set<number>>(new Set());
 
   // --- chrome -------------------------------------------------------------
-  const [toast, setToast] = useState("");
+  const [notices, setNotices] = useState<Notice[]>([]);
   const [scanning, setScanning] = useState(false);
   const [scanNote, setScanNote] = useState("");
   const [elapsedMs, setElapsedMs] = useState(0);
   const [rss, setRss] = useState(0);
   const [sysLight, setSysLight] = useState(false);
-  const [busy, setBusy] = useState(false);
 
-  const toastTimer = useRef<number | undefined>(undefined);
+  /** Read through a ref so `notify` stays stable as the setting changes. */
+  const osNotifications = useRef(false);
   const saveTimer = useRef<number | undefined>(undefined);
 
   const lang: Lang = settings?.lang ?? "hu";
@@ -176,11 +200,35 @@ export function useApp() {
   const resolvedTheme = theme === "auto" ? (sysLight ? "light" : "dark") : theme;
   const navOpen = !(settings?.navCollapsed ?? false);
 
-  const flash = useCallback((message: string) => {
-    setToast(message);
-    window.clearTimeout(toastTimer.current);
-    toastTimer.current = window.setTimeout(() => setToast(""), 3200);
+  const dismissNotice = useCallback((id: string) => {
+    setNotices((prev) => prev.filter((n) => n.id !== id));
   }, []);
+
+  /**
+   * The one way anything in the app says something.
+   *
+   * `os` asks for a desktop notification as well, which is only sent when the
+   * user has turned them on in Settings - the in-app notice always appears
+   * either way, so nothing is lost when they are off.
+   */
+  const notify = useCallback(
+    (kind: NoticeKind, title: string, body?: string, os = false) => {
+      const id = newId("n");
+      setNotices((prev) => [...prev, { id, kind, title, body }].slice(-MAX_NOTICES));
+
+      const life = NOTICE_LIFE[kind];
+      if (life > 0) window.setTimeout(() => dismissNotice(id), life);
+
+      if (os && osNotifications.current) void sendOsNotification(title, body ?? "");
+    },
+    [dismissNotice],
+  );
+
+  /** Kept as the short form for the many places that just report success. */
+  const flash = useCallback(
+    (message: string) => notify("success", message),
+    [notify],
+  );
 
   // --- boot ---------------------------------------------------------------
   useEffect(() => {
@@ -224,12 +272,16 @@ export function useApp() {
 
     return () => {
       alive = false;
-      window.clearTimeout(toastTimer.current);
       window.clearTimeout(saveTimer.current);
     };
     // Boot runs once; `rescan` is stable enough for this single call.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Desktop notifications are opt-in; the ref keeps `notify` stable.
+  useEffect(() => {
+    osNotifications.current = settings?.osNotifications ?? false;
+  }, [settings?.osNotifications]);
 
   // --- system theme -------------------------------------------------------
   useEffect(() => {
@@ -669,6 +721,33 @@ export function useApp() {
     [flash],
   );
 
+  /**
+   * Turns desktop notifications on or off.
+   *
+   * Turning them on asks the operating system first and says so if it refuses,
+   * rather than leaving a switch that looks on and does nothing. A confirmation
+   * notice is sent on success, so the switch proves itself.
+   */
+  const setOsNotifications = useCallback(
+    async (on: boolean) => {
+      if (!on) {
+        osNotifications.current = false;
+        patchSettings({ osNotifications: false });
+        return;
+      }
+      const granted = await requestOsPermission();
+      if (!granted) {
+        notify("warn", t.osNotifyDenied);
+        patchSettings({ osNotifications: false });
+        return;
+      }
+      osNotifications.current = true;
+      patchSettings({ osNotifications: true });
+      notify("success", t.osNotifyTest, undefined, true);
+    },
+    [patchSettings, notify, t],
+  );
+
   const toggleMax = useCallback(async () => {
     setMaxed(await api.toggleMaximizeWindow());
   }, []);
@@ -705,10 +784,20 @@ export function useApp() {
   );
 
   const doClean = useCallback(async () => {
-    // The dialog stays open and turns into a progress view: a cleanup can run
-    // for a while, and closing it would leave the user with no feedback.
-    setBusy(true);
-    setCleanProgress({ phase: "delete", done: 0, total: selectedRows.length, current: "", freedBytes: 0 });
+    // The dialog closes at once and the work carries on behind it. A cleanup
+    // can run for minutes, and holding a modal over the whole app for that long
+    // means the one thing you cannot do while tidying up is use the app. The
+    // status bar carries the progress instead, and a notification says when it
+    // is done - including a desktop one, since the window will not be in front.
+    setConfirmOpen(false);
+    setCleanProgress({
+      phase: "delete",
+      done: 0,
+      total: selectedRows.length,
+      current: "",
+      freedBytes: 0,
+      totalBytes: selectedBytes,
+    });
     try {
       const keys = selectedRows.map((r) => r.key);
       const report = await api.deleteTargets(keys);
@@ -732,21 +821,24 @@ export function useApp() {
         });
       }
 
+      // Worth reaching the desktop for: a cleanup can run for minutes, and
+      // the window is usually not the one being looked at by then.
       if (report.errors.length) {
-        flash(`${t.cleanFailed}: ${report.errors[0]}`);
+        notify("error", t.cleanFailed, report.errors[0], true);
       } else {
-        flash(
-          `${size(report.freedBytes)} ${t.freedToast} · ${report.removed.length} ${t.removedDirs}`,
+        notify(
+          "success",
+          `${size(report.freedBytes)} ${t.freedToast}`,
+          `${report.removed.length} ${t.removedDirs}`,
+          true,
         );
       }
     } catch (e) {
-      flash(`${t.deleteFailed}: ${e}`);
+      notify("error", t.deleteFailed, String(e), true);
     } finally {
-      setBusy(false);
       setCleanProgress(null);
-      setConfirmOpen(false);
     }
-  }, [selectedRows, settings, patchSettings, flash, t]);
+  }, [selectedRows, selectedBytes, settings, patchSettings, notify, t]);
 
   // --- running processes ----------------------------------------------------
   const refreshProcesses = useCallback(async () => {
@@ -1088,6 +1180,7 @@ export function useApp() {
     toggleFavourite,
     favouritesOnly,
     toggleFavouritesOnly,
+    setOsNotifications,
     isCollapsed,
     toggleGroup,
     openTag,
@@ -1158,14 +1251,15 @@ export function useApp() {
     startOnFreePort,
     clearLog,
     // chrome
-    toast,
+    notices,
+    notify,
+    dismissNotice,
     flash,
     scanning,
     scanNote,
     scanRot,
     elapsedMs,
     rss,
-    busy,
     rescan,
     patchSettings,
   };

@@ -463,6 +463,7 @@ export function settings(): Settings {
     ageDays: 30,
     cmdFavourites: [],
     favouritesOnly: false,
+    osNotifications: false,
     collapsedGroups: [],
     cleanPicked: null,
     rules: [
@@ -765,14 +766,17 @@ export async function deleteTargets(keys: string[]): Promise<DeleteReport> {
   const all = projects().flatMap((p) => p.cleanTargets);
   const hit = all.filter((t) => keys.includes(t.key));
 
-  // Step through the targets so the progress UI has something to show.
+  const totalBytes = hit.reduce((sum, t) => sum + t.bytes, 0);
+
+  // Step through the targets so the progress UI has something to show, in the
+  // same byte terms the real backend reports.
   let freed = 0;
   for (const [i, target] of hit.entries()) {
-    emitClean({ phase: "delete", done: i, total: hit.length, current: target.path, freedBytes: freed });
+    emitClean({ phase: "delete", done: i, total: hit.length, current: target.path, freedBytes: freed, totalBytes });
     await pause(160);
     freed += target.bytes;
   }
-  emitClean({ phase: "rescan", done: 0, total: 1, current: "", freedBytes: freed });
+  emitClean({ phase: "rescan", done: 0, total: 1, current: "", freedBytes: freed, totalBytes });
   await pause(300);
 
   // Shrink the in-memory dataset so the numbers move like the real thing.
@@ -785,7 +789,7 @@ export async function deleteTargets(keys: string[]): Promise<DeleteReport> {
     p.sizeBytes = Math.max(0, p.sizeBytes - freed);
   }
 
-  emitClean({ phase: "done", done: 1, total: 1, current: "", freedBytes: freed });
+  emitClean({ phase: "done", done: 1, total: 1, current: "", freedBytes: freed, totalBytes });
 
   return { freedBytes: freed, removed: hit.map((t) => t.path), errors: [] };
 }

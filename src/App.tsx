@@ -5,7 +5,7 @@ import { PortDialog } from "./components/PortDialog";
 import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
 import { TitleBar } from "./components/TitleBar";
-import { Toast } from "./components/Toast";
+import { Notifications } from "./components/Notifications";
 import { isOverdue, projectCount, size } from "./format";
 import { BoardView } from "./views/BoardView";
 import { CleanView } from "./views/CleanView";
@@ -216,7 +216,7 @@ export function App() {
 
       <ConfirmDialog app={app} />
       <PortDialog app={app} />
-      <Toast message={app.toast} />
+      <Notifications notices={app.notices} onDismiss={app.dismissNotice} />
     </div>
   );
 }

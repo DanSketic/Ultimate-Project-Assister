@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from "react";
 
-import { size, tailPath } from "../format";
+import { size } from "../format";
 import type { App } from "../useApp";
 import type { CleanTarget } from "../types";
 
@@ -23,18 +23,19 @@ function groupByProject(rows: CleanTarget[]) {
 }
 
 export function ConfirmDialog({ app }: { app: App }) {
-  const { t, confirmOpen, selectedRows, selectedBytes, cleanProgress } = app;
-  const running = cleanProgress !== null;
+  const { t, confirmOpen, selectedRows, selectedBytes } = app;
+  // The cleanup no longer runs behind this dialog - it closes and the status
+  // bar takes over - so there is nothing here that must not be interrupted.
 
   useEffect(() => {
     if (!confirmOpen) return;
     const onKey = (e: KeyboardEvent) => {
       // Escape must not abandon a cleanup that is already underway.
-      if (e.key === "Escape" && !running) app.setConfirmOpen(false);
+      if (e.key === "Escape") app.setConfirmOpen(false);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [confirmOpen, running, app]);
+  }, [confirmOpen, app]);
 
   const groups = useMemo(() => groupByProject(selectedRows), [selectedRows]);
 
@@ -44,10 +45,6 @@ export function ConfirmDialog({ app }: { app: App }) {
   const shown = groups.slice(0, 4);
   const hiddenDirs = groups.slice(4).reduce((total, g) => total + g.items.length, 0);
   const foot = hiddenDirs > 0 ? `+${hiddenDirs} ${t.moreL}` : t.totalL;
-
-  const pct = cleanProgress?.total
-    ? Math.round((cleanProgress.done / cleanProgress.total) * 100)
-    : 0;
 
   return (
     <div
@@ -66,7 +63,6 @@ export function ConfirmDialog({ app }: { app: App }) {
       <div
         role="dialog"
         aria-modal="true"
-        aria-busy={running}
         style={{
           width: "min(560px,100%)",
           background: "var(--elev)",
@@ -81,7 +77,7 @@ export function ConfirmDialog({ app }: { app: App }) {
       >
         <div style={{ padding: "17px 20px 14px" }}>
           <div style={{ fontSize: 19, fontWeight: 600, letterSpacing: "-.02em" }}>
-            {running ? t.cleaning : t.confirm}
+            {t.confirm}
           </div>
           <div
             style={{
@@ -92,67 +88,11 @@ export function ConfirmDialog({ app }: { app: App }) {
               textWrap: "pretty",
             }}
           >
-            {running ? t.cleaningBody : t.confirmBody}
+            {t.confirmBody}
           </div>
         </div>
 
-        {running ? (
-          <div style={{ padding: "0 20px 4px" }}>
-            <div
-              style={{
-                height: 6,
-                borderRadius: 99,
-                background: "rgba(var(--wrgb),.09)",
-                overflow: "hidden",
-              }}
-            >
-              <div
-                style={{
-                  height: 6,
-                  borderRadius: 99,
-                  background: "var(--acc)",
-                  width: `${pct}%`,
-                  transition: "width 200ms",
-                }}
-              />
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                gap: 12,
-                marginTop: 10,
-                fontFamily: "'JetBrains Mono',monospace",
-                fontSize: 11,
-                color: "rgba(var(--trgb),.55)",
-              }}
-            >
-              <span>
-                {cleanProgress.phase === "rescan" ? t.cleaningRescan : t.cleaningDelete}{" "}
-                {cleanProgress.done} / {cleanProgress.total}
-              </span>
-              <span style={{ color: "var(--accTx)" }}>{size(cleanProgress.freedBytes)}</span>
-            </div>
-
-            <div
-              style={{
-                marginTop: 8,
-                fontFamily: "'JetBrains Mono',monospace",
-                fontSize: 11,
-                color: "rgba(var(--trgb),.45)",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                minHeight: 16,
-              }}
-              title={cleanProgress.current}
-            >
-              {cleanProgress.current ? tailPath(cleanProgress.current, 56) : ""}
-            </div>
-          </div>
-        ) : (
-          <div style={{ padding: "0 20px", overflow: "auto" }}>
+        <div style={{ padding: "0 20px", overflow: "auto" }}>
             {shown.map((group) => (
               <div key={group.project} style={{ borderTop: "1px solid rgba(var(--wrgb),.06)" }}>
                 <div
@@ -228,24 +168,22 @@ export function ConfirmDialog({ app }: { app: App }) {
               <span style={{ color: "rgba(var(--trgb),.55)" }}>{foot}</span>
               <span style={{ color: "var(--accTx)" }}>{size(selectedBytes)}</span>
             </div>
-          </div>
-        )}
+        </div>
 
         <div style={{ display: "flex", gap: 9, padding: "16px 20px", justifyContent: "flex-end" }}>
           <button
             type="button"
             className="h-ghost"
             onClick={() => app.setConfirmOpen(false)}
-            disabled={running}
             style={{
               border: "1px solid rgba(var(--wrgb),.1)",
               borderRadius: 10,
               background: "transparent",
               padding: "8px 14px",
-              cursor: running ? "default" : "pointer",
+              cursor: "pointer",
               fontSize: 12.5,
               fontWeight: 500,
-              color: running ? "rgba(var(--trgb),.35)" : "rgba(var(--trgb),.75)",
+              color: "rgba(var(--trgb),.75)",
             }}
           >
             {t.cancel}
@@ -254,20 +192,18 @@ export function ConfirmDialog({ app }: { app: App }) {
             type="button"
             className="h-danger"
             onClick={() => void app.doClean()}
-            disabled={running}
             style={{
               border: "1px solid rgba(var(--danrgb),.5)",
               borderRadius: 10,
               background: "rgba(var(--danrgb),.16)",
               color: "var(--danTx2)",
               padding: "8px 16px",
-              cursor: running ? "progress" : "pointer",
+              cursor: "pointer",
               fontSize: 12.5,
               fontWeight: 600,
-              opacity: running ? 0.6 : 1,
             }}
           >
-            {running ? `${pct}%` : `${t.del} · ${size(selectedBytes)}`}
+            {`${t.del} · ${size(selectedBytes)}`}
           </button>
         </div>
       </div>

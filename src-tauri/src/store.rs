@@ -101,6 +101,10 @@ pub struct Settings {
     pub cmd_favourites: Vec<String>,
     /// Show only pinned projects in the lists.
     pub favourites_only: bool,
+    /// Post a desktop notification when something finishes, as well as the
+    /// in-app notice. Off until asked for: an app that starts notifying the
+    /// operating system without being told to is a nuisance.
+    pub os_notifications: bool,
     /// Group headings the user folded away, as `<view>:<group key>` - the same
     /// folder can head a block in several lists, and folding it in one is not a
     /// statement about the others.
@@ -133,6 +137,7 @@ impl Default for Settings {
             favourites: Vec::new(),
             cmd_favourites: Vec::new(),
             favourites_only: false,
+            os_notifications: false,
             collapsed_groups: Vec::new(),
             clean_picked: None,
             freed_bytes: 0,

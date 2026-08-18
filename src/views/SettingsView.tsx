@@ -148,57 +148,29 @@ export function SettingsView({ app }: { app: App }) {
 
       <div style={card}>
         <div style={cardTitle}>{t.scanOpts}</div>
-        {toggleRows.map((row) => {
-          const on = settings.toggles[row.key];
-          return (
-            <div
-              key={row.key}
-              onClick={() =>
-                app.patchSettings({ toggles: { ...settings.toggles, [row.key]: !on } })
-              }
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 13,
-                padding: "10px 0",
-                borderTop: "1px solid rgba(var(--wrgb),.06)",
-                cursor: "pointer",
-              }}
-            >
-              <div
-                style={{
-                  width: 34,
-                  height: 19,
-                  borderRadius: 99,
-                  border: `1px solid ${on ? "var(--acc)" : "rgba(var(--wrgb),.14)"}`,
-                  background: on ? "var(--acc)" : "rgba(var(--wrgb),.06)",
-                  flex: "0 0 34px",
-                  display: "flex",
-                  alignItems: "center",
-                  padding: 2,
-                  justifyContent: on ? "flex-end" : "flex-start",
-                  transition: "all 180ms",
-                }}
-              >
-                <div
-                  style={{
-                    width: 13,
-                    height: 13,
-                    borderRadius: 99,
-                    background: on ? "#14180a" : "rgba(var(--trgb),.45)",
-                    transition: "all 180ms",
-                  }}
-                />
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 500 }}>{row.label}</div>
-                <div style={{ fontSize: 11.5, color: "rgba(var(--trgb),.4)", marginTop: 1 }}>
-                  {row.hint}
-                </div>
-              </div>
-            </div>
-          );
-        })}
+        {toggleRows.map((row) => (
+          <ToggleRow
+            key={row.key}
+            on={settings.toggles[row.key]}
+            label={row.label}
+            hint={row.hint}
+            onToggle={() =>
+              app.patchSettings({
+                toggles: { ...settings.toggles, [row.key]: !settings.toggles[row.key] },
+              })
+            }
+          />
+        ))}
+      </div>
+
+      <div style={card}>
+        <div style={cardTitle}>{t.notifyOpts}</div>
+        <ToggleRow
+          on={settings.osNotifications}
+          label={t.osNotify}
+          hint={t.osNotifyH}
+          onToggle={() => void app.setOsNotifications(!settings.osNotifications)}
+        />
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
@@ -300,6 +272,74 @@ export function SettingsView({ app }: { app: App }) {
             {t.langHint}
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/** The switch used by every settings toggle, so they cannot drift apart. */
+function ToggleRow({
+  on,
+  label,
+  hint,
+  onToggle,
+}: {
+  on: boolean;
+  label: string;
+  hint: string;
+  onToggle: () => void;
+}) {
+  return (
+    <div
+      role="switch"
+      aria-checked={on}
+      tabIndex={0}
+      className="h-soft-3"
+      onClick={onToggle}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onToggle();
+        }
+      }}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 13,
+        padding: "10px 6px",
+        borderTop: "1px solid rgba(var(--wrgb),.06)",
+        borderRadius: 9,
+        cursor: "pointer",
+      }}
+    >
+      <div
+        style={{
+          width: 34,
+          height: 19,
+          borderRadius: 99,
+          border: `1px solid ${on ? "var(--acc)" : "rgba(var(--wrgb),.14)"}`,
+          background: on ? "var(--acc)" : "rgba(var(--wrgb),.06)",
+          flex: "0 0 34px",
+          display: "flex",
+          alignItems: "center",
+          padding: 2,
+          justifyContent: on ? "flex-end" : "flex-start",
+          transition: "all 180ms",
+        }}
+      >
+        <div
+          style={{
+            width: 13,
+            height: 13,
+            borderRadius: 99,
+            background: on ? "#14180a" : "rgba(var(--trgb),.45)",
+            transition: "all 180ms",
+          }}
+        />
+      </div>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 13, fontWeight: 500 }}>{label}</div>
+        <div style={{ fontSize: 11.5, color: "rgba(var(--trgb),.4)", marginTop: 1 }}>{hint}</div>
       </div>
     </div>
   );
