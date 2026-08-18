@@ -28,6 +28,13 @@ are assigned when a release is cut — see [CONTRIBUTING.md](CONTRIBUTING.md).
   on the project, and can be undone in one click, which puts the branch back
   exactly where it was.
 
+### Changed
+
+- **The window controls match Ultimate Network Assister.** They were a
+  full-height slab each, so the hover tint read as a column of the title bar
+  rather than as a button. Now they are the same 26×26 chip with the same small
+  radius, centred in the bar.
+
 ### Fixed
 
 - **The project detail view no longer scrolls sideways.** The main column was

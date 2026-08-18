@@ -158,7 +158,10 @@ export function TitleBar({ app }: { app: App }) {
         </div>
       </div>
 
-      <div style={{ display: "flex", alignItems: "stretch", paddingRight: 4 }}>
+      {/* Matched to Ultimate Network Assister: a small square chip each,
+          centred in the bar. Stretched full height, the hover tint read as a
+          column of the title bar rather than as a button. */}
+      <div style={{ display: "flex", alignItems: "center", gap: 2, padding: "0 6px 0 2px" }}>
         <button
           type="button"
           title="Minimize"
@@ -166,7 +169,7 @@ export function TitleBar({ app }: { app: App }) {
           onClick={() => void api.minimizeWindow()}
           style={winButton}
         >
-          <Minus size={11} />
+          <Minus size={12} />
         </button>
         <button
           type="button"
@@ -192,7 +195,9 @@ export function TitleBar({ app }: { app: App }) {
 }
 
 const winButton = {
-  width: 34,
+  flex: "0 0 26px",
+  width: 26,
+  height: 26,
   border: 0,
   background: "transparent",
   color: "rgba(var(--trgb),.55)",
@@ -200,5 +205,5 @@ const winButton = {
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  borderRadius: 8,
+  borderRadius: 5,
 } as const;
