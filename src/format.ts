@@ -20,6 +20,28 @@ export function num(value: number, lang: Lang): string {
   return value.toLocaleString(lang === "hu" ? "hu-HU" : "en-US");
 }
 
+/** Token counts, which run to millions: "9 800", "348 k", "12.4 M". */
+export function tokens(value: number, lang: Lang): string {
+  if (!Number.isFinite(value) || value <= 0) return "0";
+  if (value >= 1e6) {
+    const millions = value / 1e6;
+    return `${millions.toFixed(millions >= 10 ? 0 : 1)} M`;
+  }
+  if (value >= 10_000) return `${Math.round(value / 1000)} k`;
+  return num(Math.round(value), lang);
+}
+
+/**
+ * Money, to the cent. Anything under a cent is shown as such rather than
+ * rounded to zero, because a list of zeroes reads as "this costs nothing".
+ */
+export function usd(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return "$0.00";
+  if (value < 0.01) return "< $0.01";
+  if (value >= 100) return `$${Math.round(value)}`;
+  return `$${value.toFixed(2)}`;
+}
+
 export function ago(days: number, lang: Lang): string {
   if (days < 0) return "—";
   if (days === 0) return lang === "hu" ? "ma" : "today";

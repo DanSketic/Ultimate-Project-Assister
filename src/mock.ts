@@ -6,6 +6,9 @@
 
 import type {
   ChangeEntry,
+  ClaudeMessage,
+  ClaudeSession,
+  ClaudeStats,
   CleanProgress,
   CleanTarget,
   CommandDef,
@@ -1064,4 +1067,83 @@ export async function gitRebaseAbort(projectId: string): Promise<RebaseReport> {
     conflicts: [],
     status: syncStatus(projectId),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Claude Code history
+// ---------------------------------------------------------------------------
+
+/** A fortnight of sessions across three projects, so the charts have a shape. */
+export function claudeStats(): ClaudeStats {
+  const all = projects();
+  const pick = (name: string) => all.find((p) => p.name === name);
+  const day = (back: number, hour: number) =>
+    new Date(Date.now() - back * 864e5 - (23 - hour) * 36e5).toISOString();
+
+  const seeds: Array<[project: string, title: string, back: number, msgs: number, tools: number]> = [
+    ["ultimate-project-assister", "Claude előzmények nézet", 0, 46, 128],
+    ["ultimate-project-assister", "Ablakszélesség igazítás", 1, 22, 61],
+    ["shopflow-web", "Kosár összesítő újraírása", 1, 31, 74],
+    ["api-gateway", "Rate limit hibakeresés", 3, 18, 40],
+    ["shopflow-web", "Checkout teszt lefedettség", 4, 27, 66],
+    ["ultimate-project-assister", "Git sync párbeszéd", 6, 39, 96],
+    ["ml-playground", "Notebook takarítás", 9, 12, 21],
+    ["shopflow-web", "MDX oldalak migrálása", 12, 24, 58],
+  ];
+
+  const sessions: ClaudeSession[] = seeds.map(([name, title, back, msgs, tools], i) => {
+    const project = pick(name);
+    const output = msgs * 620;
+    const cacheRead = msgs * 41_000;
+    const cacheWrite = msgs * 4_200;
+    return {
+      id: `mock-session-${i}`,
+      title,
+      projectId: project?.id ?? "",
+      project: project?.name ?? name,
+      path: project?.path ?? "",
+      branch: project?.git.branch ?? "main",
+      startedAt: day(back, 9),
+      endedAt: day(back, 9 + Math.min(6, Math.round(msgs / 8))),
+      messages: msgs,
+      userMessages: Math.round(msgs / 3),
+      sidechains: i % 3 === 0 ? 6 : 0,
+      toolCalls: tools,
+      errors: i % 4,
+      tokens: { input: msgs * 90, output, cacheRead, cacheWrite },
+      costUsd:
+        (msgs * 90 * 5 + cacheWrite * 5 * 1.25 + cacheRead * 5 * 0.1 + output * 25) / 1_000_000,
+      models: [
+        { name: "claude-opus-5", count: Math.round(msgs * 0.8) },
+        { name: "claude-haiku-4-5", count: Math.round(msgs * 0.2) },
+      ],
+      tools: [
+        { name: "Read", count: Math.round(tools * 0.4) },
+        { name: "Edit", count: Math.round(tools * 0.25) },
+        { name: "Bash", count: Math.round(tools * 0.2) },
+        { name: "Grep", count: Math.round(tools * 0.15) },
+      ],
+      sizeBytes: msgs * 220 * 1024,
+    };
+  });
+
+  return { available: true, root: "C:\Users\dev\.claude\projects", sessions };
+}
+
+export async function claudeSession(id: string): Promise<ClaudeMessage[]> {
+  await pause(180);
+  const at = (minutes: number) => new Date(Date.now() - (40 - minutes) * 60_000).toISOString();
+  const turn = (o: Partial<ClaudeMessage> & { role: ClaudeMessage["role"]; time: string }) => ({
+    text: "", tools: [], thinking: false, error: false, sidechain: false, ...o,
+  });
+
+  return [
+    turn({ role: "user", time: at(0), text: `Nézzük meg a ${id} munkamenetet: mi kell a nézethez?` }),
+    turn({ role: "assistant", time: at(1), text: "Megnézem, mit olvas most a nézet.", thinking: true, tools: ["Read", "Grep"] }),
+    turn({ role: "assistant", time: at(3), text: "A statisztikát a naplókból számoljuk, nem a beszélgetésből — így egy hosszú munkamenet is olcsó marad." }),
+    turn({ role: "user", time: at(5), text: "Jó. A költség legyen becslés, ne számla." }),
+    turn({ role: "assistant", time: at(6), text: "Beírom a jelzést a kártyára is.", tools: ["Edit"] }),
+    turn({ role: "user", time: at(7), text: "", error: true }),
+    turn({ role: "assistant", time: at(8), text: "A teszt elhasalt egy útvonal-elválasztón; javítom.", tools: ["Edit", "Bash"] }),
+  ];
 }

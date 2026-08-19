@@ -254,6 +254,14 @@ export const Star = ({ size = 13, strokeWidth = 1.8, style, filled = false }: Ic
   </svg>
 );
 
+/** The Claude history view's mark: a conversation with a spark in it. */
+export const Spark = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.9-.9L3 20.5l1.5-4.1A8.4 8.4 0 0 1 12 3.1a8.4 8.4 0 0 1 9 8.4Z" />
+    <path d="m12 8 1 2.6 2.6 1-2.6 1-1 2.6-1-2.6-2.6-1 2.6-1L12 8Z" />
+  </Svg>
+);
+
 export const Info = (p: IconProps) => (
   <Svg strokeWidth={1.9} {...p}>
     <circle cx="12" cy="12" r="9.5" />

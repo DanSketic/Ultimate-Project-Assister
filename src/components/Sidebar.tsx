@@ -7,6 +7,7 @@ import {
   PanelLeft,
   Refresh,
   Sliders,
+  Spark,
   StickyNote,
   Target,
   Terminal,
@@ -179,6 +180,12 @@ export function Sidebar({ app }: { app: App }) {
         <Activity size={16} style={{ flex: "0 0 16px" }} />,
         t.processes,
         <span style={mono()}>{app.processes?.length ?? ""}</span>,
+      )}
+      {item(
+        "claude",
+        <Spark size={16} style={{ flex: "0 0 16px" }} />,
+        t.navClaude,
+        <span style={mono()}>{app.claude?.sessions.length ?? ""}</span>,
       )}
 
       {/* Settings sits at the foot with Rescan rather than among the views:

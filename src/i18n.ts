@@ -317,6 +317,38 @@ const hu = {
   fetchOnScan: "Távoli ellenőrzés olvasás után",
   fetchOnScanH:
     "Olvasás után minden projektnél lefut egy git fetch, hogy a lemaradás valós legyen. Hálózatot használ.",
+  // Claude Code history.
+  navClaude: "Claude",
+  claudeTitle: "Munkamenetek és statisztika",
+  claudeSessions: "Munkamenet",
+  claudeMessages: "Üzenet",
+  claudeTokens: "Token",
+  claudeToolCalls: "Eszközhívás",
+  claudeCost: "Becsült költség",
+  claudeCostL: "Költség",
+  claudeCostHint:
+    "Az Anthropic nyilvános API-áraival számolva. Előfizetéssel nem így számláznak — ez méret, nem számla.",
+  claudeActivity: "Aktivitás (30 nap)",
+  claudeModels: "Modellek",
+  claudeTools: "Leggyakoribb eszközök",
+  claudeSearch: "Munkamenet, projekt…",
+  claudeNone: "Nincs munkamenet erre a szűrésre.",
+  claudeMissing:
+    "Ezen a gépen még nem futott Claude Code, így nincs mit kiolvasni. A naplók a ~/.claude/projects könyvtárban keletkeznek.",
+  claudeUnbound: "Ismeretlen projekt",
+  claudeTranscript: "Beszélgetés",
+  claudeTranscriptHint:
+    "A hosszú üzenetek rövidítve, az eszközhívások egy sorban. Ez olvasásra való, nem visszajátszásra.",
+  claudeThinking: "gondolkodott",
+  claudeSubagent: "alügynök",
+  claudeErrorTurn: "hibás eszközválasz",
+  claudeIn: "Be",
+  claudeOut: "Ki",
+  claudeCacheRead: "Cache olvasás",
+  claudeCacheWrite: "Cache írás",
+  claudeLastUsed: "Utoljára",
+  claudeSessionsL: "munkamenet",
+  claudeOpenSession: "Beszélgetés megnyitása",
 };
 
 // Values stay plain `string`, so `en` only has to match the key set.
@@ -635,6 +667,38 @@ const en: Dict = {
   fetchOnScan: "Check remotes after a scan",
   fetchOnScanH:
     "Runs a git fetch for every project after a scan, so the behind count is real. Uses the network.",
+  // Claude Code history.
+  navClaude: "Claude",
+  claudeTitle: "Sessions and statistics",
+  claudeSessions: "Sessions",
+  claudeMessages: "Messages",
+  claudeTokens: "Tokens",
+  claudeToolCalls: "Tool calls",
+  claudeCost: "Estimated cost",
+  claudeCostL: "Cost",
+  claudeCostHint:
+    "Priced against Anthropic's published API rates. A subscription is not billed this way — this is a size, not an invoice.",
+  claudeActivity: "Activity (30 days)",
+  claudeModels: "Models",
+  claudeTools: "Most used tools",
+  claudeSearch: "Session, project…",
+  claudeNone: "No session matches this.",
+  claudeMissing:
+    "Claude Code has never run on this machine, so there is nothing to read. The logs appear under ~/.claude/projects.",
+  claudeUnbound: "Outside the known projects",
+  claudeTranscript: "Conversation",
+  claudeTranscriptHint:
+    "Long messages are cut short and tool calls listed one to a line. This is for reading back, not for replaying.",
+  claudeThinking: "thought",
+  claudeSubagent: "subagent",
+  claudeErrorTurn: "failed tool result",
+  claudeIn: "In",
+  claudeOut: "Out",
+  claudeCacheRead: "Cache read",
+  claudeCacheWrite: "Cache write",
+  claudeLastUsed: "Last used",
+  claudeSessionsL: "sessions",
+  claudeOpenSession: "Open the conversation",
 };
 
 export const DICTS: Record<Lang, Dict> = { hu, en };

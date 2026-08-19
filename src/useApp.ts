@@ -5,6 +5,8 @@ import { dict, type T } from "./i18n";
 import { bindToProjects, cmdKey, isExcluded, newId, size, todayIso } from "./format";
 import { ensurePermission as requestOsPermission, send as sendOsNotification } from "./notify";
 import type {
+  ClaudeMessage,
+  ClaudeStats,
   CleanProgress,
   CommandDef,
   Container,
@@ -35,6 +37,7 @@ const VIEW_WIDTH: Record<View, number> = {
   board: 1740,
   cmd: 1120,
   procs: 1120,
+  claude: 1240,
   set: 840,
 };
 
@@ -183,6 +186,20 @@ export function useApp() {
   } | null>(null);
   const [processes, setProcesses] = useState<ProcessInfo[] | null>(null);
   const [stopping, setStopping] = useState<Set<number>>(new Set());
+
+  // --- Claude Code history -------------------------------------------------
+  /** Null until the logs have been read once, so the view can say so. */
+  const [claude, setClaude] = useState<ClaudeStats | null>(null);
+  const [claudeBusy, setClaudeBusy] = useState(false);
+  /** Project id the list is narrowed to; empty is every project. */
+  const [claudeSel, setClaudeSel] = useState("");
+  const [claudeQuery, setClaudeQuery] = useState("");
+  /** The session whose conversation is open; empty when the list is. */
+  const [claudeOpen, setClaudeOpen] = useState("");
+  const [claudeTurns, setClaudeTurns] = useState<ClaudeMessage[] | null>(null);
+  /** The session whose transcript is being waited for, so a slow read that has
+   *  been navigated away from does not land in the panel afterwards. */
+  const claudeWanted = useRef("");
 
   // --- git sync -----------------------------------------------------------
   /** The project the sync dialog is open on; empty when it is closed. */
@@ -934,6 +951,55 @@ export function useApp() {
     [flash, t, refreshProcesses],
   );
 
+  // --- Claude Code history --------------------------------------------------
+  /**
+   * Reads the session logs. Costly the first time - the files run to tens of
+   * megabytes - and cheap afterwards, because the backend only reads what has
+   * been appended since. Hence a view that loads once and a button to re-read,
+   * rather than a poll.
+   */
+  const refreshClaude = useCallback(async () => {
+    setClaudeBusy(true);
+    try {
+      setClaude(await api.claudeStats());
+    } catch (e) {
+      flash(String(e));
+    } finally {
+      setClaudeBusy(false);
+    }
+  }, [flash]);
+
+  useEffect(() => {
+    if (view !== "claude" || claude !== null) return;
+    void refreshClaude();
+  }, [view, claude, refreshClaude]);
+
+  /** Opens one session's conversation; the list stays where it was behind it. */
+  const openClaudeSession = useCallback(
+    async (id: string) => {
+      setClaudeOpen(id);
+      setClaudeTurns(null);
+      claudeWanted.current = id;
+      try {
+        const turns = await api.claudeSession(id);
+        // A long file can still be being read when the user goes back, or
+        // opens another session; only the one still wanted is shown.
+        if (claudeWanted.current === id) setClaudeTurns(turns);
+      } catch (e) {
+        if (claudeWanted.current !== id) return;
+        flash(String(e));
+        setClaudeOpen("");
+      }
+    },
+    [flash],
+  );
+
+  const closeClaudeSession = useCallback(() => {
+    claudeWanted.current = "";
+    setClaudeOpen("");
+    setClaudeTurns(null);
+  }, []);
+
   /** Drops one run's output, and moves off its tab if it was the open one. */
   const closeLog = useCallback((key: string) => {
     setLogs((prev) => {
@@ -1423,6 +1489,18 @@ export function useApp() {
     stopping,
     portAsk,
     dismissPortAsk: () => setPortAsk(null),
+    // Claude Code history
+    claude,
+    claudeBusy,
+    claudeSel,
+    setClaudeSel,
+    claudeQuery,
+    setClaudeQuery,
+    claudeOpen,
+    claudeTurns,
+    openClaudeSession,
+    closeClaudeSession,
+    refreshClaude,
     // git sync
     syncFor,
     sync,

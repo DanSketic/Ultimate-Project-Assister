@@ -8,6 +8,26 @@ the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 Every change is recorded here as it lands, under `Unreleased`. Version numbers
 are assigned when a release is cut — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## [Unreleased]
+
+### Added
+
+- **A Claude view: what Claude Code has been doing in these projects.** It reads
+  the session logs under `~/.claude/projects` and reports the shape of the work
+  — sessions, messages and tool calls, tokens split between what went in and
+  what came back, thirty days of activity, and which models and tools did it.
+  Sessions are grouped by the project they were run in, filtered by project or
+  by name, and any one of them opens as a readable transcript: the prompts, the
+  answers and the tools each turn reached for, with long messages cut short and
+  tool results left out unless they failed.
+
+  The cost is an estimate against Anthropic's published API rates, labelled as
+  such: a subscription is not billed that way, so the number is a measure of
+  size rather than an invoice. The logs are only ever read. A log file is parsed
+  once and then only from where the last read stopped, so opening the view a
+  second time costs the lines that have been appended since — which matters,
+  because a long session's log runs to tens of megabytes.
+
 ## [1.5.0] - 2026-08-18
 
 ### Added

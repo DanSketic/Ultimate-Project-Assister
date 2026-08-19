@@ -1,5 +1,6 @@
 //! Ultimate Project Assister - Tauri application entry point.
 
+mod claude;
 mod clean;
 mod cmds;
 mod commands;
@@ -68,6 +69,8 @@ pub fn run() {
             commands::git_rebase,
             commands::git_rebase_abort,
             commands::sys_stats,
+            commands::claude_stats,
+            commands::claude_session,
         ])
         .build(tauri::generate_context!())
         .expect("failed to build the Tauri application")

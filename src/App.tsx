@@ -7,9 +7,10 @@ import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
 import { TitleBar } from "./components/TitleBar";
 import { Notifications } from "./components/Notifications";
-import { isOverdue, projectCount, size } from "./format";
+import { isOverdue, projectCount, size, tokens, usd } from "./format";
 import { BoardView } from "./views/BoardView";
 import { CleanView } from "./views/CleanView";
+import { ClaudeView } from "./views/ClaudeView";
 import { CommandsView } from "./views/CommandsView";
 import { ProcessesView } from "./views/ProcessesView";
 import { DetailView } from "./views/DetailView";
@@ -57,6 +58,13 @@ export function App() {
     projects.find((p) => p.id === app.cmdSel) ?? projects.find((p) => p.commands.length);
   const overdue = app.notes.filter((n) => isOverdue(n.due)).length;
 
+  const claudeSessions = app.claude?.sessions ?? [];
+  const claudeTokens = claudeSessions.reduce(
+    (a, s) => a + s.tokens.input + s.tokens.output + s.tokens.cacheRead + s.tokens.cacheWrite,
+    0,
+  );
+  const claudeCost = claudeSessions.reduce((a, s) => a + s.costUsd, 0);
+
   const heads: Record<typeof view, { kicker: string; title: string; meta: string }> = {
     projects: {
       kicker: t.navProjects,
@@ -93,6 +101,13 @@ export function App() {
       title: t.processes,
       meta: app.processes
         ? `${app.processes.length} ${t.processesRunning} · ${size(app.processes.reduce((a, p) => a + p.memoryBytes, 0))}`
+        : t.checking,
+    },
+    claude: {
+      kicker: t.navClaude,
+      title: t.claudeTitle,
+      meta: app.claude
+        ? `${claudeSessions.length} ${t.claudeSessionsL} · ${tokens(claudeTokens, lang)} token · ${usd(claudeCost)}`
         : t.checking,
     },
     set: {
@@ -206,6 +221,7 @@ export function App() {
             {view === "board" && <BoardView app={app} />}
             {view === "cmd" && <CommandsView app={app} />}
             {view === "procs" && <ProcessesView app={app} />}
+            {view === "claude" && <ClaudeView app={app} />}
             {view === "set" && <SettingsView app={app} />}
           </div>
 

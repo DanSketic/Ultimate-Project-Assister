@@ -414,3 +414,90 @@ pub struct RebaseReport {
     /// The state after the attempt, so the dialog never has to guess.
     pub status: SyncStatus,
 }
+
+// ---------------------------------------------------------------------------
+// Claude Code session history
+// ---------------------------------------------------------------------------
+
+/// What one session spent, in tokens. Cached reads and writes are kept apart
+/// from plain input because they are priced apart: most of a long session's
+/// input is the same context being read back at a tenth of the price.
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClaudeTokens {
+    pub input: u64,
+    pub output: u64,
+    pub cache_read: u64,
+    pub cache_write: u64,
+}
+
+/// A model or a tool, and how often the session reached for it.
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClaudeUse {
+    pub name: String,
+    pub count: usize,
+}
+
+/// One Claude Code session, summarised from its log file.
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClaudeSession {
+    /// The session id, which is also the log file's name.
+    pub id: String,
+    pub title: String,
+    /// The project it was held in; empty when the directory is not one the app
+    /// knows about - an old checkout, or a folder outside the watched roots.
+    pub project_id: String,
+    /// Display name of that project, or the working directory's own name.
+    pub project: String,
+    pub path: String,
+    pub branch: String,
+    /// ISO timestamps of the first and last message.
+    pub started_at: String,
+    pub ended_at: String,
+    /// User turns plus assistant turns. Tool results are not messages.
+    pub messages: usize,
+    pub user_messages: usize,
+    /// Messages belonging to a subagent rather than to the conversation.
+    pub sidechains: usize,
+    pub tool_calls: usize,
+    /// Tool results that came back as failures.
+    pub errors: usize,
+    pub tokens: ClaudeTokens,
+    /// Estimated against published API rates - a subscription is not billed
+    /// this way, so this is a size, not an invoice.
+    pub cost_usd: f64,
+    pub models: Vec<ClaudeUse>,
+    pub tools: Vec<ClaudeUse>,
+    pub size_bytes: u64,
+}
+
+/// Every session found on this machine. `available` is false when Claude Code
+/// has never run here, which is an ordinary state rather than a failure.
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClaudeStats {
+    pub available: bool,
+    pub root: String,
+    pub sessions: Vec<ClaudeSession>,
+}
+
+/// One turn of a conversation, trimmed for reading.
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClaudeMessage {
+    /// `user` or `assistant`.
+    pub role: String,
+    pub time: String,
+    /// The message text, cut to a readable length.
+    pub text: String,
+    /// Tools this turn called, by name.
+    pub tools: Vec<String>,
+    /// Whether the turn included thinking. The thinking itself is not kept.
+    pub thinking: bool,
+    /// A tool result that came back as a failure.
+    pub error: bool,
+    /// Part of a subagent's conversation rather than of the main one.
+    pub sidechain: bool,
+}

@@ -6,6 +6,8 @@
 
 import type {
   Anchor,
+  ClaudeMessage,
+  ClaudeStats,
   CleanProgress,
   Container,
   DeleteReport,
@@ -235,6 +237,29 @@ export async function gitRebase(projectId: string): Promise<RebaseReport> {
 export async function gitRebaseAbort(projectId: string): Promise<RebaseReport> {
   if (!IS_TAURI) return mock.gitRebaseAbort(projectId);
   return call<RebaseReport>("git_rebase_abort", { projectId });
+}
+
+// ---------------------------------------------------------------------------
+// Claude Code history
+// ---------------------------------------------------------------------------
+
+/**
+ * Every Claude Code session on this machine, summarised from its logs. The
+ * first call reads them whole; later ones only read what has been appended.
+ */
+export async function claudeStats(): Promise<ClaudeStats> {
+  if (!IS_TAURI) return mock.claudeStats();
+  return call<ClaudeStats>("claude_stats");
+}
+
+/**
+ * One session's conversation. Only the session id crosses the boundary - the
+ * backend resolves it against the logs it has already seen, so this cannot be
+ * asked to open a file of the caller's choosing.
+ */
+export async function claudeSession(id: string): Promise<ClaudeMessage[]> {
+  if (!IS_TAURI) return mock.claudeSession(id);
+  return call<ClaudeMessage[]>("claude_session", { id });
 }
 
 // ---------------------------------------------------------------------------

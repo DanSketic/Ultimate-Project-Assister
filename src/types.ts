@@ -8,6 +8,7 @@ export type View =
   | "board"
   | "cmd"
   | "procs"
+  | "claude"
   | "set";
 export type Lang = "hu" | "en";
 export type Theme = "auto" | "light" | "dark";
@@ -418,4 +419,65 @@ export interface Note {
   due: string;
   color: NoteColor;
   z: number;
+}
+
+/**
+ * What one Claude Code session spent. Cached reads and writes are kept apart
+ * from plain input because they are priced apart.
+ */
+export interface ClaudeTokens {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+}
+
+/** A model or a tool, and how often a session reached for it. */
+export interface ClaudeUse {
+  name: string;
+  count: number;
+}
+
+export interface ClaudeSession {
+  id: string;
+  title: string;
+  /** Empty when the session was held outside a project the app knows about. */
+  projectId: string;
+  project: string;
+  path: string;
+  branch: string;
+  /** ISO timestamps of the first and the last message. */
+  startedAt: string;
+  endedAt: string;
+  /** User turns plus assistant turns; tool results are not messages. */
+  messages: number;
+  userMessages: number;
+  /** Messages belonging to a subagent rather than to the conversation. */
+  sidechains: number;
+  toolCalls: number;
+  errors: number;
+  tokens: ClaudeTokens;
+  /** Estimated against published API rates - a subscription is billed by plan. */
+  costUsd: number;
+  models: ClaudeUse[];
+  tools: ClaudeUse[];
+  sizeBytes: number;
+}
+
+/** `available` is false when Claude Code has never run on this machine. */
+export interface ClaudeStats {
+  available: boolean;
+  root: string;
+  sessions: ClaudeSession[];
+}
+
+/** One turn of a conversation, trimmed for reading. */
+export interface ClaudeMessage {
+  role: "user" | "assistant";
+  time: string;
+  text: string;
+  tools: string[];
+  thinking: boolean;
+  error: boolean;
+  sidechain: boolean;
 }

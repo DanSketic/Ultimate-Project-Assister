@@ -43,6 +43,7 @@ the pinned ones in a block of their own above the folders.</sub>
 | **Board** | A free canvas of draggable notes with a project tag, a deadline and three colours. Opened from a project, new notes take that project; opened on its own, it asks which project a note belongs to. |
 | **Commands** | Runnable commands read out of the manifests — every npm/pnpm/yarn/bun script, Makefile targets, cargo, compose — grouped by the file each came from. The ones that start, build or check a project lead their group; any command can be pinned. Every run gets its own log tab, and a port that is already taken is raised before the process starts rather than after it dies. |
 | **Running** | What is actually running, under Commands: which project each process belongs to, the ports it holds, its memory and uptime, and a stop button. Not a task manager — a process earns a row by being started from here, listening on a port, or working inside a watched project. |
+| **Claude** | Every Claude Code session held in these projects, read from the logs under `~/.claude/projects`: how many sessions and messages, what they spent in tokens, an estimated cost against published API rates, thirty days of activity, and which models and tools did the work. Sessions are grouped by the project they were run in, and any one of them opens as a readable transcript. |
 | **Git sync** | Whether a project has fallen behind the branch it tracks, which only a fetch can answer — so there is one button that fetches every remote, and a badge on the projects that have moved. Opening one says who pushed what, and offers the single operation that fits: a fast-forward when nothing of yours is in the way, a rebase when both sides have moved. Uncommitted work is stashed and put back; a rebase that stops on a conflict says which files, and can be undone in one click. |
 | **Requirements** | What each project needs installed — Node and the package manager its lockfile names, cargo, Python, Go, Docker, Make, and the rest — checked against PATH, with versions. Anything missing says which manifest asked for it, and offers the install command where the tool is packaged. |
 | **Docker** | Whether the CLI is there, whether the daemon is answering, its version, containers and images, and the compose stack belonging to the open project. |
@@ -104,6 +105,22 @@ and system processes are listed without a button at all.
 ### Commands
 
 ![The commands view](docs/screenshots/cmd.png)
+
+### Claude
+
+Claude Code writes one log file per session next to the project it was run in.
+This view reads them and reports what happened: sessions and messages, tokens
+split between what went in and what came back, an activity strip for the last
+thirty days, and the models and tools that did the work. A session opens as a
+transcript — the prompts, the answers and the tools each turn reached for, with
+long messages cut short.
+
+The cost is an estimate against Anthropic's published API rates, so it is a
+measure of size rather than an invoice: a subscription is not billed this way.
+The logs are only ever read, never written, and a file is parsed once — a second
+look only reads the lines that have been appended since.
+
+![The Claude history view](docs/screenshots/claude.png)
 
 ---
 

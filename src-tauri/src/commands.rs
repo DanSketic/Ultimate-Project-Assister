@@ -11,11 +11,14 @@ use std::time::Instant;
 use tauri::{AppHandle, Emitter, State};
 
 use crate::model::{
-    CleanProgress, Container, DeleteReport, DockerStatus, PortConflict, PortUser, ProcessInfo,
-    Project, RebaseReport, ScanProgress, ScanResult, SyncStatus, SysStats, ToolStatus,
+    ClaudeMessage, ClaudeStats, CleanProgress, Container, DeleteReport, DockerStatus, PortConflict,
+    PortUser, ProcessInfo, Project, RebaseReport, ScanProgress, ScanResult, SyncStatus, SysStats,
+    ToolStatus,
 };
 use crate::store::{Goal, Note, Settings, Store};
-use crate::{clean, docker, platform, ports, procs, runner::Runner, scan, tools, watcher::Watcher};
+use crate::{
+    claude, clean, docker, platform, ports, procs, runner::Runner, scan, tools, watcher::Watcher,
+};
 
 pub const SCAN_PROGRESS: &str = "upa://scan-progress";
 pub const SCAN_DONE: &str = "upa://scan-done";
@@ -34,6 +37,9 @@ pub struct AppState {
     /// against the right view.
     pub view: Mutex<String>,
     pub nav_width: Mutex<u32>,
+    /// How far each Claude Code session log has been read, so a second look at
+    /// the history only costs the lines written since the first.
+    pub claude: claude::Index,
 }
 
 impl AppState {
@@ -47,6 +53,7 @@ impl AppState {
             watcher: Watcher::new(),
             view: Mutex::new("projects".into()),
             nav_width: Mutex::new(214),
+            claude: claude::Index::new(),
         }
     }
 
@@ -767,4 +774,38 @@ pub async fn sys_stats() -> Result<SysStats, String> {
     tauri::async_runtime::spawn_blocking(|| SysStats { rss_bytes: platform::rss_bytes() })
         .await
         .map_err(|e| e.to_string())
+}
+
+// ---------------------------------------------------------------------------
+// Claude Code history
+// ---------------------------------------------------------------------------
+
+/// Every Claude Code session on this machine, bound to the projects they were
+/// held in. Reading the logs is filesystem work, so it happens off the async
+/// runtime; the second call only reads what has been appended since the first.
+#[tauri::command]
+pub async fn claude_stats(state: State<'_, AppState>) -> Result<ClaudeStats, String> {
+    let projects = state.projects.lock().unwrap().clone();
+    let index = state.claude.clone();
+
+    tauri::async_runtime::spawn_blocking(move || index.scan(&projects))
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// One session's conversation, trimmed for reading.
+///
+/// Only a session id crosses the boundary, and it is resolved against the logs
+/// a scan has already seen - so this can open a session of the user's own and
+/// nothing else on the disk.
+#[tauri::command]
+pub async fn claude_session(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<Vec<ClaudeMessage>, String> {
+    let path = state.claude.file_of(&id).ok_or("unknown session")?;
+
+    tauri::async_runtime::spawn_blocking(move || claude::transcript(&path))
+        .await
+        .map_err(|e| e.to_string())?
 }
