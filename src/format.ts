@@ -20,9 +20,13 @@ export function num(value: number, lang: Lang): string {
   return value.toLocaleString(lang === "hu" ? "hu-HU" : "en-US");
 }
 
-/** Token counts, which run to millions: "9 800", "348 k", "12.4 M". */
+/** Token counts, which run to billions: "9 800", "348 k", "12.4 M", "15.0 B". */
 export function tokens(value: number, lang: Lang): string {
   if (!Number.isFinite(value) || value <= 0) return "0";
+  if (value >= 1e9) {
+    const billions = value / 1e9;
+    return `${billions.toFixed(billions >= 10 ? 0 : 1)} B`;
+  }
   if (value >= 1e6) {
     const millions = value / 1e6;
     return `${millions.toFixed(millions >= 10 ? 0 : 1)} M`;

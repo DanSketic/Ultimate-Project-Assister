@@ -372,13 +372,17 @@ fn absorb(acc: &mut Acc, line: &str) {
 
 /// The text of a message, whether it is a plain string or a block list.
 fn first_text(content: Option<&Value>) -> String {
+    first_text_of(content, MAX_TITLE)
+}
+
+fn first_text_of(content: Option<&Value>, max: usize) -> String {
     match content {
-        Some(Value::String(text)) => trim(text, MAX_TITLE),
+        Some(Value::String(text)) => trim(text, max),
         Some(Value::Array(blocks)) => {
             for block in blocks {
                 if block.get("type").and_then(Value::as_str) == Some("text") {
                     if let Some(text) = block.get("text").and_then(Value::as_str) {
-                        return trim(text, MAX_TITLE);
+                        return trim(text, max);
                     }
                 }
             }
@@ -542,6 +546,11 @@ pub fn transcript(path: &Path) -> Result<Vec<ClaudeMessage>, String> {
                             tool_result = true;
                             if block.get("is_error").and_then(Value::as_bool).unwrap_or(false) {
                                 error = true;
+                                // A failure is kept, so what it said is worth
+                                // keeping too - the label alone says nothing.
+                                if text.is_empty() {
+                                    text = first_text_of(block.get("content"), MAX_TEXT);
+                                }
                             }
                         }
                         _ => {}
@@ -558,6 +567,19 @@ pub fn transcript(path: &Path) -> Result<Vec<ClaudeMessage>, String> {
         }
         if text.is_empty() && tools.is_empty() && !thinking && !error {
             continue;
+        }
+
+        // A turn that only calls tools belongs with the answer above it. Kept
+        // apart they read as a ladder of empty rows, when what happened was
+        // one assistant saying something and then doing several things.
+        if kind == "assistant" && text.is_empty() && !error {
+            if let Some(last) = messages.last_mut() {
+                if last.role == "assistant" && last.sidechain == sidechain {
+                    last.tools.append(&mut tools);
+                    last.thinking |= thinking;
+                    continue;
+                }
+            }
         }
 
         messages.push(ClaudeMessage {
@@ -674,5 +696,21 @@ mod tests {
         assert_eq!(messages[0].role, "user");
         assert_eq!(messages[1].tools, vec!["Read".to_string()]);
         assert!(messages[2].error);
+        assert_eq!(messages[2].text, "nope", "a failure says what it said");
+    }
+
+    #[test]
+    fn a_turn_that_only_calls_tools_joins_the_answer_above_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let answer = REPLY.replace(
+            r#""content":[{"type":"tool_use","name":"Read"}]"#,
+            r#""content":[{"type":"text","text":"Looking now."}]"#,
+        );
+        let path = write(dir.path(), "s5.jsonl", &[PROMPT, &answer, REPLY, REPLY]);
+
+        let messages = transcript(&path).unwrap();
+        assert_eq!(messages.len(), 2, "the two tool turns joined the answer");
+        assert_eq!(messages[1].text, "Looking now.");
+        assert_eq!(messages[1].tools, vec!["Read".to_string(), "Read".to_string()]);
     }
 }

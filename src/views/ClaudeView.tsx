@@ -176,9 +176,29 @@ export function ClaudeView({ app }: { app: App }) {
   if (!claude.available) return <Note text={t.claudeMissing} />;
   if (open) return <Transcript app={app} session={open} />;
 
+  // Laid out like the processes view: the summary holds still and only the
+  // list scrolls, so the totals stay on screen while a long list is read - and
+  // the view starts at the top rather than wherever the previous one was left.
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 14, padding: "0 20px 20px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 14,
+        minHeight: 0,
+        height: "100%",
+        padding: "0 20px 20px",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          flexWrap: "wrap",
+          flex: "0 0 auto",
+        }}
+      >
         <ChipGroup items={scopes} active={app.claudeSel} onPick={app.setClaudeSel} wrap />
         <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
           <SearchField
@@ -192,7 +212,14 @@ export function ClaudeView({ app }: { app: App }) {
         </span>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 10 }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(5,1fr)",
+          gap: 10,
+          flex: "0 0 auto",
+        }}
+      >
         <Stat label={t.claudeSessions} value={num(totals.sessions, lang)} />
         <Stat label={t.claudeMessages} value={num(totals.messages, lang)} />
         <Stat label={t.claudeToolCalls} value={num(totals.toolCalls, lang)} />
@@ -212,7 +239,9 @@ export function ClaudeView({ app }: { app: App }) {
 
       <Activity days={days} app={app} />
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+      <div
+        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, flex: "0 0 auto" }}
+      >
         <Bars title={t.claudeModels} rows={breakdown.models} lang={lang} />
         <Bars title={t.claudeTools} rows={breakdown.tools} lang={lang} />
       </div>
@@ -220,13 +249,14 @@ export function ClaudeView({ app }: { app: App }) {
       {shown.length === 0 ? (
         <Note text={t.claudeNone} />
       ) : (
-        <div>
+        <div style={{ display: "flex", flexDirection: "column", minHeight: 0, flex: 1 }}>
           <div
             style={{
               display: "grid",
               gridTemplateColumns: GRID,
               gap: 10,
               padding: "0 12px 6px",
+              flex: "0 0 auto",
               fontSize: 10,
               letterSpacing: ".07em",
               textTransform: "uppercase",
@@ -241,6 +271,7 @@ export function ClaudeView({ app }: { app: App }) {
             <div style={{ textAlign: "right" }}>{t.claudeCostL}</div>
           </div>
 
+          <div style={{ overflow: "auto", minHeight: 0, paddingBottom: 10 }}>
           {groups.map((group) => (
             <div key={group.key}>
               <FolderHeader
@@ -261,6 +292,7 @@ export function ClaudeView({ app }: { app: App }) {
                 group.items.map((s) => <Row key={s.id} session={s} app={app} />)}
             </div>
           ))}
+          </div>
         </div>
       )}
     </div>
@@ -709,9 +741,9 @@ function Transcript({ app, session: s }: { app: App; session: ClaudeSession }) {
 
                 {turn.tools.length > 0 && (
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 6 }}>
-                    {turn.tools.map((tool, at) => (
+                    {countTools(turn.tools).map(([tool, count]) => (
                       <span
-                        key={`${tool}-${at}`}
+                        key={tool}
                         style={{
                           display: "inline-flex",
                           alignItems: "center",
@@ -726,7 +758,7 @@ function Transcript({ app, session: s }: { app: App; session: ClaudeSession }) {
                         }}
                       >
                         <Terminal size={9} />
-                        {tool}
+                        {count > 1 ? `${tool} ×${count}` : tool}
                       </span>
                     ))}
                   </div>
@@ -738,6 +770,16 @@ function Transcript({ app, session: s }: { app: App; session: ClaudeSession }) {
       )}
     </div>
   );
+}
+
+/**
+ * Tool names with how often the turn called each, in the order they were first
+ * reached for. Six identical chips say less than one chip and a count.
+ */
+function countTools(tools: string[]): Array<[string, number]> {
+  const counts = new Map<string, number>();
+  for (const tool of tools) counts.set(tool, (counts.get(tool) ?? 0) + 1);
+  return [...counts.entries()];
 }
 
 function Note({ text }: { text: string }) {
