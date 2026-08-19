@@ -10,7 +10,7 @@ See what you have, find out what is eating the disk, keep track of what you
 meant to finish, and run each project's own commands without leaving the window.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.4.0-informational.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.6.0-informational.svg)](CHANGELOG.md)
 [![Installers](https://img.shields.io/badge/installers-Windows-lightgrey.svg)](#install)
 
 <sub>Rust (Tauri 2) backend · TypeScript + React frontend · builds on Windows,
