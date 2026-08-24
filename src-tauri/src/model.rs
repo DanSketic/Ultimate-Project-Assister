@@ -172,6 +172,11 @@ pub struct Project {
     /// Always at least one entry. More than one means a monorepo.
     pub parts: Vec<ProjectPart>,
     pub commands: Vec<CommandDef>,
+    /// Workflows found in `.github/workflows`, by the name each declares.
+    /// Read from disk, so they are known without a network or a token - a
+    /// workflow that has never run is worth seeing too.
+    #[serde(default)]
+    pub workflows: Vec<String>,
     pub clean_targets: Vec<CleanTarget>,
     pub git: GitInfo,
     /// Unix seconds of the last successful scan of this project.

@@ -189,6 +189,8 @@ export interface Project {
   /** Always at least one entry. */
   parts: ProjectPart[];
   commands: CommandDef[];
+  /** Workflow names read from `.github/workflows`; known without a network. */
+  workflows: string[];
   cleanTargets: CleanTarget[];
   git: GitInfo;
   scannedAt: number;

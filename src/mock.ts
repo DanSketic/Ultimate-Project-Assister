@@ -421,6 +421,7 @@ export function projects(): Project[] {
       manifests: [...new Set(parts.flatMap((p) => p.manifests))],
       parts,
       commands,
+      workflows: i % 3 === 0 ? ["CI", "Release"] : i % 3 === 1 ? ["CI"] : [],
       cleanTargets: targets,
       git: {
         isRepo: true,

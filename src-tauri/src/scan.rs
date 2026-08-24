@@ -1054,10 +1054,56 @@ pub fn measure(root: &Path, settings: &Settings) -> Option<Project> {
         manifests,
         parts,
         commands,
+        workflows: workflow_names(root),
         clean_targets,
         git,
         scanned_at: now_secs(),
     })
+}
+
+/// Workflow names out of `.github/workflows`.
+///
+/// The name a workflow declares is what Actions shows, so that is what is
+/// read; a file without one is listed by its file name, which is what Actions
+/// falls back to as well. Not a YAML parse - a top-level `name:` is the first
+/// column of the file, and going further would mean carrying a parser for one
+/// string.
+fn workflow_names(root: &Path) -> Vec<String> {
+    let dir = root.join(".github").join("workflows");
+    let Ok(entries) = std::fs::read_dir(&dir) else {
+        return Vec::new();
+    };
+
+    let mut names: Vec<String> = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let is_yaml = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .is_some_and(|e| e == "yml" || e == "yaml");
+        if !is_yaml {
+            continue;
+        }
+
+        let stem = path
+            .file_name()
+            .map(|f| f.to_string_lossy().to_string())
+            .unwrap_or_default();
+        let declared = std::fs::read_to_string(&path)
+            .ok()
+            .and_then(|text| {
+                text.lines()
+                    .take(30)
+                    .find_map(|line| line.strip_prefix("name:"))
+                    .map(|name| name.trim().trim_matches(['"', '\''].as_ref()).to_string())
+            })
+            .filter(|name| !name.is_empty());
+
+        names.push(declared.unwrap_or(stem));
+    }
+
+    names.sort();
+    names
 }
 
 /// Full scan of every watched folder.
