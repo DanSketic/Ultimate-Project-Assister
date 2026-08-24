@@ -572,3 +572,13 @@ export interface PullRequest {
   updatedAt: string;
   url: string;
 }
+
+/** One release as GitHub holds it. */
+export interface GitHubRelease {
+  tag: string;
+  name: string;
+  draft: boolean;
+  prerelease: boolean;
+  publishedAt: string;
+  url: string;
+}

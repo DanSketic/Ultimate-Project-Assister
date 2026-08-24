@@ -7,6 +7,7 @@ import { ensurePermission as requestOsPermission, send as sendOsNotification } f
 import type {
   ClaudeMessage,
   ClaudeStats,
+  GitHubRelease,
   GitHubStatus,
   PullRequest,
   RepoCi,
@@ -215,6 +216,9 @@ export function useApp() {
   const [pulls, setPulls] = useState<PullRequest[] | null>(null);
   /** Runs whose re-run or cancel has been sent and not yet answered. */
   const [runBusy, setRunBusy] = useState<Set<number>>(new Set());
+  /** Releases of the open project, keyed by project id; null while unknown. */
+  const [releases, setReleases] = useState<Record<string, GitHubRelease[]>>({});
+  const [releaseBusy, setReleaseBusy] = useState("");
   /**
    * What each run was doing when it was last seen, so a run that finishes
    * while the view is open can be reported. A ref rather than state: it is
@@ -1090,6 +1094,46 @@ export function useApp() {
     [notify, refreshCi, t],
   );
 
+  /**
+   * Which versions of the open project GitHub already has a release for.
+   * Asked for the project on screen only - a list of releases is of no use
+   * for a project nobody is looking at.
+   */
+  const refreshReleases = useCallback(
+    async (projectId: string) => {
+      try {
+        const rows = await api.githubReleases(projectId);
+        setReleases((prev) => ({ ...prev, [projectId]: rows }));
+      } catch {
+        // A repository that has no releases, or that the token cannot see
+        // that far into, is not worth a notice on a card nobody asked for.
+      }
+    },
+    [],
+  );
+
+  /**
+   * Writes a changelog section to GitHub as a draft release and opens it.
+   *
+   * Deliberately a draft: this app can prepare a release, but publishing one
+   * is an announcement, and announcements stay the user's to make.
+   */
+  const draftRelease = useCallback(
+    async (projectId: string, version: string) => {
+      setReleaseBusy(version);
+      try {
+        const url = await api.githubDraftRelease(projectId, version);
+        notify("success", t.relDone, url);
+        await refreshReleases(projectId);
+      } catch (e) {
+        notify("error", String(e));
+      } finally {
+        setReleaseBusy("");
+      }
+    },
+    [notify, refreshReleases, t],
+  );
+
   /** What GitHub last said about one project. */
   const ciFor = useCallback(
     (projectId: string) => (ci ?? []).find((row) => row.projectId === projectId),
@@ -1675,6 +1719,10 @@ export function useApp() {
     refreshPulls,
     runAction,
     runBusy,
+    releases,
+    releaseBusy,
+    refreshReleases,
+    draftRelease,
     refreshCi,
     openRun,
     // Claude Code history

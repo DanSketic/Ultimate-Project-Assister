@@ -11,7 +11,8 @@ use std::time::Instant;
 use tauri::{AppHandle, Emitter, State};
 
 use crate::model::{
-    ClaudeMessage, ClaudeStats, CleanProgress, Container, DeleteReport, DockerStatus, GitHubStatus,
+    ClaudeMessage, ClaudeStats, CleanProgress, Container, DeleteReport, DockerStatus,
+    GitHubRelease, GitHubStatus,
     PortConflict, PortUser, ProcessInfo, Project, PullRequest, RebaseReport, RepoCi,
     ScanProgress, ScanResult, SyncStatus, SysStats, ToolStatus,
 };
@@ -926,4 +927,62 @@ pub async fn github_run_action(
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+/// Releases as GitHub holds them, for one project.
+#[tauri::command]
+pub async fn github_releases(
+    state: State<'_, AppState>,
+    project_id: String,
+) -> Result<Vec<GitHubRelease>, String> {
+    let project = state.project_by_id(&project_id).ok_or("unknown project")?;
+    let client = state.github.clone();
+
+    tauri::async_runtime::spawn_blocking(move || {
+        let Some(repo) = github::Repo::parse(&project.git.remote) else {
+            return Ok(Vec::new());
+        };
+        client.releases(&repo).map_err(|e| e.message)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Writes one changelog section to GitHub as a draft release.
+///
+/// A project and a version cross the boundary; the notes are the ones this app
+/// already read out of that project's own `CHANGELOG.md`, and the result is a
+/// draft. Publishing it is a separate act, and it happens on GitHub.
+#[tauri::command]
+pub async fn github_draft_release(
+    state: State<'_, AppState>,
+    project_id: String,
+    version: String,
+) -> Result<String, String> {
+    let project = state.project_by_id(&project_id).ok_or("unknown project")?;
+    let entry = project
+        .changelog
+        .iter()
+        .find(|entry| entry.ver == version)
+        .ok_or("that version is not in this project's changelog")?
+        .clone();
+
+    // The tag follows whatever this project already tags with, so a repository
+    // using `v1.2.3` keeps getting `v1.2.3` and one using bare numbers does
+    // not suddenly acquire a prefix.
+    let prefixed = project.git.tags.iter().any(|tag| tag.starts_with('v'));
+    let tag = if prefixed { format!("v{version}") } else { version.clone() };
+    let title = format!("{tag}{}", if entry.date.is_empty() { String::new() } else { format!(" - {}", entry.date) });
+
+    let client = state.github.clone();
+    let remote = project.git.remote.clone();
+    let body = entry.body.clone();
+
+    let url = tauri::async_runtime::spawn_blocking(move || {
+        client.draft_release(&remote, &tag, &title, &body)
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+
+    platform::open_url(&url).map(|()| url)
 }

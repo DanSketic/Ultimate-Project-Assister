@@ -8,6 +8,7 @@ import type {
   Anchor,
   ClaudeMessage,
   ClaudeStats,
+  GitHubRelease,
   GitHubStatus,
   PullRequest,
   RepoCi,
@@ -315,6 +316,27 @@ export async function githubRunAction(
 ): Promise<string> {
   if (!IS_TAURI) return mock.githubRunAction(action);
   return call<string>("github_run_action", { projectId, runId, action });
+}
+
+/** Releases as GitHub holds them, for one project. */
+export async function githubReleases(projectId: string): Promise<GitHubRelease[]> {
+  if (!IS_TAURI) return mock.githubReleases(projectId);
+  return call<GitHubRelease[]>("github_releases", { projectId });
+}
+
+/**
+ * Writes one changelog section to GitHub as a draft release and opens it.
+ *
+ * A project and a version cross the boundary; the notes are the ones already
+ * read out of that project's own CHANGELOG.md. It is a draft on purpose:
+ * publishing is an announcement, and that stays the user's to make.
+ */
+export async function githubDraftRelease(
+  projectId: string,
+  version: string,
+): Promise<string> {
+  if (!IS_TAURI) return mock.githubDraftRelease(version);
+  return call<string>("github_draft_release", { projectId, version });
 }
 
 // ---------------------------------------------------------------------------

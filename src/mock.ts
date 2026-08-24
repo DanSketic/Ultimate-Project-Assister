@@ -7,6 +7,7 @@
 import type {
   ChangeEntry,
   Deployment,
+  GitHubRelease,
   GitHubStatus,
   PullRequest,
   RepoCi,
@@ -1275,4 +1276,22 @@ export function githubPulls(): PullRequest[] {
 export async function githubRunAction(action: "rerun" | "cancel"): Promise<string> {
   await pause(420);
   return `CI #41 - ${action}`;
+}
+
+/** The two newest versions are released; the newest section is not. */
+export function githubReleases(projectId: string): GitHubRelease[] {
+  const project = projects().find((p) => p.id === projectId);
+  return (project?.changelog ?? []).slice(1, 4).map((entry) => ({
+    tag: `v${entry.ver}`,
+    name: `v${entry.ver}`,
+    draft: false,
+    prerelease: false,
+    publishedAt: `${entry.date}T10:00:00Z`,
+    url: `https://github.com/example/${project?.name}/releases/tag/v${entry.ver}`,
+  }));
+}
+
+export async function githubDraftRelease(version: string): Promise<string> {
+  await pause(500);
+  return `https://github.com/example/releases/tag/v${version}`;
 }

@@ -19,7 +19,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::Value;
 
-use crate::model::{Deployment, GitHubStatus, Project, PullRequest, RepoCi, WorkflowRun};
+use crate::model::{
+    Deployment, GitHubRelease, GitHubStatus, Project, PullRequest, RepoCi, WorkflowRun,
+};
 
 pub use gh::GhCli;
 
@@ -399,6 +401,65 @@ impl Client {
         self.cache.lock().unwrap().retain(|key, _| !key.starts_with(&prefix));
     }
 
+    /// Releases as GitHub holds them, newest first.
+    pub fn releases(&self, repo: &Repo) -> Result<Vec<GitHubRelease>, ApiError> {
+        let path = format!("repos/{}/{}/releases?per_page=30", repo.owner, repo.name);
+        let value = match self.get(&repo.host, &path, DEPLOY_TTL) {
+            Ok(value) => value,
+            Err(e) if e.status == 404 => return Ok(Vec::new()),
+            Err(e) => return Err(e),
+        };
+        Ok(value
+            .as_array()
+            .map(|list| list.iter().map(release_from).collect())
+            .unwrap_or_default())
+    }
+
+    /// Writes a changelog section to GitHub as a **draft** release.
+    ///
+    /// Draft on purpose: this app can prepare a release, but publishing one is
+    /// an announcement, and an announcement is the user's to make. The draft
+    /// lands on the releases page for them to read, edit and publish - or
+    /// throw away, which costs nothing and tells nobody.
+    pub fn draft_release(
+        &self,
+        remote: &str,
+        tag: &str,
+        title: &str,
+        body: &str,
+    ) -> Result<String, String> {
+        let repo = Repo::parse(remote).ok_or("this project has no GitHub remote")?;
+        if tag.trim().is_empty() {
+            return Err("a release needs a tag".into());
+        }
+        // One draft per tag: a second press should not leave two.
+        if let Ok(existing) = self.releases(&repo) {
+            if let Some(release) = existing.iter().find(|r| r.tag == tag) {
+                return Err(format!("{tag} already has a release: {}", release.url));
+            }
+        }
+
+        let path = format!("repos/{}/{}/releases", repo.owner, repo.name);
+        let response = self.transport.post(
+            &repo.host,
+            &path,
+            &[("tag_name", tag), ("name", title), ("body", body), ("draft", "true")],
+        )?;
+
+        if !(200..=299).contains(&response.status) {
+            return Err(ApiError::from(&response).message);
+        }
+        self.cache
+            .lock()
+            .unwrap()
+            .retain(|key, _| !key.contains(&format!("repos/{}/{}/releases", repo.owner, repo.name)));
+
+        serde_json::from_str::<Value>(&response.body)
+            .ok()
+            .and_then(|v| v.get("html_url").and_then(Value::as_str).map(str::to_string))
+            .ok_or_else(|| "GitHub accepted it but said nothing back".to_string())
+    }
+
     /// The page of one run of a project's own repository. Resolved from the
     /// runs already held, so a caller cannot name an address.
     pub fn run_url(&self, remote: &str, run_id: u64) -> Result<String, String> {
@@ -533,6 +594,19 @@ fn deployment_from(value: &Value, environment: &str) -> Deployment {
     }
 }
 
+/// One release, kept to what a chip and a link need.
+fn release_from(value: &Value) -> GitHubRelease {
+    let text = |name: &str| value.get(name).and_then(Value::as_str).unwrap_or_default().to_string();
+    GitHubRelease {
+        tag: text("tag_name"),
+        name: text("name"),
+        draft: value.get("draft").and_then(Value::as_bool).unwrap_or(false),
+        prerelease: value.get("prerelease").and_then(Value::as_bool).unwrap_or(false),
+        published_at: text("published_at"),
+        url: text("html_url"),
+    }
+}
+
 /// One pull request out of a search result.
 fn pull_from(value: &Value, mine: bool) -> PullRequest {
     let text = |name: &str| value.get(name).and_then(Value::as_str).unwrap_or_default().to_string();
@@ -650,6 +724,21 @@ mod tests {
             PullRequest { repo: "osszekoto/SITE-laravel-v2".into(), ..Default::default() };
         bind(&mut pull, &[project]);
         assert_eq!(pull.project, "site");
+    }
+
+    #[test]
+    fn a_release_keeps_its_tag_and_page() {
+        let value: Value = serde_json::from_str(
+            r#"{"tag_name":"v1.6.0","name":"v1.6.0 - a thing","draft":false,"prerelease":false,
+                "published_at":"2026-08-19T14:09:47Z",
+                "html_url":"https://github.com/o/r/releases/tag/v1.6.0"}"#,
+        )
+        .unwrap();
+
+        let release = release_from(&value);
+        assert_eq!(release.tag, "v1.6.0");
+        assert!(!release.draft);
+        assert!(release.url.ends_with("v1.6.0"));
     }
 
     #[test]

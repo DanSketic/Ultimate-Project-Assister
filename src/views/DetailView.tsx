@@ -5,6 +5,7 @@ import { Collapsible } from "../components/Collapsible";
 import { Markdown } from "../components/Markdown";
 import { DockerBody, DockerChip, RefreshAction, RequirementsBody } from "../components/Requirements";
 import { CiBody } from "../components/Ci";
+import { ReleaseMark } from "../components/Release";
 import { ChevronDown, ChevronLeft, ChevronRight, Clock, GitBranch, Play, StickyNote, Stop, Tag, Target, Terminal } from "../components/Icons";
 import { ago, cmdKey, dueInfo, num, size } from "../format";
 import type { App } from "../useApp";
@@ -499,6 +500,10 @@ export function DetailView({ app }: { app: App }) {
                 <div>
                   <div style={verStyle}>{entry.ver}</div>
                   <div style={dateStyle}>{entry.date}</div>
+                  {/* Whether GitHub has this version, and a way to prepare it
+                      when it has not. Only for projects with a GitHub remote:
+                      for the rest there is nothing to compare against. */}
+                  <ReleaseMark project={p} entry={entry} app={app} />
                 </div>
                 <div style={{ fontSize: 12.5, color: "rgba(var(--trgb),.82)", minWidth: 0 }}>
                   {/* Every version starts collapsed. A changelog is a long file

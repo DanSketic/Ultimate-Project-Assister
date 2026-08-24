@@ -77,6 +77,8 @@ pub fn run() {
             commands::github_open_run,
             commands::github_pulls,
             commands::github_run_action,
+            commands::github_releases,
+            commands::github_draft_release,
         ])
         .build(tauri::generate_context!())
         .expect("failed to build the Tauri application")

@@ -612,3 +612,15 @@ pub struct RepoCi {
     /// Unix seconds of the last check.
     pub checked_at: u64,
 }
+
+/// One release as GitHub holds it, next to the changelog section it came from.
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubRelease {
+    pub tag: String,
+    pub name: String,
+    pub draft: bool,
+    pub prerelease: bool,
+    pub published_at: String,
+    pub url: String,
+}
