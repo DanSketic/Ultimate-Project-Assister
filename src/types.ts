@@ -523,6 +523,20 @@ export interface WorkflowRun {
   elapsedSecs: number;
 }
 
+/** The latest deployment to one environment. */
+export interface Deployment {
+  id: number;
+  environment: string;
+  refName: string;
+  sha: string;
+  /** `success` | `failure` | `in_progress` | `queued` | `inactive` | ... */
+  state: string;
+  description: string;
+  createdAt: string;
+  url: string;
+  creator: string;
+}
+
 /** What GitHub says about one project's Actions. */
 export interface RepoCi {
   projectId: string;
@@ -533,6 +547,8 @@ export interface RepoCi {
   available: boolean;
   /** Newest first. */
   runs: WorkflowRun[];
+  /** The latest deployment per environment; usually empty. */
+  deployments: Deployment[];
   error: string;
   checkedAt: number;
 }

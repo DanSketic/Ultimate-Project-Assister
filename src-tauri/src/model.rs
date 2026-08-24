@@ -551,6 +551,25 @@ pub struct WorkflowRun {
     pub elapsed_secs: u64,
 }
 
+/// The latest deployment to one environment.
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Deployment {
+    pub id: u64,
+    /// `production`, `staging`, `github-pages`, ...
+    pub environment: String,
+    /// The branch or tag that was deployed.
+    pub ref_name: String,
+    /// Short commit sha.
+    pub sha: String,
+    /// `success`, `failure`, `in_progress`, `queued`, `inactive`, ...
+    pub state: String,
+    pub description: String,
+    pub created_at: String,
+    pub url: String,
+    pub creator: String,
+}
+
 /// What GitHub says about one project's Actions.
 #[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -564,6 +583,9 @@ pub struct RepoCi {
     pub available: bool,
     /// Newest first.
     pub runs: Vec<WorkflowRun>,
+    /// The latest deployment per environment; empty when the repository has
+    /// no environments, which is the usual case.
+    pub deployments: Vec<Deployment>,
     pub error: String,
     /// Unix seconds of the last check.
     pub checked_at: u64,

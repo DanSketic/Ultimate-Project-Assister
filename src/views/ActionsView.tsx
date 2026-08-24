@@ -11,7 +11,7 @@ import { ChipGroup } from "../components/Chips";
 import { FolderHeader } from "../components/GroupHeader";
 import { RefreshAction } from "../components/Requirements";
 import { GitBranch } from "../components/Icons";
-import { runFailed, runTone } from "../components/Ci";
+import { EnvPills, runFailed, runTone } from "../components/Ci";
 import { duration, num, since } from "../format";
 import type { App } from "../useApp";
 import type { RepoCi, WorkflowRun } from "../types";
@@ -140,6 +140,7 @@ export function ActionsView({ app }: { app: App }) {
                   collapsed={app.isCollapsed("actions", row.projectId)}
                   onToggle={() => app.toggleGroup("actions", row.projectId)}
                 >
+                  <EnvPills deployments={row.deployments} app={app} compact />
                   <span style={{ fontFamily: mono, fontSize: 10, color: "rgba(var(--trgb),.45)" }}>
                     {row.repo}
                   </span>

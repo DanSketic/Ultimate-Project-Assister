@@ -7,7 +7,7 @@
 import { GitBranch } from "./Icons";
 import { duration, since } from "../format";
 import type { App } from "../useApp";
-import type { RepoCi, WorkflowRun } from "../types";
+import type { Deployment, RepoCi, WorkflowRun } from "../types";
 
 const mono = "'JetBrains Mono',monospace";
 
@@ -52,6 +52,88 @@ export function headlineRun(row: RepoCi | undefined): WorkflowRun | undefined {
   return row.runs.find((run) => run.status !== "completed") ?? row.runs[0];
 }
 
+/** The word for a deployment's state, and the colour it is said in. */
+export function deployTone(deployment: Deployment, t: App["t"]) {
+  switch (deployment.state) {
+    case "success":
+      return { label: t.deployActive, fg: "var(--accTx)", bd: "rgba(var(--accrgb),.45)", bg: "rgba(var(--accrgb),.12)", live: false };
+    case "in_progress":
+    case "queued":
+    case "pending":
+      return { label: t.deployRunning, fg: "var(--accTx)", bd: "rgba(var(--accrgb),.45)", bg: "rgba(var(--accrgb),.12)", live: true };
+    case "failure":
+    case "error":
+      return { label: t.deployFailed, fg: "var(--danTx)", bd: "rgba(var(--danrgb),.4)", bg: "rgba(var(--danrgb),.1)", live: false };
+    default:
+      return { label: t.deployInactive, fg: "rgba(var(--trgb),.55)", bd: "rgba(var(--wrgb),.12)", bg: "transparent", live: false };
+  }
+}
+
+/**
+ * One pill per environment: what is live where, and how long it has been.
+ * Most repositories have no environments and get nothing at all.
+ */
+export function EnvPills({
+  deployments,
+  app,
+  compact = false,
+}: {
+  deployments: Deployment[];
+  app: App;
+  compact?: boolean;
+}) {
+  const { t, lang } = app;
+  if (deployments.length === 0) return null;
+
+  return (
+    <span style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+      {deployments.map((deployment) => {
+        const tone = deployTone(deployment, t);
+        const at = new Date(deployment.createdAt);
+        const when = Number.isNaN(at.getTime())
+          ? ""
+          : since(Math.round(at.getTime() / 1000), lang);
+        return (
+          <span
+            key={deployment.id}
+            title={`${deployment.environment} · ${deployment.refName} · ${deployment.sha} · ${tone.label} · ${when}`}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 5,
+              border: `1px solid ${tone.bd}`,
+              background: tone.bg,
+              color: tone.fg,
+              borderRadius: 99,
+              padding: compact ? "1px 7px" : "2px 9px",
+              fontFamily: mono,
+              fontSize: compact ? 9.5 : 10,
+              fontWeight: 500,
+              whiteSpace: "nowrap",
+            }}
+          >
+            <span
+              style={{
+                width: 5,
+                height: 5,
+                borderRadius: 99,
+                background: tone.fg,
+                animation: tone.live ? "upaPulse 1.8s infinite" : undefined,
+              }}
+            />
+            {deployment.environment}
+            {!compact && (
+              <span style={{ color: "rgba(var(--trgb),.45)" }}>
+                {deployment.refName} · {when}
+              </span>
+            )}
+          </span>
+        );
+      })}
+    </span>
+  );
+}
+
 /**
  * One dot, for the lists. Nothing is drawn when GitHub has not been asked
  * about this project, or has nothing to say - an empty column would only
@@ -88,6 +170,14 @@ export function CiBody({ row, app }: { row: RepoCi | undefined; app: App }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      {/* What is live where, when the repository says. Above the runs: a run
+          is how something got there, the environment is where it is. */}
+      {row.deployments.length > 0 && (
+        <div style={{ marginBottom: 2 }}>
+          <EnvPills deployments={row.deployments} app={app} />
+        </div>
+      )}
+
       {row.runs.slice(0, 5).map((run) => {
         const tone = runTone(run, t);
         const started = new Date(run.startedAt);

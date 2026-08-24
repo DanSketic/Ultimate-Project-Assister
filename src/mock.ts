@@ -6,6 +6,7 @@
 
 import type {
   ChangeEntry,
+  Deployment,
   GitHubStatus,
   RepoCi,
   WorkflowRun,
@@ -1206,6 +1207,24 @@ export function githubCi(projectIds: string[]): RepoCi[] {
     else byProject.set(project.id, [run]);
   });
 
+  const envs = (name: string): Deployment[] =>
+    name === "shopflow-web"
+      ? [
+          {
+            id: 9001, environment: "production", refName: "v3.4.0", sha: "a1b2c30",
+            state: "success", description: "release 3.4.0",
+            createdAt: new Date(Date.now() - 26 * 36e5).toISOString(),
+            url: "", creator: "dev",
+          },
+          {
+            id: 9002, environment: "staging", refName: "release/3.4", sha: "c3d4e50",
+            state: "in_progress", description: "",
+            createdAt: new Date(Date.now() - 4 * 60_000).toISOString(),
+            url: "", creator: "dev",
+          },
+        ]
+      : [];
+
   return all
     .filter((p) => byProject.has(p.id) && (projectIds.length === 0 || projectIds.includes(p.id)))
     .map((p) => ({
@@ -1215,6 +1234,7 @@ export function githubCi(projectIds: string[]): RepoCi[] {
       url: `https://github.com/example/${p.name}`,
       available: true,
       runs: byProject.get(p.id) ?? [],
+      deployments: envs(p.name),
       error: "",
       checkedAt: Math.round(Date.now() / 1000),
     }));

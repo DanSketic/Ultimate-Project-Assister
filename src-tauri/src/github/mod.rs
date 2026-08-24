@@ -19,7 +19,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::Value;
 
-use crate::model::{GitHubStatus, RepoCi, WorkflowRun};
+use crate::model::{Deployment, GitHubStatus, RepoCi, WorkflowRun};
 
 pub use gh::GhCli;
 
@@ -28,6 +28,8 @@ pub use gh::GhCli;
 const RUNS_TTL: u64 = 45;
 /// Runs kept per repository. Enough to see the last few pushes, not a history.
 const RUNS_PER_REPO: usize = 8;
+/// Environments and deployments move at the pace of releases, not of pushes.
+const DEPLOY_TTL: u64 = 300;
 
 /// What is left of the hourly allowance.
 #[derive(Debug, Clone, Copy, Default)]
@@ -216,6 +218,9 @@ impl Client {
             Ok(runs) => {
                 out.available = true;
                 out.runs = runs;
+                // Deployments are a second question, and a repository being
+                // without them is not a failure of the first.
+                out.deployments = self.deployments(&repo).unwrap_or_default();
             }
             Err(e) if e.status == 404 => {
                 out.error = "no Actions on this repository, or it is not visible".into();
@@ -223,6 +228,73 @@ impl Client {
             Err(e) => out.error = e.message,
         }
         out
+    }
+
+    /// The latest deployment to each environment, newest first.
+    ///
+    /// Asked in two steps on purpose: most repositories have no environments
+    /// at all, and the first call says so for the price of one conditional
+    /// request rather than a walk through every deployment ever made.
+    pub fn deployments(&self, repo: &Repo) -> Result<Vec<Deployment>, ApiError> {
+        let envs = match self.get(
+            &repo.host,
+            &format!("repos/{}/{}/environments", repo.owner, repo.name),
+            DEPLOY_TTL,
+        ) {
+            Ok(value) => value,
+            // A repository with Actions disabled, or one the token may read
+            // but not inspect this far, simply has nothing to report here.
+            Err(e) if e.status == 404 || e.status == 403 => return Ok(Vec::new()),
+            Err(e) => return Err(e),
+        };
+        if envs.get("total_count").and_then(Value::as_u64).unwrap_or(0) == 0 {
+            return Ok(Vec::new());
+        }
+
+        let list = self.get(
+            &repo.host,
+            &format!("repos/{}/{}/deployments?per_page=30", repo.owner, repo.name),
+            DEPLOY_TTL,
+        )?;
+        let Some(list) = list.as_array() else { return Ok(Vec::new()) };
+
+        // The list is newest first, so the first entry for an environment is
+        // the one that is live there.
+        let mut seen: Vec<String> = Vec::new();
+        let mut out: Vec<Deployment> = Vec::new();
+        for value in list {
+            let environment = value
+                .get("environment")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string();
+            if environment.is_empty() || seen.contains(&environment) {
+                continue;
+            }
+            seen.push(environment.clone());
+
+            let mut deployment = deployment_from(value, &environment);
+            deployment.state = self.deployment_state(repo, deployment.id);
+            out.push(deployment);
+        }
+        Ok(out)
+    }
+
+    /// The newest status of one deployment; empty when it has none yet.
+    fn deployment_state(&self, repo: &Repo, id: u64) -> String {
+        self.get(
+            &repo.host,
+            &format!("repos/{}/{}/deployments/{id}/statuses?per_page=1", repo.owner, repo.name),
+            DEPLOY_TTL,
+        )
+        .ok()
+        .and_then(|value| {
+            value
+                .as_array()
+                .and_then(|list| list.first().cloned())
+                .and_then(|first| first.get("state").and_then(Value::as_str).map(str::to_string))
+        })
+        .unwrap_or_default()
     }
 
     /// The page of one run of a project's own repository. Resolved from the
@@ -337,6 +409,28 @@ fn elapsed(from: &str, to: &str) -> u64 {
     }
 }
 
+/// One deployment, kept to what a row shows. The state is not in this payload
+/// - it lives on the deployment's own statuses - so it is filled in after.
+fn deployment_from(value: &Value, environment: &str) -> Deployment {
+    let text = |name: &str| value.get(name).and_then(Value::as_str).unwrap_or_default().to_string();
+    Deployment {
+        id: value.get("id").and_then(Value::as_u64).unwrap_or(0),
+        environment: environment.to_string(),
+        ref_name: text("ref"),
+        sha: text("sha").chars().take(7).collect(),
+        state: String::new(),
+        description: text("description"),
+        created_at: text("created_at"),
+        url: text("url"),
+        creator: value
+            .get("creator")
+            .and_then(|c| c.get("login"))
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -378,6 +472,21 @@ mod tests {
         assert_eq!(run.sha, "472c272");
         assert_eq!(run.elapsed_secs, 16);
         assert_eq!(run.actor, "dan");
+    }
+
+    #[test]
+    fn a_deployment_keeps_what_a_row_shows() {
+        let value: Value = serde_json::from_str(
+            r#"{"id":9,"ref":"main","sha":"9f9693aabbccdd","description":"release 1.6.0",
+                "created_at":"2026-08-19T14:00:00Z","creator":{"login":"dan"}}"#,
+        )
+        .unwrap();
+
+        let deployment = deployment_from(&value, "production");
+        assert_eq!(deployment.environment, "production");
+        assert_eq!(deployment.sha, "9f9693a");
+        assert_eq!(deployment.creator, "dan");
+        assert!(deployment.state.is_empty(), "the state comes from the statuses");
     }
 
     #[test]
