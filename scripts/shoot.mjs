@@ -27,6 +27,7 @@ const VIEWS = {
   cmd: [1440, 900],
   procs: [1440, 900],
   claude: [1440, 980],
+  actions: [1440, 900],
 };
 
 const CANDIDATES = [

@@ -99,7 +99,7 @@ impl Repo {
         // GitHub Enterprise hosts are not github.com but speak the same API;
         // anything clearly another service is left alone.
         let known = host == "github.com" || host.contains("github");
-        known.then(|| Repo { host, owner, name })
+        known.then_some(Repo { host, owner, name })
     }
 
     pub fn slug(&self) -> String {
@@ -618,11 +618,6 @@ impl Client {
             .map(|run| run.url)
             .filter(|url| url.starts_with("https://"))
             .ok_or_else(|| "that run is not one of this project's".to_string())
-    }
-
-    /// The allowance as last reported by any call.
-    pub fn rate(&self) -> Rate {
-        *self.rate.lock().unwrap()
     }
 
     /// A GET whose answer may come from the cache, from a `304`, or from the

@@ -8,6 +8,38 @@ the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 Every change is recorded here as it lands, under `Unreleased`. Version numbers
 are assigned when a release is cut — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## [Unreleased]
+
+### Added
+
+- **The GitHub side of the dashboard.** For every project with a GitHub remote:
+  whether the build passed, what is deployed to which environment, which pull
+  requests are waiting on you, and the housekeeping a checkout cannot show —
+  licence, topics, branch protection, the names of the Actions secrets, the
+  month's Actions minutes.
+
+  It shows up where each answer is wanted rather than only in one place: a dot
+  before a project's name in the lists, an Actions view for the runs and the
+  environments, cards on the project detail, a line in the sync window saying
+  whether the commits you are about to pull in built, a mark on each changelog
+  version saying whether it was ever released, and a build state on the Claude
+  sessions, against the branch each worked on.
+
+  A red run offers the tail of its failed jobs' log and one button that puts the
+  failure on the clipboard as a message worth pasting. A pull request can be put
+  on the board as a note. A changelog section can be written to GitHub as a
+  **draft** release — publishing stays the user's to do.
+
+  It speaks through the `gh` CLI, so the token stays where `gh auth login` put
+  it and this app never holds a secret; a missing or logged-out `gh` is reported
+  the way a missing Docker daemon is. Requests are conditional, so a `304` costs
+  nothing against the hourly allowance, and the list only polls itself while
+  something is actually running. Writing is a closed set of three, each behind a
+  second press: re-run the failed jobs, cancel a run, draft a release.
+
+  The workflows in `.github/workflows` are read during a scan as well, so a
+  project's workflows are known without a network, a token, or a single run.
+
 ## [1.6.0] - 2026-08-19
 
 ### Added
