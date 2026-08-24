@@ -10,6 +10,7 @@ import type {
   GitHubRelease,
   GitHubStatus,
   PullRequest,
+  WorkflowRun,
   RepoCi,
   CleanProgress,
   CommandDef,
@@ -219,6 +220,12 @@ export function useApp() {
   /** Releases of the open project, keyed by project id; null while unknown. */
   const [releases, setReleases] = useState<Record<string, GitHubRelease[]>>({});
   const [releaseBusy, setReleaseBusy] = useState("");
+  /** The run whose log is open, and the log itself while it is being read. */
+  const [logRun, setLogRun] = useState<{ projectId: string; run: WorkflowRun } | null>(null);
+  const [runLog, setRunLog] = useState<string | null>(null);
+  /** The run the open panel is waiting for, so a slow read that was navigated
+   *  away from does not land in it afterwards. */
+  const logWanted = useRef(0);
   /**
    * What each run was doing when it was last seen, so a run that finishes
    * while the view is open can be reported. A ref rather than state: it is
@@ -1134,6 +1141,62 @@ export function useApp() {
     [notify, refreshReleases, t],
   );
 
+  /**
+   * Reads the tail of a failed run's log into a panel.
+   *
+   * Only the failed jobs, and only the end of them: a whole CI log is
+   * megabytes of things that went right, and what went wrong is at the bottom.
+   */
+  const openRunLog = useCallback(
+    async (projectId: string, run: WorkflowRun) => {
+      setLogRun({ projectId, run });
+      setRunLog(null);
+      logWanted.current = run.id;
+      try {
+        const text = await api.githubRunLog(projectId, run.id);
+        if (logWanted.current === run.id) setRunLog(text);
+      } catch (e) {
+        if (logWanted.current !== run.id) return;
+        setRunLog(String(e));
+      }
+    },
+    [],
+  );
+
+  const closeRunLog = useCallback(() => {
+    logWanted.current = 0;
+    setLogRun(null);
+    setRunLog(null);
+  }, []);
+
+  /**
+   * Puts the failure on the clipboard as something worth pasting: which
+   * project, which run, which branch, and the log - the message somebody
+   * would type anyway before asking for help with it.
+   */
+  const copyRunPrompt = useCallback(async () => {
+    if (!logRun || runLog === null) return;
+    const { run, projectId } = logRun;
+    const project = projects.find((p) => p.id === projectId);
+
+    const text = [
+      `${project?.name ?? ""} · ${run.name} #${run.number} · ${run.branch} · ${run.sha}: ${t.runPromptIntro}`,
+      "",
+      t.runPromptLog,
+      "",
+      "```",
+      runLog,
+      "```",
+    ].join("\n");
+
+    try {
+      await navigator.clipboard.writeText(text);
+      flash(t.runCopied);
+    } catch {
+      notify("error", t.runCopyFailed);
+    }
+  }, [logRun, runLog, projects, flash, notify, t]);
+
   /** What GitHub last said about one project. */
   const ciFor = useCallback(
     (projectId: string) => (ci ?? []).find((row) => row.projectId === projectId),
@@ -1719,6 +1782,11 @@ export function useApp() {
     refreshPulls,
     runAction,
     runBusy,
+    logRun,
+    runLog,
+    openRunLog,
+    closeRunLog,
+    copyRunPrompt,
     releases,
     releaseBusy,
     refreshReleases,

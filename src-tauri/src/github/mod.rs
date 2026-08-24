@@ -32,6 +32,12 @@ const RUNS_TTL: u64 = 45;
 const RUNS_PER_REPO: usize = 8;
 /// Environments and deployments move at the pace of releases, not of pushes.
 const DEPLOY_TTL: u64 = 300;
+/// Lines of a failed job's log kept for reading. What went wrong is at the
+/// end; the beginning is the checkout and the cache restore.
+const LOG_LINES: usize = 400;
+/// A hard ceiling as well, since one line can be a minified stack trace.
+const LOG_CHARS: usize = 60_000;
+
 /// Search has an allowance of its own - thirty a minute - so it is asked
 /// rarely and its answer held for longer.
 const SEARCH_TTL: u64 = 120;
@@ -458,6 +464,24 @@ impl Client {
             .ok()
             .and_then(|v| v.get("html_url").and_then(Value::as_str).map(str::to_string))
             .ok_or_else(|| "GitHub accepted it but said nothing back".to_string())
+    }
+
+    /// The tail of one run's failed-job log, for reading rather than archiving.
+    ///
+    /// The run is checked against the project's own repository first, and only
+    /// the last few hundred lines are kept: what went wrong is at the end, and
+    /// a whole CI log is megabytes of what went right.
+    pub fn failed_log(&self, remote: &str, run_id: u64) -> Result<String, String> {
+        let repo = Repo::parse(remote).ok_or("this project has no GitHub remote")?;
+        let runs = self.runs(&repo).map_err(|e| e.message)?;
+        if !runs.iter().any(|run| run.id == run_id) {
+            return Err("that run is not one of this project's".into());
+        }
+
+        let whole = self.transport.failed_log(&repo.host, &repo.slug(), run_id)?;
+        let lines: Vec<&str> = whole.lines().collect();
+        let tail = lines[lines.len().saturating_sub(LOG_LINES)..].join("\n");
+        Ok(tail.chars().take(LOG_CHARS).collect())
     }
 
     /// The page of one run of a project's own repository. Resolved from the

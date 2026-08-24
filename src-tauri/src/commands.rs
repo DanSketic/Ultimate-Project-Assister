@@ -986,3 +986,22 @@ pub async fn github_draft_release(
 
     platform::open_url(&url).map(|()| url)
 }
+
+/// The tail of one run's failed-job log.
+///
+/// A project and a run id cross the boundary. The run is checked against the
+/// project's own repository, and what comes back is text to read - nothing is
+/// written anywhere.
+#[tauri::command]
+pub async fn github_run_log(
+    state: State<'_, AppState>,
+    project_id: String,
+    run_id: u64,
+) -> Result<String, String> {
+    let project = state.project_by_id(&project_id).ok_or("unknown project")?;
+    let client = state.github.clone();
+
+    tauri::async_runtime::spawn_blocking(move || client.failed_log(&project.git.remote, run_id))
+        .await
+        .map_err(|e| e.to_string())?
+}

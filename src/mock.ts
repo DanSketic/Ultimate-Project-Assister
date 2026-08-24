@@ -1295,3 +1295,21 @@ export async function githubDraftRelease(version: string): Promise<string> {
   await pause(500);
   return `https://github.com/example/releases/tag/v${version}`;
 }
+
+/** A believable tail: the last green step, then the thing that broke. */
+export async function githubRunLog(): Promise<string> {
+  await pause(360);
+  return [
+    "build\tRun npm ci",
+    "build\tadded 412 packages in 9s",
+    "build\tRun npm run test",
+    "build\t> vitest run",
+    "build\t",
+    "build\t FAIL  src/cart/total.test.ts > applies the discount before VAT",
+    "build\tAssertionError: expected 12000 to be 11400",
+    "build\t at src/cart/total.test.ts:42:18",
+    "build\t",
+    "build\tTests  1 failed | 63 passed (64)",
+    "build\tError: Process completed with exit code 1.",
+  ].join("\n");
+}

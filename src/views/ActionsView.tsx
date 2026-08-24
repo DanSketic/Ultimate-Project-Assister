@@ -10,14 +10,14 @@ import { useEffect, useMemo, useState } from "react";
 import { ChipGroup } from "../components/Chips";
 import { FolderHeader } from "../components/GroupHeader";
 import { RefreshAction } from "../components/Requirements";
-import { GitBranch } from "../components/Icons";
+import { ChevronLeft, GitBranch } from "../components/Icons";
 import { EnvPills, runFailed, runTone } from "../components/Ci";
 import { duration, num, since } from "../format";
 import type { App } from "../useApp";
 import type { PullRequest, RepoCi, WorkflowRun } from "../types";
 
 const mono = "'JetBrains Mono',monospace";
-const GRID = "minmax(240px,1fr) 150px 104px 96px 78px 84px";
+const GRID = "minmax(240px,1fr) 150px 104px 96px 78px 148px";
 
 export function ActionsView({ app }: { app: App }) {
   const { t, lang, ci, github } = app;
@@ -63,6 +63,7 @@ export function ActionsView({ app }: { app: App }) {
 
   if (github && !github.available) return <Note text={t.actionsNoGh} />;
   if (github && !github.authenticated) return <Note text={github.error || t.actionsNoAuth} />;
+  if (app.logRun) return <RunLog app={app} />;
   if (app.actionsFilter === "pulls") return <Pulls app={app} />;
   if (ci === null) return <Note text={t.checking} />;
 
@@ -343,7 +344,33 @@ function Row({ run, projectId, app }: { run: WorkflowRun; projectId: string; app
         {tone.label}
       </span>
 
-      <RunAction run={run} projectId={projectId} app={app} />
+      <span style={{ display: "flex", justifyContent: "flex-end", gap: 6 }}>
+        {runFailed(run) && (
+          <button
+            type="button"
+            className="h-ghost"
+            title={app.t.runLogTitle}
+            onClick={(e) => {
+              e.stopPropagation();
+              void app.openRunLog(projectId, run);
+            }}
+            style={{
+              border: "1px solid rgba(var(--wrgb),.12)",
+              borderRadius: 8,
+              background: "rgba(var(--wrgb),.03)",
+              color: "rgba(var(--trgb),.7)",
+              padding: "4px 9px",
+              cursor: "pointer",
+              fontSize: 10.5,
+              fontWeight: 600,
+              whiteSpace: "nowrap",
+            }}
+          >
+            {app.t.runLog}
+          </button>
+        )}
+        <RunAction run={run} projectId={projectId} app={app} />
+      </span>
     </div>
   );
 }
@@ -574,6 +601,120 @@ function RunAction({
         {armed ? t.runSure : live ? t.runCancel : t.runRerun}
       </button>
     </span>
+  );
+}
+
+/**
+ * The end of a failed run's log, and a way to take it somewhere useful.
+ *
+ * Not a log viewer: the whole thing lives on GitHub and is better read there.
+ * This is the last few hundred lines - where the failure is - and a button
+ * that puts the failure on the clipboard as a message worth pasting into
+ * whatever you were going to ask about it.
+ */
+function RunLog({ app }: { app: App }) {
+  const { t, logRun, runLog } = app;
+  if (!logRun) return null;
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        minHeight: 0,
+        height: "100%",
+        padding: "0 20px 20px",
+        gap: 10,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flex: "0 0 auto" }}>
+        <button
+          type="button"
+          className="h-ghost"
+          onClick={app.closeRunLog}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 5,
+            border: "1px solid rgba(var(--wrgb),.1)",
+            borderRadius: 9,
+            background: "rgba(var(--wrgb),.03)",
+            color: "rgba(var(--trgb),.7)",
+            padding: "5px 10px",
+            cursor: "pointer",
+            fontSize: 11,
+            fontWeight: 500,
+          }}
+        >
+          <ChevronLeft size={12} />
+          {t.back}
+        </button>
+
+        <span style={{ minWidth: 0, flex: 1 }}>
+          <span
+            style={{
+              display: "block",
+              fontSize: 13,
+              fontWeight: 600,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {logRun.run.name} #{logRun.run.number}
+          </span>
+          <span style={{ fontFamily: mono, fontSize: 9.5, color: "rgba(var(--trgb),.45)" }}>
+            {logRun.run.branch} · {logRun.run.sha} · {t.runLogHint}
+          </span>
+        </span>
+
+        <button
+          type="button"
+          className="h-accent"
+          disabled={runLog === null}
+          onClick={() => void app.copyRunPrompt()}
+          style={{
+            border: "1px solid rgba(var(--accrgb),.45)",
+            borderRadius: 9,
+            background: "rgba(var(--accrgb),.12)",
+            color: "var(--accTx)",
+            padding: "5px 11px",
+            cursor: runLog === null ? "default" : "pointer",
+            fontSize: 11,
+            fontWeight: 600,
+            opacity: runLog === null ? 0.5 : 1,
+            whiteSpace: "nowrap",
+          }}
+        >
+          {t.runCopyPrompt}
+        </button>
+      </div>
+
+      {runLog === null ? (
+        <Note text={t.checking} />
+      ) : (
+        <pre
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflow: "auto",
+            margin: 0,
+            padding: "12px 14px",
+            border: "1px solid rgba(var(--wrgb),.08)",
+            borderRadius: 12,
+            background: "rgba(var(--wrgb),.03)",
+            fontFamily: mono,
+            fontSize: 11,
+            lineHeight: 1.55,
+            color: "rgba(var(--trgb),.82)",
+            whiteSpace: "pre-wrap",
+            wordBreak: "break-word",
+          }}
+        >
+          {runLog}
+        </pre>
+      )}
+    </div>
   );
 }
 

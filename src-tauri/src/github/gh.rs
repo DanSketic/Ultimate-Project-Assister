@@ -85,6 +85,33 @@ impl GhCli {
         }
         Ok(parse(&text))
     }
+
+    /// The log of the jobs that failed in one run.
+    ///
+    /// `gh run view --log-failed` rather than the REST API: logs come back as
+    /// a zip archive that has to be unpacked and stitched, and gh already does
+    /// exactly that. Only the failed jobs, because a green job's output is
+    /// several thousand lines of things that went right.
+    pub fn failed_log(&self, host: &str, slug: &str, run_id: u64) -> Result<String, String> {
+        let mut cmd = command();
+        cmd.arg("run")
+            .arg("view")
+            .arg(run_id.to_string())
+            .arg("--repo")
+            .arg(slug)
+            .arg("--log-failed");
+        if !host.is_empty() && host != "github.com" {
+            cmd.env("GH_HOST", host);
+        }
+
+        let out = cmd.output().map_err(|e| format!("gh: {e}"))?;
+        let text = String::from_utf8_lossy(&out.stdout).to_string();
+        if !text.trim().is_empty() {
+            return Ok(text);
+        }
+        let err = String::from_utf8_lossy(&out.stderr).trim().to_string();
+        Err(if err.is_empty() { "that run has no failed job log".into() } else { err })
+    }
 }
 
 /// Splits `gh api -i` output into a status, the headers worth keeping, and the

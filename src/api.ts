@@ -339,6 +339,15 @@ export async function githubDraftRelease(
   return call<string>("github_draft_release", { projectId, version });
 }
 
+/**
+ * The tail of one run's failed-job log. A project and a run id cross the
+ * boundary; the backend checks the run against that project's repository.
+ */
+export async function githubRunLog(projectId: string, runId: number): Promise<string> {
+  if (!IS_TAURI) return mock.githubRunLog();
+  return call<string>("github_run_log", { projectId, runId });
+}
+
 // ---------------------------------------------------------------------------
 // Shell integration
 // ---------------------------------------------------------------------------

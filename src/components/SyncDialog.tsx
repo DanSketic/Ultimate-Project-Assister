@@ -6,6 +6,7 @@
 // happened in words, shows the commits and who wrote them, and offers exactly
 // the one operation that fits the situation it found.
 
+import { headlineRun, runTone } from "./Ci";
 import type { ReactNode } from "react";
 
 import * as api from "../api";
@@ -47,6 +48,12 @@ export function SyncDialog({ app }: { app: App }) {
   const project = app.projects.find((p) => p.id === syncFor);
   const tone = sync ? (TONE[sync.state] ?? "warn") : "ok";
   const colour = COLOUR[tone];
+
+  // What GitHub made of the branch these commits are coming from, when the
+  // app has been told. Nothing is fetched here: this is the answer the Actions
+  // side already holds, shown where the decision is being made.
+  const ciRun = headlineRun(app.ciFor(syncFor));
+  const ciTone = ciRun ? runTone(ciRun, t) : null;
 
   const title: Record<string, string> = {
     ok: t.syncOkT,
@@ -231,6 +238,43 @@ export function SyncDialog({ app }: { app: App }) {
               <code style={{ fontFamily: mono, fontSize: 10.5, wordBreak: "break-word" }}>
                 {sync.error}
               </code>
+            </Block>
+          )}
+
+          {/* What the server made of what is about to be pulled in. The
+              commits below say who wrote them; this says whether they build. */}
+          {sync && sync.incoming.length > 0 && ciRun && (
+            <Block title={t.syncCiL}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span
+                  style={{
+                    width: 6,
+                    height: 6,
+                    flex: "0 0 6px",
+                    borderRadius: 99,
+                    background: ciTone!.dot,
+                    animation: ciTone!.live ? "upaPulse 1.8s infinite" : undefined,
+                  }}
+                />
+                <span style={{ fontSize: 12.5, color: "rgba(var(--trgb),.82)" }}>
+                  {ciTone!.live
+                    ? t.syncCiLive
+                    : ciRun.conclusion === "success"
+                      ? t.syncCiGreen
+                      : t.syncCiRed}
+                </span>
+                <span
+                  style={{
+                    marginLeft: "auto",
+                    fontFamily: "'JetBrains Mono',monospace",
+                    fontSize: 10,
+                    color: "rgba(var(--trgb),.45)",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {ciRun.name} #{ciRun.number} · {ciRun.branch}
+                </span>
+              </div>
             </Block>
           )}
 
