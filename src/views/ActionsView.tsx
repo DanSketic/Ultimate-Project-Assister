@@ -11,47 +11,13 @@ import { ChipGroup } from "../components/Chips";
 import { FolderHeader } from "../components/GroupHeader";
 import { RefreshAction } from "../components/Requirements";
 import { GitBranch } from "../components/Icons";
+import { runFailed, runTone } from "../components/Ci";
 import { duration, num, since } from "../format";
 import type { App } from "../useApp";
 import type { RepoCi, WorkflowRun } from "../types";
 
 const mono = "'JetBrains Mono',monospace";
 const GRID = "minmax(240px,1fr) 150px 104px 96px 78px";
-
-/** The one word for a run's state, and the colour that word is said in. */
-export function runTone(run: WorkflowRun, t: App["t"]) {
-  if (run.status === "queued") {
-    return { label: t.runQueued, fg: "rgba(var(--trgb),.6)", dot: "rgba(var(--trgb),.35)" };
-  }
-  if (run.status !== "completed") {
-    return { label: t.runInProgress, fg: "var(--accTx)", dot: "var(--acc)", live: true };
-  }
-  switch (run.conclusion) {
-    case "success":
-      return { label: t.runSuccess, fg: "var(--accTx)", dot: "var(--acc)" };
-    case "failure":
-    case "timed_out":
-      return {
-        label: run.conclusion === "failure" ? t.runFailure : t.runTimedOut,
-        fg: "var(--danTx)",
-        dot: "var(--danTx)",
-      };
-    case "cancelled":
-      return { label: t.runCancelled, fg: "rgba(var(--trgb),.55)", dot: "rgba(var(--trgb),.3)" };
-    case "skipped":
-      return { label: t.runSkipped, fg: "rgba(var(--trgb),.55)", dot: "rgba(var(--trgb),.3)" };
-    default:
-      return { label: run.conclusion, fg: "rgba(var(--trgb),.6)", dot: "rgba(var(--trgb),.3)" };
-  }
-}
-
-/** True when a run ended in a way that wants looking at. */
-export function runFailed(run: WorkflowRun): boolean {
-  return (
-    run.status === "completed" &&
-    (run.conclusion === "failure" || run.conclusion === "timed_out")
-  );
-}
 
 export function ActionsView({ app }: { app: App }) {
   const { t, lang, ci, github } = app;

@@ -46,6 +46,7 @@ export function SettingsView({ app }: { app: App }) {
     { key: "watchFs", label: t.watchFs, hint: t.watchFsH },
     { key: "deepGit", label: t.deepGit, hint: t.deepGitH },
     { key: "fetchOnScan", label: t.fetchOnScan, hint: t.fetchOnScanH },
+    { key: "github", label: t.githubL, hint: t.githubH },
     { key: "docker", label: t.dockerL, hint: t.dockerH },
   ];
 

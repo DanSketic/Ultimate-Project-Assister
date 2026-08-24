@@ -1,3 +1,4 @@
+import { CiDot } from "../components/Ci";
 import { useMemo } from "react";
 
 import { ChipGroup } from "../components/Chips";
@@ -315,6 +316,9 @@ export function ProjectsView({ app }: { app: App }) {
             <div style={{ minWidth: 0 }}>
               <div
                 style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 7,
                   fontSize: 13.5,
                   fontWeight: 500,
                   letterSpacing: "-.01em",
@@ -323,7 +327,11 @@ export function ProjectsView({ app }: { app: App }) {
                   textOverflow: "ellipsis",
                 }}
               >
-                {p.name}
+                {/* Build state, when GitHub has been asked. A dot rather than
+                    a column: it belongs to the project's name, and a column
+                    would be empty for every project without a remote. */}
+                <CiDot row={app.ciFor(p.id)} app={app} />
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</span>
               </div>
               <div
                 style={{

@@ -349,6 +349,9 @@ const hu = {
   claudeLastUsed: "Utoljára",
   claudeSessionsL: "munkamenet",
   claudeOpenSession: "Beszélgetés megnyitása",
+  githubL: "GitHub Actions és kitelepítések",
+  githubH:
+    "A GitHub CLI-n (gh) keresztül lekérdezi a buildek és kitelepítések állapotát azoknál a projekteknél, amelyeknek van GitHub remote-juk. Feltételes kérésekkel, így alig fogyasztja az órás keretet.",
   // GitHub Actions.
   navActions: "Actions",
   actionsTitle: "Buildek és kitelepítések",
@@ -728,6 +731,9 @@ const en: Dict = {
   claudeLastUsed: "Last used",
   claudeSessionsL: "sessions",
   claudeOpenSession: "Open the conversation",
+  githubL: "GitHub Actions and deployments",
+  githubH:
+    "Asks GitHub, through the gh CLI, about build and deployment state for the projects that have a GitHub remote. Requests are conditional, so this barely touches the hourly allowance.",
   // GitHub Actions.
   navActions: "Actions",
   actionsTitle: "Builds and deployments",

@@ -54,11 +54,28 @@ pub struct Toggles {
     /// one setting here that reaches the network on its own.
     #[serde(default)]
     pub fetch_on_scan: bool,
+    /// Ask GitHub about the projects that have a remote - build state, and
+    /// what is deployed. Reaches the network, but only through the gh CLI the
+    /// user has already logged in, and only conditionally.
+    #[serde(default = "yes")]
+    pub github: bool,
+}
+
+/// `serde` needs a function for a default that is not `false`.
+fn yes() -> bool {
+    true
 }
 
 impl Default for Toggles {
     fn default() -> Self {
-        Self { scan_start: true, watch_fs: true, deep_git: true, docker: false, fetch_on_scan: false }
+        Self {
+            scan_start: true,
+            watch_fs: true,
+            deep_git: true,
+            docker: false,
+            fetch_on_scan: false,
+            github: true,
+        }
     }
 }
 

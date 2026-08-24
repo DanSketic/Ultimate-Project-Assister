@@ -342,6 +342,8 @@ export interface Toggles {
   deepGit: boolean;
   /** Fetch every remote after a scan, so `behind` is real. Off by default. */
   fetchOnScan: boolean;
+  /** Ask GitHub about build state and deployments for projects with a remote. */
+  github: boolean;
   docker: boolean;
 }
 

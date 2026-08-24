@@ -470,7 +470,7 @@ export function settings(): Settings {
     navCollapsed: false,
     anchor: "left",
     folders: ["D:\\dev\\rust", "D:\\dev\\web", "D:\\dev\\py", "D:\\dev\\go", "D:\\dev\\ops"],
-    toggles: { scanStart: true, watchFs: true, deepGit: true, fetchOnScan: false, docker: false },
+    toggles: { scanStart: true, watchFs: true, deepGit: true, fetchOnScan: false, github: true, docker: false },
     ageDays: 30,
     cmdFavourites: [],
     favouritesOnly: false,

@@ -1039,6 +1039,29 @@ export function useApp() {
     return () => window.clearInterval(id);
   }, [view, anyRunning, refreshCi]);
 
+  /** What GitHub last said about one project. */
+  const ciFor = useCallback(
+    (projectId: string) => (ci ?? []).find((row) => row.projectId === projectId),
+    [ci],
+  );
+
+  /**
+   * The build state is wanted in the lists as much as in the Actions view, so
+   * it is fetched once the projects are known rather than when that view is
+   * opened - quietly, and only when the setting allows it.
+   */
+  const ciAsked = useRef(false);
+  useEffect(() => {
+    if (ciAsked.current || projects.length === 0) return;
+    if (!(settings?.toggles.github ?? true)) return;
+    ciAsked.current = true;
+    void (async () => {
+      const status = await api.githubStatus().catch(() => null);
+      setGithub(status);
+      if (status?.authenticated) void refreshCi(true);
+    })();
+  }, [projects.length, settings?.toggles.github, refreshCi]);
+
   /** Opens a run's page. The backend resolves the address from the project. */
   const openRun = useCallback(
     async (projectId: string, runId: number) => {
@@ -1593,6 +1616,7 @@ export function useApp() {
     github,
     ci,
     ciBusy,
+    ciFor,
     anyRunning,
     actionsFilter,
     setActionsFilter,

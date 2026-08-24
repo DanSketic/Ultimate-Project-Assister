@@ -4,6 +4,7 @@ import * as api from "../api";
 import { Collapsible } from "../components/Collapsible";
 import { Markdown } from "../components/Markdown";
 import { DockerBody, DockerChip, RefreshAction, RequirementsBody } from "../components/Requirements";
+import { CiBody } from "../components/Ci";
 import { ChevronDown, ChevronLeft, ChevronRight, Clock, GitBranch, Play, StickyNote, Stop, Tag, Target, Terminal } from "../components/Icons";
 import { ago, cmdKey, dueInfo, num, size } from "../format";
 import type { App } from "../useApp";
@@ -739,6 +740,33 @@ export function DetailView({ app }: { app: App }) {
               </div>
             ))}
           </Card>
+
+          {/* What the server made of the last few pushes. Only for projects
+              that have a GitHub remote - for the rest there is nothing to
+              ask, and an empty card would only look broken. */}
+          {p.git.remote.includes("github") && (
+            <Card
+              title={t.navActions}
+              pad="15px 16px"
+              action={
+                <span
+                  style={{
+                    fontFamily: "'JetBrains Mono',monospace",
+                    fontSize: 10,
+                    color: "rgba(var(--trgb),.4)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                  }}
+                >
+                  {app.ciFor(p.id)?.repo ?? ""}
+                  <RefreshAction onClick={() => void app.refreshCi()} title={t.recheck} />
+                </span>
+              }
+            >
+              <CiBody row={app.ciFor(p.id)} app={app} />
+            </Card>
+          )}
 
           {/* What the project needs installed. Above tags and notes on
               purpose: a missing toolchain is why nothing runs. */}
