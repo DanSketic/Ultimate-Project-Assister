@@ -1271,3 +1271,8 @@ export function githubPulls(): PullRequest[] {
     };
   });
 }
+
+export async function githubRunAction(action: "rerun" | "cancel"): Promise<string> {
+  await pause(420);
+  return `CI #41 - ${action}`;
+}

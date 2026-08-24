@@ -303,6 +303,20 @@ export async function githubPulls(): Promise<PullRequest[]> {
   return call<PullRequest[]>("github_pulls");
 }
 
+/**
+ * Runs one failed run again, or stops one that is going. The action is one of
+ * two words rather than a request the caller composes, and the backend checks
+ * the run against the project's own repository first.
+ */
+export async function githubRunAction(
+  projectId: string,
+  runId: number,
+  action: "rerun" | "cancel",
+): Promise<string> {
+  if (!IS_TAURI) return mock.githubRunAction(action);
+  return call<string>("github_run_action", { projectId, runId, action });
+}
+
 // ---------------------------------------------------------------------------
 // Shell integration
 // ---------------------------------------------------------------------------

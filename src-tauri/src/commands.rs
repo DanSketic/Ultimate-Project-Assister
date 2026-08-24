@@ -899,3 +899,31 @@ pub async fn github_pulls(state: State<'_, AppState>) -> Result<Vec<PullRequest>
         .await
         .map_err(|e| e.to_string())?
 }
+
+/// Runs one failed run again, or stops one that is going.
+///
+/// A project, a run id and one of two words cross the boundary. The run is
+/// checked against the project's own repository first, and the action is not
+/// a string that reaches GitHub - it names one of two fixed requests.
+#[tauri::command]
+pub async fn github_run_action(
+    state: State<'_, AppState>,
+    project_id: String,
+    run_id: u64,
+    action: String,
+) -> Result<String, String> {
+    let project = state.project_by_id(&project_id).ok_or("unknown project")?;
+    let client = state.github.clone();
+
+    let action = match action.as_str() {
+        "rerun" => github::RunAction::Rerun,
+        "cancel" => github::RunAction::Cancel,
+        other => return Err(format!("{other} is not something this app does")),
+    };
+
+    tauri::async_runtime::spawn_blocking(move || {
+        client.act_on_run(&project.git.remote, run_id, action)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}

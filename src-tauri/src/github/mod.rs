@@ -51,6 +51,16 @@ pub struct Response {
     pub body: String,
 }
 
+/// The two things this app will ask GitHub to do to a run. Deliberately a
+/// closed set: everything else about a run is somebody else's decision.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RunAction {
+    /// Run the jobs that failed again. Not the whole run: the green ones cost
+    /// minutes to repeat and prove nothing.
+    Rerun,
+    Cancel,
+}
+
 /// A repository, as named by a remote. Only the three parts that address the
 /// API - anything else about it comes from the API itself.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -341,6 +351,52 @@ impl Client {
                 .then_with(|| b.updated_at.cmp(&a.updated_at))
         });
         Ok(out)
+    }
+
+    /// Runs a failed run again, or stops one that is going.
+    ///
+    /// The run has to be one of this project's own - it is looked for among
+    /// the runs the repository itself reports - so a caller cannot name a run
+    /// id belonging to somebody else's repository and have it acted on.
+    pub fn act_on_run(&self, remote: &str, run_id: u64, action: RunAction) -> Result<String, String> {
+        let repo = Repo::parse(remote).ok_or("this project has no GitHub remote")?;
+        let runs = self.runs(&repo).map_err(|e| e.message)?;
+        let run = runs
+            .into_iter()
+            .find(|run| run.id == run_id)
+            .ok_or("that run is not one of this project's")?;
+
+        let (verb, path) = match action {
+            RunAction::Rerun => (
+                "rerun-failed-jobs",
+                format!("repos/{}/{}/actions/runs/{run_id}/rerun-failed-jobs", repo.owner, repo.name),
+            ),
+            RunAction::Cancel => (
+                "cancel",
+                format!("repos/{}/{}/actions/runs/{run_id}/cancel", repo.owner, repo.name),
+            ),
+        };
+
+        let response = self.transport.post(&repo.host, &path, &[])?;
+        // The answers to both are empty; the status is the whole reply. 409 is
+        // GitHub saying the run is not in a state this can be asked of.
+        match response.status {
+            200..=299 => {
+                // What was cached about this repository's runs is now stale by
+                // construction: it says the run is doing what it just stopped
+                // doing.
+                self.forget(&repo);
+                Ok(format!("{} #{} - {verb}", run.name, run.number))
+            }
+            _ => Err(ApiError::from(&response).message),
+        }
+    }
+
+    /// Drops what is held about one repository's runs, so the next look is a
+    /// fresh one rather than the answer from before something was changed.
+    fn forget(&self, repo: &Repo) {
+        let prefix = format!("{}/repos/{}/{}/actions/runs", repo.host, repo.owner, repo.name);
+        self.cache.lock().unwrap().retain(|key, _| !key.starts_with(&prefix));
     }
 
     /// The page of one run of a project's own repository. Resolved from the

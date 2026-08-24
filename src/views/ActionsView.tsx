@@ -5,7 +5,7 @@
 // projects and in the same shape - grouped by project, newest first, with the
 // thing that is still going marked as such.
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { ChipGroup } from "../components/Chips";
 import { FolderHeader } from "../components/GroupHeader";
@@ -17,7 +17,7 @@ import type { App } from "../useApp";
 import type { PullRequest, RepoCi, WorkflowRun } from "../types";
 
 const mono = "'JetBrains Mono',monospace";
-const GRID = "minmax(240px,1fr) 150px 104px 96px 78px";
+const GRID = "minmax(240px,1fr) 150px 104px 96px 78px 84px";
 
 export function ActionsView({ app }: { app: App }) {
   const { t, lang, ci, github } = app;
@@ -131,6 +131,7 @@ export function ActionsView({ app }: { app: App }) {
             <div>{t.colWhen}</div>
             <div style={{ textAlign: "right" }}>{t.colLength}</div>
             <div style={{ textAlign: "right" }}>{t.colState}</div>
+            <div />
           </div>
 
           <div style={{ overflow: "auto", minHeight: 0, paddingBottom: 10 }}>
@@ -234,10 +235,16 @@ function Row({ run, projectId, app }: { run: WorkflowRun; projectId: string; app
     : since(Math.round(started.getTime() / 1000), lang);
 
   return (
-    <button
-      type="button"
+    // A div rather than a button: it holds a button of its own, and a button
+    // inside a button is not a thing the browser will render.
+    <div
       className="h-soft"
+      role="button"
+      tabIndex={0}
       onClick={() => void app.openRun(projectId, run.id)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") void app.openRun(projectId, run.id);
+      }}
       title={t.actionsOpenRun}
       style={{
         display: "grid",
@@ -246,12 +253,8 @@ function Row({ run, projectId, app }: { run: WorkflowRun; projectId: string; app
         alignItems: "center",
         width: "100%",
         padding: "8px 12px",
-        border: 0,
         borderTop: "1px solid rgba(var(--wrgb),.05)",
         borderRadius: 10,
-        background: "transparent",
-        color: "inherit",
-        textAlign: "left",
         cursor: "pointer",
       }}
     >
@@ -339,7 +342,9 @@ function Row({ run, projectId, app }: { run: WorkflowRun; projectId: string; app
       >
         {tone.label}
       </span>
-    </button>
+
+      <RunAction run={run} projectId={projectId} app={app} />
+    </div>
   );
 }
 
@@ -503,6 +508,72 @@ function PullRow({
         {pull.reviewRequested ? t.pullsWaiting : t.pullsMine}
       </span>
     </a>
+  );
+}
+
+/**
+ * Re-run or cancel, asked twice.
+ *
+ * The second press is the confirmation: a dialog for something this small
+ * would be in the way, but a build that starts because a row was clicked by
+ * accident costs minutes and money.
+ */
+function RunAction({
+  run,
+  projectId,
+  app,
+}: {
+  run: WorkflowRun;
+  projectId: string;
+  app: App;
+}) {
+  const { t } = app;
+  const [armed, setArmed] = useState(false);
+  const busy = app.runBusy.has(run.id);
+  const live = run.status !== "completed";
+  const failed = runFailed(run);
+
+  useEffect(() => {
+    if (!armed) return;
+    const id = window.setTimeout(() => setArmed(false), 3000);
+    return () => window.clearTimeout(id);
+  }, [armed]);
+
+  if (!live && !failed) return <span />;
+
+  return (
+    <span style={{ display: "flex", justifyContent: "flex-end" }}>
+      <button
+        type="button"
+        className={live ? "h-danger" : "h-accent"}
+        disabled={busy}
+        title={live ? t.runCancelTitle : t.runRerunTitle}
+        onClick={(e) => {
+          // The row itself opens the run on GitHub; this is a different act.
+          e.stopPropagation();
+          if (!armed) {
+            setArmed(true);
+            return;
+          }
+          setArmed(false);
+          void app.runAction(projectId, run.id, live ? "cancel" : "rerun");
+        }}
+        style={{
+          border: `1px solid ${live ? "rgba(var(--danrgb),.4)" : "rgba(var(--accrgb),.45)"}`,
+          borderRadius: 8,
+          background: live ? "rgba(var(--danrgb),.1)" : "rgba(var(--accrgb),.12)",
+          color: live ? "var(--danTx2)" : "var(--accTx)",
+          padding: "4px 9px",
+          cursor: busy ? "default" : "pointer",
+          fontSize: 10.5,
+          fontWeight: 600,
+          opacity: busy ? 0.55 : 1,
+          whiteSpace: "nowrap",
+        }}
+      >
+        {armed ? t.runSure : live ? t.runCancel : t.runRerun}
+      </button>
+    </span>
   );
 }
 

@@ -213,6 +213,8 @@ export function useApp() {
   const [actionsFilter, setActionsFilter] = useState("all");
   /** Null until the list has been asked for once. */
   const [pulls, setPulls] = useState<PullRequest[] | null>(null);
+  /** Runs whose re-run or cancel has been sent and not yet answered. */
+  const [runBusy, setRunBusy] = useState<Set<number>>(new Set());
   /**
    * What each run was doing when it was last seen, so a run that finishes
    * while the view is open can be reported. A ref rather than state: it is
@@ -1060,6 +1062,34 @@ export function useApp() {
     void refreshPulls();
   }, [view, actionsFilter, pulls, refreshPulls]);
 
+  /**
+   * Asks GitHub to run a failed run again, or to stop one that is going.
+   *
+   * The answer is a sentence, not a state: what actually happened shows up in
+   * the list on the next refresh, which is why one is asked for straight
+   * after. Runs being acted on are tracked so a button cannot be pressed twice
+   * while the first press is still in the air.
+   */
+  const runAction = useCallback(
+    async (projectId: string, runId: number, action: "rerun" | "cancel") => {
+      setRunBusy((prev) => new Set(prev).add(runId));
+      try {
+        const what = await api.githubRunAction(projectId, runId, action);
+        notify("success", t.runQueuedNote, what);
+        await refreshCi(true);
+      } catch (e) {
+        notify("error", String(e));
+      } finally {
+        setRunBusy((prev) => {
+          const next = new Set(prev);
+          next.delete(runId);
+          return next;
+        });
+      }
+    },
+    [notify, refreshCi, t],
+  );
+
   /** What GitHub last said about one project. */
   const ciFor = useCallback(
     (projectId: string) => (ci ?? []).find((row) => row.projectId === projectId),
@@ -1643,6 +1673,8 @@ export function useApp() {
     setActionsFilter,
     pulls,
     refreshPulls,
+    runAction,
+    runBusy,
     refreshCi,
     openRun,
     // Claude Code history
