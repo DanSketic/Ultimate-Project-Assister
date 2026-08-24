@@ -473,7 +473,7 @@ function PullRow({
       rel="noreferrer"
       style={{
         display: "grid",
-        gridTemplateColumns: "minmax(240px,1fr) 200px 104px 92px",
+        gridTemplateColumns: "minmax(240px,1fr) 200px 104px 92px 68px",
         gap: 10,
         alignItems: "center",
         padding: "8px 12px",
@@ -533,6 +533,32 @@ function PullRow({
         }}
       >
         {pull.reviewRequested ? t.pullsWaiting : t.pullsMine}
+      </span>
+
+      {/* The board is where things that need doing already live, and a review
+          waiting on you is one of those. */}
+      <span style={{ display: "flex", justifyContent: "flex-end" }}>
+        <button
+          type="button"
+          className="h-ghost"
+          title={t.pullToNoteTitle}
+          onClick={(e) => {
+            e.preventDefault();
+            app.noteFromPull(pull);
+          }}
+          style={{
+            border: "1px solid rgba(var(--wrgb),.12)",
+            borderRadius: 8,
+            background: "rgba(var(--wrgb),.03)",
+            color: "rgba(var(--trgb),.65)",
+            padding: "3px 8px",
+            cursor: "pointer",
+            fontSize: 10,
+            fontWeight: 600,
+          }}
+        >
+          {t.pullToNote}
+        </button>
       </span>
     </a>
   );

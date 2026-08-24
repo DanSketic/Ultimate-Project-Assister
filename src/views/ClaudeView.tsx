@@ -12,6 +12,7 @@ import { FolderHeader } from "../components/GroupHeader";
 import { SearchField } from "../components/SearchField";
 import { RefreshAction } from "../components/Requirements";
 import { ChevronLeft, GitBranch, Info, Terminal } from "../components/Icons";
+import { CiDot } from "../components/Ci";
 import { num, size, since, tokens, usd } from "../format";
 import type { App } from "../useApp";
 import type { ClaudeSession } from "../types";
@@ -577,6 +578,10 @@ function Row({ session: s, app }: { session: ClaudeSession; app: App }) {
             whiteSpace: "nowrap",
           }}
         >
+          {/* What the branch this session worked on built into, if GitHub has
+              been asked. The session says what was done; this says whether it
+              survived contact with CI. */}
+          <CiDot row={onBranch(app, s)} app={app} />
           {s.branch && (
             <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
               <GitBranch size={10} />
@@ -780,6 +785,21 @@ function countTools(tools: string[]): Array<[string, number]> {
   const counts = new Map<string, number>();
   for (const tool of tools) counts.set(tool, (counts.get(tool) ?? 0) + 1);
   return [...counts.entries()];
+}
+
+/**
+ * The project's build state narrowed to the branch a session worked on.
+ *
+ * A `RepoCi` shaped to hold only the runs of that branch, so the same dot that
+ * marks a project in the lists can mark a session here. Nothing is fetched -
+ * this is the answer the Actions side already holds.
+ */
+function onBranch(app: App, session: ClaudeSession) {
+  const row = app.ciFor(session.projectId);
+  if (!row?.available || !session.branch) return undefined;
+
+  const runs = row.runs.filter((run) => run.branch === session.branch);
+  return runs.length > 0 ? { ...row, runs } : undefined;
 }
 
 function Note({ text }: { text: string }) {

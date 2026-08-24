@@ -1239,6 +1239,41 @@ export function useApp() {
     }
   }, []);
 
+  /**
+   * Puts a pull request on the board as a note.
+   *
+   * The board is where things that need doing already live, and a review
+   * waiting on you is one of those. Only for a repository that has a project
+   * here - a note has to belong to something.
+   */
+  const noteFromPull = useCallback(
+    (pull: PullRequest) => {
+      if (!pull.projectId) {
+        notify("warn", t.pullNoteNoProject, pull.repo);
+        return;
+      }
+      const z = notes.reduce((a, n) => Math.max(a, n.z), 0) + 1;
+      commitNotes(
+        [
+          ...notes,
+          {
+            id: newId("n"),
+            x: 40 + (notes.length % 6) * 40,
+            y: 40 + (notes.length % 4) * 36,
+            project: pull.projectId,
+            text: `#${pull.number} ${pull.title}\n${pull.url}`,
+            due: "",
+            color: "accent" as NoteColor,
+            z,
+          },
+        ],
+        true,
+      );
+      flash(t.pullNoteDone);
+    },
+    [notes, commitNotes, flash, notify, t],
+  );
+
   /** What GitHub last said about one project. */
   const ciFor = useCallback(
     (projectId: string) => (ci ?? []).find((row) => row.projectId === projectId),
@@ -1822,6 +1857,7 @@ export function useApp() {
     setActionsFilter,
     pulls,
     refreshPulls,
+    noteFromPull,
     runAction,
     runBusy,
     logRun,
