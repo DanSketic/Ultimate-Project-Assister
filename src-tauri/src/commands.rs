@@ -11,13 +11,14 @@ use std::time::Instant;
 use tauri::{AppHandle, Emitter, State};
 
 use crate::model::{
-    ClaudeMessage, ClaudeStats, CleanProgress, Container, DeleteReport, DockerStatus, PortConflict,
-    PortUser, ProcessInfo, Project, RebaseReport, ScanProgress, ScanResult, SyncStatus, SysStats,
-    ToolStatus,
+    ClaudeMessage, ClaudeStats, CleanProgress, Container, DeleteReport, DockerStatus, GitHubStatus,
+    PortConflict, PortUser, ProcessInfo, Project, RebaseReport, RepoCi, ScanProgress, ScanResult,
+    SyncStatus, SysStats, ToolStatus,
 };
 use crate::store::{Goal, Note, Settings, Store};
 use crate::{
-    claude, clean, docker, platform, ports, procs, runner::Runner, scan, tools, watcher::Watcher,
+    claude, clean, docker, github, platform, ports, procs, runner::Runner, scan, tools,
+    watcher::Watcher,
 };
 
 pub const SCAN_PROGRESS: &str = "upa://scan-progress";
@@ -40,6 +41,8 @@ pub struct AppState {
     /// How far each Claude Code session log has been read, so a second look at
     /// the history only costs the lines written since the first.
     pub claude: claude::Index,
+    /// Answers GitHub has already given, with their ETags.
+    pub github: github::Client,
 }
 
 impl AppState {
@@ -54,6 +57,7 @@ impl AppState {
             view: Mutex::new("projects".into()),
             nav_width: Mutex::new(214),
             claude: claude::Index::new(),
+            github: github::Client::new(),
         }
     }
 
@@ -808,4 +812,78 @@ pub async fn claude_session(
     tauri::async_runtime::spawn_blocking(move || claude::transcript(&path))
         .await
         .map_err(|e| e.to_string())?
+}
+
+// ---------------------------------------------------------------------------
+// GitHub
+// ---------------------------------------------------------------------------
+
+/// Whether GitHub can be asked anything from this machine, and by whom.
+#[tauri::command]
+pub async fn github_status(state: State<'_, AppState>) -> Result<GitHubStatus, String> {
+    let client = state.github.clone();
+    tauri::async_runtime::spawn_blocking(move || client.status())
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Actions state for the named projects, or for every project with a remote.
+///
+/// Only project ids cross the boundary: each request is built from that
+/// project's own remote, so this cannot be asked about a repository the user
+/// does not have checked out.
+#[tauri::command]
+pub async fn github_ci(
+    state: State<'_, AppState>,
+    project_ids: Vec<String>,
+) -> Result<Vec<RepoCi>, String> {
+    let projects = state.projects.lock().unwrap().clone();
+    let client = state.github.clone();
+
+    let wanted: Vec<Project> = projects
+        .into_iter()
+        .filter(|p| project_ids.is_empty() || project_ids.contains(&p.id))
+        .filter(|p| !p.git.remote.is_empty())
+        .collect();
+
+    // One `gh` process per repository, a few at a time: the answers are small
+    // but each one is a process, and thirty at once is a thundering herd.
+    tauri::async_runtime::spawn_blocking(move || {
+        use rayon::prelude::*;
+        let pool = rayon::ThreadPoolBuilder::new().num_threads(6).build();
+        let work = || {
+            wanted
+                .par_iter()
+                .map(|p| client.ci(&p.id, &p.name, &p.git.remote))
+                .collect::<Vec<RepoCi>>()
+        };
+        match pool {
+            Ok(pool) => pool.install(work),
+            Err(_) => work(),
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
+/// Opens one run's page on GitHub.
+///
+/// A project and a run id cross the boundary, not a URL: the address is the
+/// one the API gave for that project's own repository, so this cannot be asked
+/// to open something else.
+#[tauri::command]
+pub async fn github_open_run(
+    state: State<'_, AppState>,
+    project_id: String,
+    run_id: u64,
+) -> Result<String, String> {
+    let project = state.project_by_id(&project_id).ok_or("unknown project")?;
+    let client = state.github.clone();
+
+    let url =
+        tauri::async_runtime::spawn_blocking(move || client.run_url(&project.git.remote, run_id))
+            .await
+            .map_err(|e| e.to_string())??;
+
+    platform::open_url(&url).map(|()| url)
 }

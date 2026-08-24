@@ -10,6 +10,7 @@ import { Notifications } from "./components/Notifications";
 import { isOverdue, projectCount, size, tokens, usd } from "./format";
 import { BoardView } from "./views/BoardView";
 import { CleanView } from "./views/CleanView";
+import { ActionsView } from "./views/ActionsView";
 import { ClaudeView } from "./views/ClaudeView";
 import { CommandsView } from "./views/CommandsView";
 import { ProcessesView } from "./views/ProcessesView";
@@ -57,6 +58,14 @@ export function App() {
   const cmdProject =
     projects.find((p) => p.id === app.cmdSel) ?? projects.find((p) => p.commands.length);
   const overdue = app.notes.filter((n) => isOverdue(n.due)).length;
+
+  const ciRuns = (app.ci ?? []).flatMap((row) => row.runs);
+  const ciRunning = ciRuns.filter((run) => run.status !== "completed").length;
+  const ciFailed = ciRuns.filter(
+    (run) =>
+      run.status === "completed" &&
+      (run.conclusion === "failure" || run.conclusion === "timed_out"),
+  ).length;
 
   const claudeSessions = app.claude?.sessions ?? [];
   const claudeTokens = claudeSessions.reduce(
@@ -108,6 +117,13 @@ export function App() {
       title: t.claudeTitle,
       meta: app.claude
         ? `${claudeSessions.length} ${t.claudeSessionsL} · ${tokens(claudeTokens, lang)} token · ${usd(claudeCost)}`
+        : t.checking,
+    },
+    actions: {
+      kicker: t.navActions,
+      title: t.actionsTitle,
+      meta: app.ci
+        ? `${app.ci.filter((r) => r.available).length} ${t.actionsRepos.toLowerCase()} · ${ciRunning} ${t.actionsRunning.toLowerCase()} · ${ciFailed} ${t.actionsFailed.toLowerCase()}`
         : t.checking,
     },
     set: {
@@ -222,6 +238,7 @@ export function App() {
             {view === "cmd" && <CommandsView app={app} />}
             {view === "procs" && <ProcessesView app={app} />}
             {view === "claude" && <ClaudeView app={app} />}
+            {view === "actions" && <ActionsView app={app} />}
             {view === "set" && <SettingsView app={app} />}
           </div>
 

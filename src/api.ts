@@ -8,6 +8,8 @@ import type {
   Anchor,
   ClaudeMessage,
   ClaudeStats,
+  GitHubStatus,
+  RepoCi,
   CleanProgress,
   Container,
   DeleteReport,
@@ -260,6 +262,35 @@ export async function claudeStats(): Promise<ClaudeStats> {
 export async function claudeSession(id: string): Promise<ClaudeMessage[]> {
   if (!IS_TAURI) return mock.claudeSession(id);
   return call<ClaudeMessage[]>("claude_session", { id });
+}
+
+// ---------------------------------------------------------------------------
+// GitHub
+// ---------------------------------------------------------------------------
+
+/** Whether GitHub can be asked anything from this machine, and by whom. */
+export async function githubStatus(): Promise<GitHubStatus> {
+  if (!IS_TAURI) return mock.githubStatus();
+  return call<GitHubStatus>("github_status");
+}
+
+/**
+ * Actions state per project. An empty list asks about every project that has a
+ * remote. Only project ids cross the boundary - each request is built from that
+ * project's own remote.
+ */
+export async function githubCi(projectIds: string[] = []): Promise<RepoCi[]> {
+  if (!IS_TAURI) return mock.githubCi(projectIds);
+  return call<RepoCi[]>("github_ci", { projectIds });
+}
+
+/**
+ * Opens one run's page. A project and a run id cross the boundary, not a URL:
+ * the address is the one GitHub gave for that project's own repository.
+ */
+export async function githubOpenRun(projectId: string, runId: number): Promise<string> {
+  if (!IS_TAURI) return `https://github.com/example/${projectId}/actions/runs/${runId}`;
+  return call<string>("github_open_run", { projectId, runId });
 }
 
 // ---------------------------------------------------------------------------

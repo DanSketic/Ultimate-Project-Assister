@@ -12,6 +12,7 @@ import {
   Target,
   Terminal,
   Trash,
+  Workflow,
 } from "./Icons";
 import type { App } from "../useApp";
 import type { View } from "../types";
@@ -37,6 +38,15 @@ export function Sidebar({ app }: { app: App }) {
     return a + (r.all - r.done);
   }, 0);
   const withDue = notes.filter((n) => n.due).length;
+  // The badge says the one thing worth interrupting for: something is broken,
+  // or something is still going.
+  const runs = (app.ci ?? []).flatMap((row) => row.runs);
+  const ciRunning = runs.filter((run) => run.status !== "completed").length;
+  const ciFailed = runs.filter(
+    (run) =>
+      run.status === "completed" &&
+      (run.conclusion === "failure" || run.conclusion === "timed_out"),
+  ).length;
   const anyOverdue = notes.some((n) => isOverdue(n.due));
 
   const item = (key: View, icon: ReactNode, label: string, badge?: ReactNode) => (
@@ -180,6 +190,35 @@ export function Sidebar({ app }: { app: App }) {
         <Activity size={16} style={{ flex: "0 0 16px" }} />,
         t.processes,
         <span style={mono()}>{app.processes?.length ?? ""}</span>,
+      )}
+      {item(
+        "actions",
+        <Workflow size={16} style={{ flex: "0 0 16px" }} />,
+        t.navActions,
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 5,
+            fontFamily: "'JetBrains Mono',monospace",
+            fontSize: 10,
+            fontWeight: 500,
+            color: ciFailed ? "var(--danTx)" : ciRunning ? "var(--acc)" : "rgba(var(--trgb),.54)",
+          }}
+        >
+          {ciRunning > 0 && (
+            <span
+              style={{
+                width: 5,
+                height: 5,
+                borderRadius: 99,
+                background: "var(--acc)",
+                animation: "upaPulse 1.8s infinite",
+              }}
+            />
+          )}
+          {ciFailed || ciRunning || ""}
+        </span>,
       )}
       {item(
         "claude",

@@ -7,6 +7,8 @@ import { ensurePermission as requestOsPermission, send as sendOsNotification } f
 import type {
   ClaudeMessage,
   ClaudeStats,
+  GitHubStatus,
+  RepoCi,
   CleanProgress,
   CommandDef,
   Container,
@@ -38,6 +40,7 @@ const VIEW_WIDTH: Record<View, number> = {
   cmd: 1120,
   procs: 1120,
   claude: 1240,
+  actions: 1240,
   set: 840,
 };
 
@@ -200,6 +203,19 @@ export function useApp() {
   /** The session whose transcript is being waited for, so a slow read that has
    *  been navigated away from does not land in the panel afterwards. */
   const claudeWanted = useRef("");
+
+  // --- GitHub -------------------------------------------------------------
+  /** Null until asked once; `available: false` is an answer, not a failure. */
+  const [github, setGithub] = useState<GitHubStatus | null>(null);
+  const [ci, setCi] = useState<RepoCi[] | null>(null);
+  const [ciBusy, setCiBusy] = useState(false);
+  const [actionsFilter, setActionsFilter] = useState("all");
+  /**
+   * What each run was doing when it was last seen, so a run that finishes
+   * while the view is open can be reported. A ref rather than state: it is
+   * read to compare, never to render.
+   */
+  const runStates = useRef<Map<number, string>>(new Map());
 
   // --- git sync -----------------------------------------------------------
   /** The project the sync dialog is open on; empty when it is closed. */
@@ -951,6 +967,90 @@ export function useApp() {
     [flash, t, refreshProcesses],
   );
 
+  // --- GitHub ---------------------------------------------------------------
+  /**
+   * Asks GitHub about every project that has a remote.
+   *
+   * Requests are conditional in the backend, so refreshing costs almost
+   * nothing against the hourly allowance - which is why this can be polled
+   * while a run is in flight without spending the budget on it.
+   */
+  const refreshCi = useCallback(
+    async (quiet = false) => {
+      if (!quiet) setCiBusy(true);
+      try {
+        const rows = await api.githubCi();
+
+        // A run that was going and is now finished is worth saying out loud;
+        // one that was already finished when first seen is not news.
+        for (const row of rows) {
+          for (const run of row.runs) {
+            const before = runStates.current.get(run.id);
+            runStates.current.set(run.id, run.status);
+            if (!before || before === "completed" || run.status !== "completed") continue;
+
+            const failed = run.conclusion !== "success" && run.conclusion !== "skipped";
+            notify(
+              failed ? "error" : "success",
+              `${failed ? t.runFailedNote : t.runDoneNote}: ${row.project}`,
+              `${run.name} · ${run.branch} · ${run.conclusion}`,
+              true,
+            );
+          }
+        }
+        setCi(rows);
+      } catch (e) {
+        if (!quiet) flash(String(e));
+      } finally {
+        if (!quiet) setCiBusy(false);
+      }
+    },
+    [flash, notify, t],
+  );
+
+  /** The state of the tooling, asked once and re-asked with the list. */
+  const refreshGithub = useCallback(async () => {
+    try {
+      setGithub(await api.githubStatus());
+    } catch (e) {
+      flash(String(e));
+    }
+  }, [flash]);
+
+  useEffect(() => {
+    if (view !== "actions") return;
+    void refreshGithub();
+    if (ci === null) void refreshCi();
+  }, [view, ci, refreshCi, refreshGithub]);
+
+  /**
+   * While something is actually running, and only while the view is on screen,
+   * the list keeps itself current. Nothing is polled when everything has
+   * finished: the answer would not change.
+   */
+  const anyRunning = useMemo(
+    () => (ci ?? []).some((row) => row.runs.some((run) => run.status !== "completed")),
+    [ci],
+  );
+
+  useEffect(() => {
+    if (view !== "actions" || !anyRunning) return;
+    const id = window.setInterval(() => void refreshCi(true), 20_000);
+    return () => window.clearInterval(id);
+  }, [view, anyRunning, refreshCi]);
+
+  /** Opens a run's page. The backend resolves the address from the project. */
+  const openRun = useCallback(
+    async (projectId: string, runId: number) => {
+      try {
+        await api.githubOpenRun(projectId, runId);
+      } catch (e) {
+        flash(String(e));
+      }
+    },
+    [flash],
+  );
+
   // --- Claude Code history --------------------------------------------------
   /**
    * Reads the session logs. Costly the first time - the files run to tens of
@@ -1489,6 +1589,15 @@ export function useApp() {
     stopping,
     portAsk,
     dismissPortAsk: () => setPortAsk(null),
+    // GitHub
+    github,
+    ci,
+    ciBusy,
+    anyRunning,
+    actionsFilter,
+    setActionsFilter,
+    refreshCi,
+    openRun,
     // Claude Code history
     claude,
     claudeBusy,

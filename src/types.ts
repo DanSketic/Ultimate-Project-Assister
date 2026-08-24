@@ -9,6 +9,7 @@ export type View =
   | "cmd"
   | "procs"
   | "claude"
+  | "actions"
   | "set";
 export type Lang = "hu" | "en";
 export type Theme = "auto" | "light" | "dark";
@@ -480,4 +481,56 @@ export interface ClaudeMessage {
   thinking: boolean;
   error: boolean;
   sidechain: boolean;
+}
+
+/**
+ * Whether GitHub can be asked anything from this machine. `available` and
+ * `authenticated` are separate: a missing CLI and a logged-out one have
+ * different remedies.
+ */
+export interface GitHubStatus {
+  available: boolean;
+  authenticated: boolean;
+  login: string;
+  rateLimit: number;
+  rateRemaining: number;
+  /** Unix seconds at which the hourly allowance is refilled. */
+  rateReset: number;
+  error: string;
+}
+
+export interface WorkflowRun {
+  id: number;
+  /** The workflow's name, e.g. `CI`. */
+  name: string;
+  /** What it ran on - usually the commit subject. */
+  title: string;
+  branch: string;
+  event: string;
+  /** `queued` | `in_progress` | `completed`. */
+  status: string;
+  /** `success` | `failure` | `cancelled` | ...; empty while it is still going. */
+  conclusion: string;
+  number: number;
+  attempt: number;
+  actor: string;
+  sha: string;
+  url: string;
+  startedAt: string;
+  updatedAt: string;
+  elapsedSecs: number;
+}
+
+/** What GitHub says about one project's Actions. */
+export interface RepoCi {
+  projectId: string;
+  project: string;
+  /** `owner/name`; empty when the project has no GitHub remote. */
+  repo: string;
+  url: string;
+  available: boolean;
+  /** Newest first. */
+  runs: WorkflowRun[];
+  error: string;
+  checkedAt: number;
 }

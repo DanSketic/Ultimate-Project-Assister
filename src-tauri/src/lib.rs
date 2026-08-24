@@ -7,6 +7,7 @@ mod commands;
 mod docker;
 mod geometry;
 mod git;
+mod github;
 mod model;
 mod platform;
 mod ports;
@@ -71,6 +72,9 @@ pub fn run() {
             commands::sys_stats,
             commands::claude_stats,
             commands::claude_session,
+            commands::github_status,
+            commands::github_ci,
+            commands::github_open_run,
         ])
         .build(tauri::generate_context!())
         .expect("failed to build the Tauri application")

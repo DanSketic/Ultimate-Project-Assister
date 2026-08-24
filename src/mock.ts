@@ -6,6 +6,9 @@
 
 import type {
   ChangeEntry,
+  GitHubStatus,
+  RepoCi,
+  WorkflowRun,
   ClaudeMessage,
   ClaudeSession,
   ClaudeStats,
@@ -1146,4 +1149,73 @@ export async function claudeSession(id: string): Promise<ClaudeMessage[]> {
     turn({ role: "user", time: at(7), text: "", error: true }),
     turn({ role: "assistant", time: at(8), text: "A teszt elhasalt egy útvonal-elválasztón; javítom.", tools: ["Edit", "Bash"] }),
   ];
+}
+
+// ---------------------------------------------------------------------------
+// GitHub
+// ---------------------------------------------------------------------------
+
+export function githubStatus(): GitHubStatus {
+  return {
+    available: true,
+    authenticated: true,
+    login: "dev",
+    rateLimit: 5000,
+    rateRemaining: 4870,
+    rateReset: Math.round(Date.now() / 1000) + 2400,
+    error: "",
+  };
+}
+
+/** A believable morning: one deploy in flight, one red build, the rest green. */
+export function githubCi(projectIds: string[]): RepoCi[] {
+  const all = projects();
+  const seeds: Array<[name: string, workflow: string, status: string, conclusion: string, mins: number]> = [
+    ["shopflow-web", "Deploy", "in_progress", "", 2],
+    ["shopflow-web", "CI", "completed", "success", 34],
+    ["api-gateway", "CI", "completed", "failure", 55],
+    ["ultimate-project-assister", "Release", "completed", "success", 180],
+    ["auth-service", "CI", "completed", "success", 400],
+    ["crm-mobile", "CI", "completed", "cancelled", 900],
+  ];
+
+  const byProject = new Map<string, WorkflowRun[]>();
+  seeds.forEach(([name, workflow, status, conclusion, mins], i) => {
+    const project = all.find((p) => p.name === name);
+    if (!project) return;
+    const started = new Date(Date.now() - mins * 60_000);
+    const run: WorkflowRun = {
+      id: 32063772800 + i,
+      name: workflow,
+      title: MSG[i % MSG.length] ?? "chore: bump deps",
+      branch: project.git.branch || "main",
+      event: workflow === "Release" ? "workflow_dispatch" : "push",
+      status,
+      conclusion,
+      number: 40 + i,
+      attempt: 1,
+      actor: "dev",
+      sha: `a1b2c3${i}`,
+      url: `https://github.com/example/${project.name}/actions/runs/${32063772800 + i}`,
+      startedAt: started.toISOString(),
+      updatedAt: new Date(started.getTime() + (status === "completed" ? 96_000 : 0)).toISOString(),
+      elapsedSecs: status === "completed" ? 96 : Math.round((Date.now() - started.getTime()) / 1000),
+    };
+    const list = byProject.get(project.id);
+    if (list) list.push(run);
+    else byProject.set(project.id, [run]);
+  });
+
+  return all
+    .filter((p) => byProject.has(p.id) && (projectIds.length === 0 || projectIds.includes(p.id)))
+    .map((p) => ({
+      projectId: p.id,
+      project: p.name,
+      repo: `example/${p.name}`,
+      url: `https://github.com/example/${p.name}`,
+      available: true,
+      runs: byProject.get(p.id) ?? [],
+      error: "",
+      checkedAt: Math.round(Date.now() / 1000),
+    }));
 }

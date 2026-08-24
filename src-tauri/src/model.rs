@@ -501,3 +501,70 @@ pub struct ClaudeMessage {
     /// Part of a subagent's conversation rather than of the main one.
     pub sidechain: bool,
 }
+
+// ---------------------------------------------------------------------------
+// GitHub
+// ---------------------------------------------------------------------------
+
+/// Whether this machine can ask GitHub anything, and what is left of the
+/// hourly allowance. `available` and `authenticated` are separate: the CLI
+/// being absent and the CLI being logged out have different remedies.
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubStatus {
+    pub available: bool,
+    pub authenticated: bool,
+    pub login: String,
+    pub rate_limit: u32,
+    pub rate_remaining: u32,
+    /// Unix seconds at which the allowance is refilled.
+    pub rate_reset: u64,
+    /// Why nothing can be asked; empty when something can.
+    pub error: String,
+}
+
+/// One Actions run, kept to what a list shows.
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkflowRun {
+    pub id: u64,
+    /// The workflow's name, e.g. `CI`.
+    pub name: String,
+    /// What it was running on - usually the commit subject.
+    pub title: String,
+    pub branch: String,
+    /// `push`, `pull_request`, `workflow_dispatch`, ...
+    pub event: String,
+    /// `queued`, `in_progress`, `completed`.
+    pub status: String,
+    /// `success`, `failure`, `cancelled`, ...; empty while it is still going.
+    pub conclusion: String,
+    pub number: u64,
+    pub attempt: u64,
+    pub actor: String,
+    /// Short commit sha.
+    pub sha: String,
+    pub url: String,
+    pub started_at: String,
+    pub updated_at: String,
+    /// How long it took, or has been going.
+    pub elapsed_secs: u64,
+}
+
+/// What GitHub says about one project's Actions.
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RepoCi {
+    pub project_id: String,
+    pub project: String,
+    /// `owner/name`, empty when the project has no GitHub remote.
+    pub repo: String,
+    pub url: String,
+    /// False when there is nothing to show, with `error` saying why.
+    pub available: bool,
+    /// Newest first.
+    pub runs: Vec<WorkflowRun>,
+    pub error: String,
+    /// Unix seconds of the last check.
+    pub checked_at: u64,
+}

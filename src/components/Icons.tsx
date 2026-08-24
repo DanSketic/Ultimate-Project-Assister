@@ -254,6 +254,16 @@ export const Star = ({ size = 13, strokeWidth = 1.8, style, filled = false }: Ic
   </svg>
 );
 
+/** The Actions view's mark: a run, as a play button on a track. */
+export const Workflow = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="3" y="3" width="7" height="7" rx="1.6" />
+    <rect x="14" y="14" width="7" height="7" rx="1.6" />
+    <path d="M10 6.5h4a3 3 0 0 1 3 3V14" />
+    <path d="M6.5 10v4a3 3 0 0 0 3 3H14" />
+  </Svg>
+);
+
 /** The Claude history view's mark: a conversation with a spark in it. */
 export const Spark = (p: IconProps) => (
   <Svg {...p}>
