@@ -10,8 +10,9 @@ import type {
   GitHubRelease,
   GitHubStatus,
   PullRequest,
-  WorkflowRun,
   RepoCi,
+  RepoInfo,
+  WorkflowRun,
   CleanProgress,
   CommandDef,
   Container,
@@ -137,6 +138,28 @@ function logColour(line: LogLine): string {
   return "rgba(var(--trgb),.8)";
 }
 
+/** A repository nothing is known about yet, so a failure has a shape. */
+const EMPTY_REPO: RepoInfo = {
+  slug: "",
+  url: "",
+  private: false,
+  archived: false,
+  description: "",
+  license: "",
+  topics: [],
+  stars: 0,
+  forks: 0,
+  openIssues: 0,
+  defaultBranch: "",
+  pushedAt: "",
+  homepage: "",
+  protectedDefault: null,
+  secrets: [],
+  minutesUsed: 0,
+  minutesIncluded: 0,
+  error: "",
+};
+
 export function useApp() {
   // --- persisted state ----------------------------------------------------
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -220,6 +243,8 @@ export function useApp() {
   /** Releases of the open project, keyed by project id; null while unknown. */
   const [releases, setReleases] = useState<Record<string, GitHubRelease[]>>({});
   const [releaseBusy, setReleaseBusy] = useState("");
+  /** Repository housekeeping, keyed by project id. */
+  const [repoInfo, setRepoInfo] = useState<Record<string, RepoInfo>>({});
   /** The run whose log is open, and the log itself while it is being read. */
   const [logRun, setLogRun] = useState<{ projectId: string; run: WorkflowRun } | null>(null);
   const [runLog, setRunLog] = useState<string | null>(null);
@@ -1197,6 +1222,23 @@ export function useApp() {
     }
   }, [logRun, runLog, projects, flash, notify, t]);
 
+  /**
+   * The repository's own facts, for the project on screen. Several small
+   * questions, three of which the token may not be allowed to ask - so a
+   * failure here is recorded on the card rather than shouted about.
+   */
+  const refreshRepoInfo = useCallback(async (projectId: string) => {
+    try {
+      const info = await api.githubRepo(projectId);
+      setRepoInfo((prev) => ({ ...prev, [projectId]: info }));
+    } catch (e) {
+      setRepoInfo((prev) => ({
+        ...prev,
+        [projectId]: { ...EMPTY_REPO, error: String(e) },
+      }));
+    }
+  }, []);
+
   /** What GitHub last said about one project. */
   const ciFor = useCallback(
     (projectId: string) => (ci ?? []).find((row) => row.projectId === projectId),
@@ -1787,6 +1829,8 @@ export function useApp() {
     openRunLog,
     closeRunLog,
     copyRunPrompt,
+    repoInfo,
+    refreshRepoInfo,
     releases,
     releaseBusy,
     refreshReleases,

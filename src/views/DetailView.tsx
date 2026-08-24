@@ -6,6 +6,7 @@ import { Markdown } from "../components/Markdown";
 import { DockerBody, DockerChip, RefreshAction, RequirementsBody } from "../components/Requirements";
 import { CiBody } from "../components/Ci";
 import { ReleaseMark } from "../components/Release";
+import { RepoBody } from "../components/RepoCard";
 import { ChevronDown, ChevronLeft, ChevronRight, Clock, GitBranch, Play, StickyNote, Stop, Tag, Target, Terminal } from "../components/Icons";
 import { ago, cmdKey, dueInfo, num, size } from "../format";
 import type { App } from "../useApp";
@@ -745,6 +746,15 @@ export function DetailView({ app }: { app: App }) {
               </div>
             ))}
           </Card>
+
+          {/* The repository's own housekeeping. Above the runs: a build
+              that passes says nothing about a repository nobody can tell
+              what is for. */}
+          {p.git.remote.includes("github") && (
+            <Card title={t.repoTitle} pad="15px 16px">
+              <RepoBody project={p} app={app} />
+            </Card>
+          )}
 
           {/* What the server made of the last few pushes. Only for projects
               that have a GitHub remote - for the rest there is nothing to

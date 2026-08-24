@@ -582,3 +582,30 @@ export interface GitHubRelease {
   publishedAt: string;
   url: string;
 }
+
+/** The housekeeping GitHub holds about a repository. */
+export interface RepoInfo {
+  /** `owner/name`; empty when the project has no GitHub remote. */
+  slug: string;
+  url: string;
+  private: boolean;
+  archived: boolean;
+  description: string;
+  /** SPDX id, e.g. `MIT`; empty when the repository names no licence. */
+  license: string;
+  topics: string[];
+  stars: number;
+  forks: number;
+  openIssues: number;
+  defaultBranch: string;
+  pushedAt: string;
+  homepage: string;
+  /** Null when the token may not ask - which is not the same as "no". */
+  protectedDefault: boolean | null;
+  /** Names only; a secret's value is never readable through the API. */
+  secrets: string[];
+  /** Actions minutes this month; zero when the bill is not visible. */
+  minutesUsed: number;
+  minutesIncluded: number;
+  error: string;
+}

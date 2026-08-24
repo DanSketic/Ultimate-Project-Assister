@@ -8,6 +8,7 @@ import type {
   ChangeEntry,
   Deployment,
   GitHubRelease,
+  RepoInfo,
   GitHubStatus,
   PullRequest,
   RepoCi,
@@ -1312,4 +1313,29 @@ export async function githubRunLog(): Promise<string> {
     "build\tTests  1 failed | 63 passed (64)",
     "build\tError: Process completed with exit code 1.",
   ].join("\n");
+}
+
+/** A repository with most of its housekeeping done, and two things not. */
+export function githubRepo(projectId: string): RepoInfo {
+  const project = projects().find((p) => p.id === projectId);
+  return {
+    slug: `example/${project?.name ?? "project"}`,
+    url: `https://github.com/example/${project?.name ?? "project"}`,
+    private: false,
+    archived: false,
+    description: project?.desc ?? "",
+    license: "MIT",
+    topics: ["rust", "tauri", "desktop"],
+    stars: 128,
+    forks: 9,
+    openIssues: 4,
+    defaultBranch: project?.git.branch || "main",
+    pushedAt: new Date(Date.now() - 36e5).toISOString(),
+    homepage: "",
+    protectedDefault: false,
+    secrets: ["DEPLOY_KEY", "NPM_TOKEN"],
+    minutesUsed: 340,
+    minutesIncluded: 2000,
+    error: "",
+  };
 }

@@ -624,3 +624,35 @@ pub struct GitHubRelease {
     pub published_at: String,
     pub url: String,
 }
+
+/// What GitHub holds about a repository beyond its runs: the housekeeping
+/// that is easy to leave undone and impossible to see from a checkout.
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RepoInfo {
+    /// `owner/name`; empty when the project has no GitHub remote.
+    pub slug: String,
+    pub url: String,
+    pub private: bool,
+    pub archived: bool,
+    pub description: String,
+    /// SPDX id, e.g. `MIT`; empty when the repository names no licence.
+    pub license: String,
+    pub topics: Vec<String>,
+    pub stars: u64,
+    pub forks: u64,
+    pub open_issues: u64,
+    pub default_branch: String,
+    pub pushed_at: String,
+    pub homepage: String,
+    /// Whether the default branch is protected. `None` when the token may not
+    /// ask - which is not the same as "no".
+    pub protected_default: Option<bool>,
+    /// Names only. A secret's value is never readable through the API, and
+    /// this app would not want it if it were.
+    pub secrets: Vec<String>,
+    /// Actions minutes this month, when the token may see the bill.
+    pub minutes_used: u64,
+    pub minutes_included: u64,
+    pub error: String,
+}

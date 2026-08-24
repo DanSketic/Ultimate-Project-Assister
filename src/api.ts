@@ -12,6 +12,7 @@ import type {
   GitHubStatus,
   PullRequest,
   RepoCi,
+  RepoInfo,
   CleanProgress,
   Container,
   DeleteReport,
@@ -346,6 +347,12 @@ export async function githubDraftRelease(
 export async function githubRunLog(projectId: string, runId: number): Promise<string> {
   if (!IS_TAURI) return mock.githubRunLog();
   return call<string>("github_run_log", { projectId, runId });
+}
+
+/** The housekeeping GitHub holds about one project's repository. */
+export async function githubRepo(projectId: string): Promise<RepoInfo> {
+  if (!IS_TAURI) return mock.githubRepo(projectId);
+  return call<RepoInfo>("github_repo", { projectId });
 }
 
 // ---------------------------------------------------------------------------

@@ -20,7 +20,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde_json::Value;
 
 use crate::model::{
-    Deployment, GitHubRelease, GitHubStatus, Project, PullRequest, RepoCi, WorkflowRun,
+    Deployment, GitHubRelease, GitHubStatus, Project, PullRequest, RepoCi, RepoInfo, WorkflowRun,
 };
 
 pub use gh::GhCli;
@@ -32,6 +32,9 @@ const RUNS_TTL: u64 = 45;
 const RUNS_PER_REPO: usize = 8;
 /// Environments and deployments move at the pace of releases, not of pushes.
 const DEPLOY_TTL: u64 = 300;
+/// A repository's own facts change at the pace of somebody editing them.
+const REPO_TTL: u64 = 1800;
+
 /// Lines of a failed job's log kept for reading. What went wrong is at the
 /// end; the beginning is the checkout and the cache restore.
 const LOG_LINES: usize = 400;
@@ -482,6 +485,127 @@ impl Client {
         let lines: Vec<&str> = whole.lines().collect();
         let tail = lines[lines.len().saturating_sub(LOG_LINES)..].join("\n");
         Ok(tail.chars().take(LOG_CHARS).collect())
+    }
+
+    /// The housekeeping GitHub holds about a repository.
+    ///
+    /// Four questions at most, and three of them are allowed to go
+    /// unanswered: branch protection, secrets and the bill all depend on
+    /// rights this app does not insist on having.
+    pub fn repo_info(&self, remote: &str) -> Result<RepoInfo, ApiError> {
+        let repo = Repo::parse(remote).ok_or(ApiError {
+            status: 0,
+            message: "this project has no GitHub remote".into(),
+        })?;
+
+        let value = self.get(
+            &repo.host,
+            &format!("repos/{}/{}", repo.owner, repo.name),
+            REPO_TTL,
+        )?;
+
+        let text = |name: &str| {
+            value.get(name).and_then(Value::as_str).unwrap_or_default().to_string()
+        };
+        let number = |name: &str| value.get(name).and_then(Value::as_u64).unwrap_or(0);
+        let flag = |name: &str| value.get(name).and_then(Value::as_bool).unwrap_or(false);
+
+        let default_branch = text("default_branch");
+        let mut info = RepoInfo {
+            slug: repo.slug(),
+            url: text("html_url"),
+            private: flag("private"),
+            archived: flag("archived"),
+            description: text("description"),
+            license: value
+                .get("license")
+                .and_then(|l| l.get("spdx_id"))
+                .and_then(Value::as_str)
+                .filter(|id| *id != "NOASSERTION")
+                .unwrap_or_default()
+                .to_string(),
+            topics: value
+                .get("topics")
+                .and_then(Value::as_array)
+                .map(|list| {
+                    list.iter().filter_map(Value::as_str).map(str::to_string).collect()
+                })
+                .unwrap_or_default(),
+            stars: number("stargazers_count"),
+            forks: number("forks_count"),
+            open_issues: number("open_issues_count"),
+            default_branch: default_branch.clone(),
+            pushed_at: text("pushed_at"),
+            homepage: text("homepage"),
+            ..Default::default()
+        };
+
+        info.protected_default = self.protection(&repo, &default_branch);
+        info.secrets = self.secret_names(&repo);
+        let (used, included) = self.minutes();
+        info.minutes_used = used;
+        info.minutes_included = included;
+        Ok(info)
+    }
+
+    /// Whether the default branch is protected; `None` when it cannot be told
+    /// apart from not being allowed to ask.
+    fn protection(&self, repo: &Repo, branch: &str) -> Option<bool> {
+        if branch.is_empty() {
+            return None;
+        }
+        let path = format!("repos/{}/{}/branches/{branch}/protection", repo.owner, repo.name);
+        match self.get(&repo.host, &path, REPO_TTL) {
+            Ok(_) => Some(true),
+            // GitHub answers "not protected" with a 404 on this endpoint.
+            Err(e) if e.status == 404 => Some(false),
+            Err(_) => None,
+        }
+    }
+
+    /// The names of the repository's Actions secrets. Values are never
+    /// readable through the API, and this app has no use for them.
+    fn secret_names(&self, repo: &Repo) -> Vec<String> {
+        self.get(
+            &repo.host,
+            &format!("repos/{}/{}/actions/secrets?per_page=50", repo.owner, repo.name),
+            REPO_TTL,
+        )
+        .ok()
+        .and_then(|value| {
+            value.get("secrets").and_then(Value::as_array).map(|list| {
+                list.iter()
+                    .filter_map(|s| s.get("name").and_then(Value::as_str))
+                    .map(str::to_string)
+                    .collect()
+            })
+        })
+        .unwrap_or_default()
+    }
+
+    /// Actions minutes used this month, when the token may see the bill. Most
+    /// cannot: it takes a scope this app does not ask for.
+    fn minutes(&self) -> (u64, u64) {
+        let login = self
+            .get("github.com", "user", 3600)
+            .ok()
+            .and_then(|v| v.get("login").and_then(Value::as_str).map(str::to_string))
+            .unwrap_or_default();
+        if login.is_empty() {
+            return (0, 0);
+        }
+
+        self.get(
+            "github.com",
+            &format!("users/{login}/settings/billing/actions"),
+            REPO_TTL,
+        )
+        .ok()
+        .map(|value| {
+            let number = |name: &str| value.get(name).and_then(Value::as_u64).unwrap_or(0);
+            (number("total_minutes_used"), number("included_minutes"))
+        })
+        .unwrap_or((0, 0))
     }
 
     /// The page of one run of a project's own repository. Resolved from the

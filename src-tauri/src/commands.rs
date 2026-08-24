@@ -13,7 +13,7 @@ use tauri::{AppHandle, Emitter, State};
 use crate::model::{
     ClaudeMessage, ClaudeStats, CleanProgress, Container, DeleteReport, DockerStatus,
     GitHubRelease, GitHubStatus,
-    PortConflict, PortUser, ProcessInfo, Project, PullRequest, RebaseReport, RepoCi,
+    PortConflict, PortUser, ProcessInfo, Project, PullRequest, RebaseReport, RepoCi, RepoInfo,
     ScanProgress, ScanResult, SyncStatus, SysStats, ToolStatus,
 };
 use crate::store::{Goal, Note, Settings, Store};
@@ -1004,4 +1004,20 @@ pub async fn github_run_log(
     tauri::async_runtime::spawn_blocking(move || client.failed_log(&project.git.remote, run_id))
         .await
         .map_err(|e| e.to_string())?
+}
+
+/// The housekeeping GitHub holds about one project's repository.
+#[tauri::command]
+pub async fn github_repo(
+    state: State<'_, AppState>,
+    project_id: String,
+) -> Result<RepoInfo, String> {
+    let project = state.project_by_id(&project_id).ok_or("unknown project")?;
+    let client = state.github.clone();
+
+    tauri::async_runtime::spawn_blocking(move || {
+        client.repo_info(&project.git.remote).map_err(|e| e.message)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
