@@ -14,7 +14,7 @@ import { GitBranch } from "../components/Icons";
 import { EnvPills, runFailed, runTone } from "../components/Ci";
 import { duration, num, since } from "../format";
 import type { App } from "../useApp";
-import type { RepoCi, WorkflowRun } from "../types";
+import type { PullRequest, RepoCi, WorkflowRun } from "../types";
 
 const mono = "'JetBrains Mono',monospace";
 const GRID = "minmax(240px,1fr) 150px 104px 96px 78px";
@@ -63,6 +63,7 @@ export function ActionsView({ app }: { app: App }) {
 
   if (github && !github.available) return <Note text={t.actionsNoGh} />;
   if (github && !github.authenticated) return <Note text={github.error || t.actionsNoAuth} />;
+  if (app.actionsFilter === "pulls") return <Pulls app={app} />;
   if (ci === null) return <Note text={t.checking} />;
 
   return (
@@ -84,6 +85,7 @@ export function ActionsView({ app }: { app: App }) {
             { key: "all", label: t.all },
             { key: "running", label: t.actionsRunning },
             { key: "failed", label: t.actionsFailed },
+            { key: "pulls", label: t.actionsPulls },
           ]}
           active={app.actionsFilter}
           onPick={app.setActionsFilter}
@@ -338,6 +340,169 @@ function Row({ run, projectId, app }: { run: WorkflowRun; projectId: string; app
         {tone.label}
       </span>
     </button>
+  );
+}
+
+/**
+ * What is waiting on you, and what of yours is waiting on somebody else.
+ *
+ * Not narrowed to the projects on this disk: a review request is a review
+ * request whether or not that repository happens to be checked out here.
+ */
+function Pulls({ app }: { app: App }) {
+  const { t, lang, pulls } = app;
+
+  const groups = useMemo(() => {
+    const waiting = (pulls ?? []).filter((pull) => pull.reviewRequested);
+    const mine = (pulls ?? []).filter((pull) => !pull.reviewRequested);
+    return [
+      { key: "waiting", label: t.pullsWaiting, items: waiting },
+      { key: "mine", label: t.pullsMine, items: mine },
+    ].filter((group) => group.items.length > 0);
+  }, [pulls, t]);
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 14,
+        minHeight: 0,
+        height: "100%",
+        padding: "0 20px 20px",
+      }}
+    >
+      <div
+        style={{ display: "flex", alignItems: "center", gap: 10, flex: "0 0 auto", flexWrap: "wrap" }}
+      >
+        <ChipGroup
+          items={[
+            { key: "all", label: t.all },
+            { key: "running", label: t.actionsRunning },
+            { key: "failed", label: t.actionsFailed },
+            { key: "pulls", label: t.actionsPulls },
+          ]}
+          active={app.actionsFilter}
+          onPick={app.setActionsFilter}
+        />
+        <span style={{ marginLeft: "auto" }}>
+          <RefreshAction onClick={() => void app.refreshPulls()} title={t.recheck} />
+        </span>
+      </div>
+
+      {pulls === null ? (
+        <Note text={t.checking} />
+      ) : groups.length === 0 ? (
+        <Note text={t.pullsNone} />
+      ) : (
+        <div style={{ overflow: "auto", minHeight: 0, flex: 1, paddingBottom: 10 }}>
+          {groups.map((group) => (
+            <div key={group.key}>
+              <FolderHeader
+                label={group.label}
+                title={group.label}
+                collapsed={app.isCollapsed("pulls", group.key)}
+                onToggle={() => app.toggleGroup("pulls", group.key)}
+              >
+                <span style={{ fontFamily: mono, fontSize: 10, color: "rgba(var(--trgb),.45)" }}>
+                  {group.items.length}
+                </span>
+              </FolderHeader>
+
+              {!app.isCollapsed("pulls", group.key) &&
+                group.items.map((pull) => (
+                  <PullRow key={pull.url} pull={pull} app={app} lang={lang} />
+                ))}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PullRow({
+  pull,
+  app,
+  lang,
+}: {
+  pull: PullRequest;
+  app: App;
+  lang: App["lang"];
+}) {
+  const { t } = app;
+  const updated = new Date(pull.updatedAt);
+
+  return (
+    <a
+      className="h-soft"
+      href={pull.url}
+      target="_blank"
+      rel="noreferrer"
+      style={{
+        display: "grid",
+        gridTemplateColumns: "minmax(240px,1fr) 200px 104px 92px",
+        gap: 10,
+        alignItems: "center",
+        padding: "8px 12px",
+        borderTop: "1px solid rgba(var(--wrgb),.05)",
+        borderRadius: 10,
+        color: "inherit",
+        textDecoration: "none",
+      }}
+    >
+      <span style={{ minWidth: 0 }}>
+        <span
+          style={{
+            display: "block",
+            fontSize: 12.5,
+            fontWeight: 500,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {pull.title}
+        </span>
+        <span style={{ fontFamily: mono, fontSize: 9.5, color: "rgba(var(--trgb),.44)" }}>
+          #{pull.number} · {pull.author}
+          {pull.draft && ` · ${t.pullDraft}`}
+          {pull.comments > 0 && ` · ${pull.comments} ${t.pullComments}`}
+        </span>
+      </span>
+
+      <span
+        style={{
+          fontFamily: mono,
+          fontSize: 10.5,
+          color: "rgba(var(--trgb),.6)",
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+        }}
+        title={pull.repo}
+      >
+        {pull.project || pull.repo}
+      </span>
+
+      <span style={{ fontFamily: mono, fontSize: 10.5, color: "rgba(var(--trgb),.55)" }}>
+        {Number.isNaN(updated.getTime())
+          ? "—"
+          : since(Math.round(updated.getTime() / 1000), lang)}
+      </span>
+
+      <span
+        style={{
+          textAlign: "right",
+          fontSize: 10.5,
+          fontWeight: 600,
+          color: pull.reviewRequested ? "var(--accTx)" : "rgba(var(--trgb),.55)",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {pull.reviewRequested ? t.pullsWaiting : t.pullsMine}
+      </span>
+    </a>
   );
 }
 

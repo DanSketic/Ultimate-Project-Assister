@@ -552,3 +552,23 @@ export interface RepoCi {
   error: string;
   checkedAt: number;
 }
+
+/** One open pull request that concerns the signed-in user. */
+export interface PullRequest {
+  number: number;
+  title: string;
+  /** `owner/name`. */
+  repo: string;
+  /** The project it belongs to, empty when that repository is not checked out. */
+  projectId: string;
+  project: string;
+  author: string;
+  draft: boolean;
+  /** Opened by the signed-in user. */
+  mine: boolean;
+  /** A review has been asked of the signed-in user. */
+  reviewRequested: boolean;
+  comments: number;
+  updatedAt: string;
+  url: string;
+}

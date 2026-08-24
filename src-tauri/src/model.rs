@@ -570,6 +570,28 @@ pub struct Deployment {
     pub creator: String,
 }
 
+/// One open pull request that concerns the signed-in user.
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PullRequest {
+    pub number: u64,
+    pub title: String,
+    /// `owner/name`.
+    pub repo: String,
+    /// The project it belongs to, when one of them is that repository.
+    pub project_id: String,
+    pub project: String,
+    pub author: String,
+    pub draft: bool,
+    /// Opened by the signed-in user.
+    pub mine: bool,
+    /// A review has been asked of the signed-in user.
+    pub review_requested: bool,
+    pub comments: u64,
+    pub updated_at: String,
+    pub url: String,
+}
+
 /// What GitHub says about one project's Actions.
 #[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]

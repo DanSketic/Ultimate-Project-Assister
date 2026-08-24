@@ -19,7 +19,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::Value;
 
-use crate::model::{Deployment, GitHubStatus, RepoCi, WorkflowRun};
+use crate::model::{Deployment, GitHubStatus, Project, PullRequest, RepoCi, WorkflowRun};
 
 pub use gh::GhCli;
 
@@ -30,6 +30,9 @@ const RUNS_TTL: u64 = 45;
 const RUNS_PER_REPO: usize = 8;
 /// Environments and deployments move at the pace of releases, not of pushes.
 const DEPLOY_TTL: u64 = 300;
+/// Search has an allowance of its own - thirty a minute - so it is asked
+/// rarely and its answer held for longer.
+const SEARCH_TTL: u64 = 120;
 
 /// What is left of the hourly allowance.
 #[derive(Debug, Clone, Copy, Default)]
@@ -297,6 +300,49 @@ impl Client {
         .unwrap_or_default()
     }
 
+    /// Open pull requests that are the user's own or are waiting on them.
+    ///
+    /// Two searches rather than one `involves:@me`: the difference between
+    /// "mine" and "waiting for me" is the whole point of the list, and it is
+    /// not in the results themselves.
+    pub fn pulls(&self, projects: &[Project]) -> Result<Vec<PullRequest>, ApiError> {
+        let mut out: Vec<PullRequest> = Vec::new();
+
+        for (query, mine) in [
+            ("is:open+is:pr+author:@me", true),
+            ("is:open+is:pr+review-requested:@me", false),
+        ] {
+            let path = format!("search/issues?q={query}&per_page=30");
+            let value = match self.get("github.com", &path, SEARCH_TTL) {
+                Ok(value) => value,
+                // A search that fails should not take the other one with it.
+                Err(e) if e.status == 422 || e.status == 403 => continue,
+                Err(e) => return Err(e),
+            };
+
+            for item in value.get("items").and_then(Value::as_array).into_iter().flatten() {
+                let mut pull = pull_from(item, mine);
+                bind(&mut pull, projects);
+                // One pull request can answer both searches.
+                match out.iter_mut().find(|p| p.url == pull.url) {
+                    Some(existing) => {
+                        existing.mine |= pull.mine;
+                        existing.review_requested |= pull.review_requested;
+                    }
+                    None => out.push(pull),
+                }
+            }
+        }
+
+        // What somebody is waiting on you for comes first.
+        out.sort_by(|a, b| {
+            b.review_requested
+                .cmp(&a.review_requested)
+                .then_with(|| b.updated_at.cmp(&a.updated_at))
+        });
+        Ok(out)
+    }
+
     /// The page of one run of a project's own repository. Resolved from the
     /// runs already held, so a caller cannot name an address.
     pub fn run_url(&self, remote: &str, run_id: u64) -> Result<String, String> {
@@ -431,6 +477,53 @@ fn deployment_from(value: &Value, environment: &str) -> Deployment {
     }
 }
 
+/// One pull request out of a search result.
+fn pull_from(value: &Value, mine: bool) -> PullRequest {
+    let text = |name: &str| value.get(name).and_then(Value::as_str).unwrap_or_default().to_string();
+    // A search result names the repository as an API URL; its last two
+    // segments are the slug everything else here is keyed by.
+    let url = text("repository_url");
+    let mut tail = url.rsplit('/');
+    let name = tail.next().unwrap_or_default();
+    let owner = tail.next().unwrap_or_default();
+
+    PullRequest {
+        number: value.get("number").and_then(Value::as_u64).unwrap_or(0),
+        title: text("title"),
+        repo: format!("{owner}/{name}"),
+        project_id: String::new(),
+        project: String::new(),
+        author: value
+            .get("user")
+            .and_then(|u| u.get("login"))
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        draft: value.get("draft").and_then(Value::as_bool).unwrap_or(false),
+        mine,
+        review_requested: !mine,
+        comments: value.get("comments").and_then(Value::as_u64).unwrap_or(0),
+        updated_at: text("updated_at"),
+        url: text("html_url"),
+    }
+}
+
+/// Ties a pull request to a project on this disk, when one of them is that
+/// repository. A pull request in a repository nobody has checked out here is
+/// still worth listing - it simply has no project name to show.
+fn bind(pull: &mut PullRequest, projects: &[Project]) {
+    let wanted = pull.repo.to_lowercase();
+    for project in projects {
+        if let Some(repo) = Repo::parse(&project.git.remote) {
+            if repo.slug().to_lowercase() == wanted {
+                pull.project_id = project.id.clone();
+                pull.project = project.name.clone();
+                return;
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -472,6 +565,35 @@ mod tests {
         assert_eq!(run.sha, "472c272");
         assert_eq!(run.elapsed_secs, 16);
         assert_eq!(run.actor, "dan");
+    }
+
+    #[test]
+    fn a_pull_request_knows_its_repository_and_who_it_waits_on() {
+        let value: Value = serde_json::from_str(
+            r#"{"number":16,"title":"feat: a thing","draft":false,"comments":2,
+                "updated_at":"2026-08-24T14:58:09Z",
+                "html_url":"https://github.com/Osszekoto/site-laravel-v2/pull/16",
+                "repository_url":"https://api.github.com/repos/Osszekoto/site-laravel-v2",
+                "user":{"login":"dan"}}"#,
+        )
+        .unwrap();
+
+        let pull = pull_from(&value, false);
+        assert_eq!(pull.repo, "Osszekoto/site-laravel-v2");
+        assert_eq!(pull.number, 16);
+        assert!(pull.review_requested);
+        assert!(!pull.mine);
+    }
+
+    #[test]
+    fn a_pull_request_finds_the_project_it_belongs_to() {
+        let mut project = Project { id: "p1".into(), name: "site".into(), ..Default::default() };
+        project.git.remote = "https://github.com/Osszekoto/site-laravel-v2".into();
+
+        let mut pull =
+            PullRequest { repo: "osszekoto/SITE-laravel-v2".into(), ..Default::default() };
+        bind(&mut pull, &[project]);
+        assert_eq!(pull.project, "site");
     }
 
     #[test]

@@ -12,8 +12,8 @@ use tauri::{AppHandle, Emitter, State};
 
 use crate::model::{
     ClaudeMessage, ClaudeStats, CleanProgress, Container, DeleteReport, DockerStatus, GitHubStatus,
-    PortConflict, PortUser, ProcessInfo, Project, RebaseReport, RepoCi, ScanProgress, ScanResult,
-    SyncStatus, SysStats, ToolStatus,
+    PortConflict, PortUser, ProcessInfo, Project, PullRequest, RebaseReport, RepoCi,
+    ScanProgress, ScanResult, SyncStatus, SysStats, ToolStatus,
 };
 use crate::store::{Goal, Note, Settings, Store};
 use crate::{
@@ -886,4 +886,16 @@ pub async fn github_open_run(
             .map_err(|e| e.to_string())??;
 
     platform::open_url(&url).map(|()| url)
+}
+
+/// Open pull requests that are the user's own or are waiting on them, tied to
+/// the projects on this disk where one of them is that repository.
+#[tauri::command]
+pub async fn github_pulls(state: State<'_, AppState>) -> Result<Vec<PullRequest>, String> {
+    let projects = state.projects.lock().unwrap().clone();
+    let client = state.github.clone();
+
+    tauri::async_runtime::spawn_blocking(move || client.pulls(&projects).map_err(|e| e.message))
+        .await
+        .map_err(|e| e.to_string())?
 }

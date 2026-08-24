@@ -9,6 +9,7 @@ import type {
   ClaudeMessage,
   ClaudeStats,
   GitHubStatus,
+  PullRequest,
   RepoCi,
   CleanProgress,
   Container,
@@ -291,6 +292,15 @@ export async function githubCi(projectIds: string[] = []): Promise<RepoCi[]> {
 export async function githubOpenRun(projectId: string, runId: number): Promise<string> {
   if (!IS_TAURI) return `https://github.com/example/${projectId}/actions/runs/${runId}`;
   return call<string>("github_open_run", { projectId, runId });
+}
+
+/**
+ * Open pull requests that are yours or are waiting on you, across every
+ * repository - not only the ones checked out here.
+ */
+export async function githubPulls(): Promise<PullRequest[]> {
+  if (!IS_TAURI) return mock.githubPulls();
+  return call<PullRequest[]>("github_pulls");
 }
 
 // ---------------------------------------------------------------------------

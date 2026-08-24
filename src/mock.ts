@@ -8,6 +8,7 @@ import type {
   ChangeEntry,
   Deployment,
   GitHubStatus,
+  PullRequest,
   RepoCi,
   WorkflowRun,
   ClaudeMessage,
@@ -1238,4 +1239,35 @@ export function githubCi(projectIds: string[]): RepoCi[] {
       error: "",
       checkedAt: Math.round(Date.now() / 1000),
     }));
+}
+
+/** Two of yours and one waiting on you, which is the usual morning. */
+export function githubPulls(): PullRequest[] {
+  const all = projects();
+  const at = (mins: number) => new Date(Date.now() - mins * 60_000).toISOString();
+  const of = (name: string) => all.find((p) => p.name === name);
+
+  const rows: Array<[project: string, number: number, title: string, mine: boolean, draft: boolean, mins: number, comments: number]> = [
+    ["shopflow-web", 412, "feat: kosár összesítő újraírása", false, false, 26, 4],
+    ["api-gateway", 88, "fix: rate limit ablak a proxy mögött", true, false, 190, 1],
+    ["dashboard-kit", 57, "refactor: chart tengelyek egységesítése", true, true, 1450, 0],
+  ];
+
+  return rows.map(([name, number, title, mine, draft, mins, comments]) => {
+    const project = of(name);
+    return {
+      number,
+      title,
+      repo: `example/${name}`,
+      projectId: project?.id ?? "",
+      project: project?.name ?? name,
+      author: mine ? "dev" : "kata",
+      draft,
+      mine,
+      reviewRequested: !mine,
+      comments,
+      updatedAt: at(mins),
+      url: `https://github.com/example/${name}/pull/${number}`,
+    };
+  });
 }

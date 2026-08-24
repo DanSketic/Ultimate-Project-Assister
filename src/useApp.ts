@@ -8,6 +8,7 @@ import type {
   ClaudeMessage,
   ClaudeStats,
   GitHubStatus,
+  PullRequest,
   RepoCi,
   CleanProgress,
   CommandDef,
@@ -210,6 +211,8 @@ export function useApp() {
   const [ci, setCi] = useState<RepoCi[] | null>(null);
   const [ciBusy, setCiBusy] = useState(false);
   const [actionsFilter, setActionsFilter] = useState("all");
+  /** Null until the list has been asked for once. */
+  const [pulls, setPulls] = useState<PullRequest[] | null>(null);
   /**
    * What each run was doing when it was last seen, so a run that finishes
    * while the view is open can be reported. A ref rather than state: it is
@@ -1039,6 +1042,24 @@ export function useApp() {
     return () => window.clearInterval(id);
   }, [view, anyRunning, refreshCi]);
 
+  /**
+   * Pull requests are a search, and search has an allowance of its own - a
+   * thirtieth of the ordinary one - so this is only asked for when the list
+   * is actually looked at.
+   */
+  const refreshPulls = useCallback(async () => {
+    try {
+      setPulls(await api.githubPulls());
+    } catch (e) {
+      flash(String(e));
+    }
+  }, [flash]);
+
+  useEffect(() => {
+    if (view !== "actions" || actionsFilter !== "pulls" || pulls !== null) return;
+    void refreshPulls();
+  }, [view, actionsFilter, pulls, refreshPulls]);
+
   /** What GitHub last said about one project. */
   const ciFor = useCallback(
     (projectId: string) => (ci ?? []).find((row) => row.projectId === projectId),
@@ -1620,6 +1641,8 @@ export function useApp() {
     anyRunning,
     actionsFilter,
     setActionsFilter,
+    pulls,
+    refreshPulls,
     refreshCi,
     openRun,
     // Claude Code history
