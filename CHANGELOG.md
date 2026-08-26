@@ -8,7 +8,7 @@ the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 Every change is recorded here as it lands, under `Unreleased`. Version numbers
 are assigned when a release is cut — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## [Unreleased]
+## [1.8.0] - 2026-08-26
 
 ### Added
 
@@ -617,6 +617,7 @@ Hungarian interface, light and dark themes, per-view window sizing, project
 scanning with git analysis, guarded cleanup, and a process runner with live log
 streaming. Never published.
 
+[1.8.0]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v1.8.0
 [1.7.0]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v1.7.0
 [1.6.0]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v1.6.0
 [1.5.0]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v1.5.0
