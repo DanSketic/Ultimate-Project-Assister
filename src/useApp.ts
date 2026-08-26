@@ -1297,6 +1297,11 @@ export function useApp() {
     })();
   }, [projects.length, settings?.toggles.github, refreshCi]);
 
+  /** Ends the app, whatever the close button is set to do. */
+  const quitApp = useCallback(async () => {
+    await api.quitApp();
+  }, []);
+
   /** Opens a run's page. The backend resolves the address from the project. */
   const openRun = useCallback(
     async (projectId: string, runId: number) => {
@@ -1873,6 +1878,7 @@ export function useApp() {
     draftRelease,
     refreshCi,
     openRun,
+    quitApp,
     // Claude Code history
     claude,
     claudeBusy,

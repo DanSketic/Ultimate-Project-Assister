@@ -449,6 +449,16 @@ export async function toggleMaximizeWindow(): Promise<boolean> {
   return w.isMaximized();
 }
 
+/**
+ * Leaves for good, whatever closing the window is set to do. The window's own
+ * close button goes through `closeWindow`, which the setting may turn into a
+ * hide; this is the way out that cannot be swallowed.
+ */
+export async function quitApp(): Promise<void> {
+  if (!IS_TAURI) return;
+  await call<void>("quit_app");
+}
+
 export async function closeWindow(): Promise<void> {
   if (!IS_TAURI) return;
   await (await win()).close();

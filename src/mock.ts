@@ -480,6 +480,8 @@ export function settings(): Settings {
     cmdFavourites: [],
     favouritesOnly: false,
     osNotifications: false,
+    closeToTray: true,
+    trayNoticed: true,
     collapsedGroups: [],
     cleanPicked: null,
     rules: [

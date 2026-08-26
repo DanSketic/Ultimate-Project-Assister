@@ -381,6 +381,14 @@ export interface Settings {
   favouritesOnly: boolean;
   /** Post desktop notifications as well as the in-app ones. */
   osNotifications: boolean;
+  /**
+   * Whether closing the window leaves the app running in the notification
+   * area. On by default: the scans, the running commands and the log streams
+   * are worth keeping alive after the window is shut.
+   */
+  closeToTray: boolean;
+  /** Whether the user has been told that once. */
+  trayNoticed: boolean;
   /** Folded group headings, as `<view>:<group key>`. */
   collapsedGroups: string[];
   /**

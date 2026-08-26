@@ -48,7 +48,8 @@ the pinned ones in a block of their own above the folders.</sub>
 | **Git sync** | Whether a project has fallen behind the branch it tracks, which only a fetch can answer — so there is one button that fetches every remote, and a badge on the projects that have moved. Opening one says who pushed what, and offers the single operation that fits: a fast-forward when nothing of yours is in the way, a rebase when both sides have moved. Uncommitted work is stashed and put back; a rebase that stops on a conflict says which files, and can be undone in one click. |
 | **Requirements** | What each project needs installed — Node and the package manager its lockfile names, cargo, Python, Go, Docker, Make, and the rest — checked against PATH, with versions. Anything missing says which manifest asked for it, and offers the install command where the tool is packaged. |
 | **Docker** | Whether the CLI is there, whether the daemon is answering, its version, containers and images, and the compose stack belonging to the open project. |
-| **Settings** | Watched folders, scanning options, cleanup age threshold, checking remotes after a scan, desktop notifications, window anchoring, language. |
+| **Tray** | The app can carry on after its window is closed: an icon in the notification area brings it back, and the scans, running commands and log streams survive in between. Whether the close button hides or quits is a setting; the icon's menu opens the window or leaves for good. Launching it again while it is in the tray raises the window instead of starting a second copy. |
+| **Settings** | Watched folders, scanning options, cleanup age threshold, checking remotes after a scan, desktop notifications, what the close button does, window anchoring, language. |
 
 ---
 

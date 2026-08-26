@@ -139,6 +139,15 @@ pub struct Settings {
     /// falls back to picking by age. An empty list is a real answer - it means
     /// they cleared it - and must not be mistaken for "never chosen".
     pub clean_picked: Option<Vec<String>>,
+    /// Whether closing the window leaves the app running in the notification
+    /// area. On by default: a dashboard is closed the way a drawer is shut,
+    /// and the scans and running commands are worth keeping alive.
+    #[serde(default = "yes")]
+    pub close_to_tray: bool,
+    /// Whether the user has been told that once. A window that vanishes with
+    /// the app still working is alarming exactly once.
+    #[serde(default)]
+    pub tray_noticed: bool,
     pub freed_bytes: u64,
     /// `YYYY-MM-DD` - `freed_bytes` resets when the date rolls over.
     pub freed_date: String,
@@ -162,6 +171,8 @@ impl Default for Settings {
             os_notifications: false,
             collapsed_groups: Vec::new(),
             clean_picked: None,
+            close_to_tray: true,
+            tray_noticed: false,
             freed_bytes: 0,
             freed_date: String::new(),
             window: WindowState::default(),

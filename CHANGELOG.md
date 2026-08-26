@@ -8,6 +8,25 @@ the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 Every change is recorded here as it lands, under `Unreleased`. Version numbers
 are assigned when a release is cut — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## [Unreleased]
+
+### Added
+
+- **The app can stay running with its window closed.** An icon in the
+  notification area brings the window back — by clicking it, or from its menu —
+  and leaves for good from the same menu. Whether the close button hides or
+  quits is a setting, with the two named as what they do rather than as a
+  switch: *to the tray* and *quits*.
+
+  Hiding is the default, because closing a dashboard is not the same as being
+  finished with it: a scan carries on, a dev server started from Commands keeps
+  serving, and its log is still there when the window comes back. The first time
+  a close hides the window rather than ending the app, a desktop notification
+  says so — once, and never again.
+
+  Launching the app while it is already in the tray now raises the window
+  instead of starting a second copy over the same settings file.
+
 ## [1.7.0] - 2026-08-24
 
 ### Added

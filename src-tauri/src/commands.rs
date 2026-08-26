@@ -39,6 +39,9 @@ pub struct AppState {
     /// against the right view.
     pub view: Mutex<String>,
     pub nav_width: Mutex<u32>,
+    /// Set once the app is on its way out, so a close that would otherwise be
+    /// turned into a hide is allowed through.
+    pub quitting: Mutex<bool>,
     /// How far each Claude Code session log has been read, so a second look at
     /// the history only costs the lines written since the first.
     pub claude: claude::Index,
@@ -57,6 +60,7 @@ impl AppState {
             watcher: Watcher::new(),
             view: Mutex::new("projects".into()),
             nav_width: Mutex::new(214),
+            quitting: Mutex::new(false),
             claude: claude::Index::new(),
             github: github::Client::new(),
         }
@@ -104,9 +108,26 @@ pub fn get_settings(state: State<'_, AppState>) -> Settings {
 }
 
 #[tauri::command]
-pub fn save_settings(state: State<'_, AppState>, settings: Settings) -> Result<Settings, String> {
+pub fn save_settings(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    settings: Settings,
+) -> Result<Settings, String> {
+    // The tray menu is drawn by the operating system, so a language change has
+    // to be carried to it rather than re-rendered.
+    let relabel = state.store.settings().lang != settings.lang;
     state.store.set_settings(settings)?;
+    if relabel {
+        crate::tray::relabel(&app, &state.store.settings().lang);
+    }
     Ok(state.store.settings())
+}
+
+/// Leaves for good, however the window is set to behave. This is the one way
+/// out that a hidden window cannot swallow.
+#[tauri::command]
+pub fn quit_app(app: AppHandle) {
+    crate::tray::quit(&app);
 }
 
 /// Tells the geometry watcher which view is on screen, so a remembered width

@@ -17,7 +17,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-dialog = "2"
 
 serde = { version = "1", features = ["derive"] }
@@ -35,6 +35,10 @@ chrono = "0.4"
 sysinfo = "0.33"
 anyhow = "1"
 tauri-plugin-notification = "2"
+# One window, however many times it is launched: with the app carrying on in
+# the tray, a second start should raise the first rather than fight it for the
+# settings file.
+tauri-plugin-single-instance = "2"
 
 [dev-dependencies]
 tempfile = "3"

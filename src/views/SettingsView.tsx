@@ -175,6 +175,52 @@ export function SettingsView({ app }: { app: App }) {
         />
       </div>
 
+      {/* What the close button does. Two words rather than a switch: "closing
+          goes to the tray" and "closing quits" are two behaviours, not a
+          feature that is on or off. */}
+      <div style={card}>
+        <div style={cardTitle}>{t.closeL}</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <ChipGroup
+            items={[
+              { key: "tray", label: t.closeToTray },
+              { key: "quit", label: t.closeQuit },
+            ]}
+            active={settings.closeToTray ? "tray" : "quit"}
+            onPick={(k) => app.patchSettings({ closeToTray: k === "tray" })}
+          />
+          <button
+            type="button"
+            className="h-ghost"
+            title={t.quitAppHint}
+            onClick={() => void app.quitApp()}
+            style={{
+              marginLeft: "auto",
+              border: "1px solid rgba(var(--wrgb),.12)",
+              borderRadius: 9,
+              background: "rgba(var(--wrgb),.03)",
+              color: "rgba(var(--trgb),.7)",
+              padding: "6px 12px",
+              cursor: "pointer",
+              fontSize: 11.5,
+              fontWeight: 500,
+            }}
+          >
+            {t.quitApp}
+          </button>
+        </div>
+        <div
+          style={{
+            fontSize: 11.5,
+            color: "rgba(var(--trgb),.4)",
+            marginTop: 10,
+            maxWidth: "68ch",
+          }}
+        >
+          {t.closeHint}
+        </div>
+      </div>
+
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
         <div style={card}>
           <div style={{ ...cardTitle, marginBottom: 11 }}>{t.threshold}</div>
