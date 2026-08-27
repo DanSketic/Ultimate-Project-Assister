@@ -1,5 +1,6 @@
 import * as api from "../api";
 import { ChipGroup } from "../components/Chips";
+import { GitHubConnection } from "../components/GitHubConnection";
 import { Folder, Plus } from "../components/Icons";
 import { projectCount } from "../format";
 import type { App } from "../useApp";
@@ -178,6 +179,15 @@ export function SettingsView({ app }: { app: App }) {
       {/* What the close button does. Two words rather than a switch: "closing
           goes to the tray" and "closing quits" are two behaviours, not a
           feature that is on or off. */}
+      {/* What GitHub lets this machine see. A private repository that is not
+          visible answers 404 rather than 403, so without this the app would
+          have to report a missing repository where the truth is a missing
+          permission. */}
+      <div style={card}>
+        <div style={cardTitle}>{t.ghConn}</div>
+        <GitHubConnection app={app} />
+      </div>
+
       <div style={card}>
         <div style={cardTitle}>{t.closeL}</div>
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>

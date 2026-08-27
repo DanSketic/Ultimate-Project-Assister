@@ -121,6 +121,8 @@ fn parse(text: &str) -> Response {
     let mut etag = String::new();
     let mut rate = Rate::default();
     let mut body = String::new();
+    let mut scopes: Vec<String> = Vec::new();
+    let mut sso = String::new();
 
     let mut lines = text.lines();
     if let Some(first) = lines.next() {
@@ -143,6 +145,25 @@ fn parse(text: &str) -> Response {
             "x-ratelimit-remaining" => rate.remaining = value.parse().unwrap_or(0),
             "x-ratelimit-limit" => rate.limit = value.parse().unwrap_or(0),
             "x-ratelimit-reset" => rate.reset = value.parse().unwrap_or(0),
+            // What the token is allowed to do, as GitHub sees it. Worth
+            // keeping on every answer: it is how a refusal can be explained as
+            // a missing permission rather than a missing repository.
+            "x-oauth-scopes" => {
+                scopes = value
+                    .split(',')
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                    .map(str::to_string)
+                    .collect()
+            }
+            // An organisation with single sign-on says here where the token
+            // has to be authorised before it may see anything of theirs.
+            "x-github-sso" => {
+                sso = value
+                    .split_once("url=")
+                    .map(|(_, url)| url.trim().to_string())
+                    .unwrap_or_else(|| value.to_string())
+            }
             _ => {}
         }
     }
@@ -152,7 +173,7 @@ fn parse(text: &str) -> Response {
         body.push('\n');
     }
 
-    Response { status, etag, rate, body: body.trim().to_string() }
+    Response { status, etag, rate, scopes, sso, body: body.trim().to_string() }
 }
 
 #[cfg(test)]
@@ -169,6 +190,19 @@ mod tests {
         assert_eq!(response.rate.remaining, 4987);
         assert_eq!(response.rate.reset, 1787586190);
         assert_eq!(response.body, "{\"total_count\":1}");
+    }
+
+    #[test]
+    fn the_token_scopes_and_an_sso_challenge_are_kept() {
+        let response = parse(concat!(
+            "HTTP/2.0 403 Forbidden\r\n",
+            "X-OAuth-Scopes: gist, read:org, repo\r\n",
+            "X-GitHub-SSO: required; url=https://github.com/orgs/acme/sso?return_to=%2Fx\r\n",
+            "\r\n",
+            "{\"message\":\"Resource protected by organization SAML enforcement\"}"
+        ));
+        assert_eq!(response.scopes, vec!["gist", "read:org", "repo"]);
+        assert!(response.sso.starts_with("https://github.com/orgs/acme/sso"));
     }
 
     #[test]

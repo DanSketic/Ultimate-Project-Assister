@@ -8,6 +8,34 @@ the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 Every change is recorded here as it lands, under `Unreleased`. Version numbers
 are assigned when a release is cut — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## [Unreleased]
+
+### Changed
+
+- **Private repositories, said properly.** They were already readable — that is
+  what the `repo` scope on the `gh` token is for — but GitHub does not refuse a
+  private repository politely: it answers `404`, exactly as it would for one
+  that does not exist. The app repeated that, so a permission problem read as a
+  missing repository.
+
+  Every refusal is now read for its cause and said with its remedy: not logged
+  in, an organisation demanding single sign-on (with the URL that authorises the
+  token), a paid feature on a private repository, or a scope that is missing —
+  with the `gh auth refresh` command that adds it.
+
+  Settings gained a **GitHub connection** card: who the token belongs to, the
+  scopes it has, the ones it lacks, and that command, with a button to copy it
+  and one to open a terminal. Nothing is run for you, and the token stays with
+  `gh`.
+
+- **Two silences that were lies.** Branch protection on a private repository is
+  a paid feature, so GitHub refuses the question — the Repo card now says that
+  rather than showing nothing, because "unknown" and "unprotected" are different
+  answers. And an empty Actions secrets list is only reported as empty when it
+  really is; if the token may not look, the card says so. Organisation secrets
+  are read as well, where the repository belongs to one — a private repo's
+  workflows usually take their credentials from there.
+
 ## [1.8.0] - 2026-08-26
 
 ### Added

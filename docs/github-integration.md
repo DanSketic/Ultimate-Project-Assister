@@ -107,6 +107,42 @@ repository with no runs yet · branch protection the token may not ask about
 may not see · the allowance run out · no network · `gh` not installed · `gh`
 installed but logged out.
 
+## Private repositories
+
+They work — that is what the `repo` scope on the `gh` token is for, and every
+private project on this machine reports its runs, environments and deployments
+like any other. What needed solving was not access but **what to say when there
+is none**, because GitHub does not refuse a private repository politely: it
+answers `404`, exactly as it would for a repository that does not exist. An app
+that repeated that verbatim would report a missing repository where the truth
+is a missing permission.
+
+So every refusal is now read for its cause and said with its remedy:
+
+| What GitHub says | What the app says |
+| --- | --- |
+| `401` | gh is not logged in — `gh auth login` |
+| `403` with an `X-GitHub-SSO` header | this organisation uses single sign-on; authorise the token at *(the URL GitHub gives)* |
+| `403` "Upgrade to GitHub Pro…" | passed through as it stands: on a private repository branch protection is a paid feature, not an unprotected branch |
+| `403` otherwise | what was refused, and GitHub's own reason |
+| `404` | not visible to this account — a private repository needs the `repo` scope, with the command that adds it |
+
+Two consequences worth naming:
+
+- **Branch protection on a private repository is unknown, not absent.** The
+  Repo card says which of the two it is, in the quiet colour, because nothing
+  is wrong with the project.
+- **An empty secrets list is only reported as empty when it really is.** If the
+  token may not look, the card says so — the one place where "nothing here"
+  would be a lie is a deploy that fails for a missing secret. Organisation
+  secrets are read too, where the repository belongs to one and the account may
+  see them.
+
+Settings carries a **GitHub connection** card: who the token belongs to, which
+scopes it has, which it lacks, and the exact `gh auth refresh` command to widen
+it — with a button to copy it and one to open a terminal. The command is
+interactive, so it is not run for you, and the token stays with `gh` either way.
+
 ## Testing
 
 Parsing is pure functions over saved JSON, so the suite touches no network. The

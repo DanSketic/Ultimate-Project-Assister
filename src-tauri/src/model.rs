@@ -520,6 +520,13 @@ pub struct GitHubStatus {
     pub available: bool,
     pub authenticated: bool,
     pub login: String,
+    /// What the token is allowed to do, as GitHub itself reports it.
+    pub scopes: Vec<String>,
+    /// The ones this app needs and the token does not have. Empty is the
+    /// ordinary case; anything in here explains a refusal before it happens.
+    pub missing_scopes: Vec<String>,
+    /// The command that adds them, ready to be run in a terminal.
+    pub fix_command: String,
     pub rate_limit: u32,
     pub rate_remaining: u32,
     /// Unix seconds at which the allowance is refilled.
@@ -656,6 +663,17 @@ pub struct RepoInfo {
     /// Names only. A secret's value is never readable through the API, and
     /// this app would not want it if it were.
     pub secrets: Vec<String>,
+    /// Organisation secrets, for a repository owned by one. A private repo's
+    /// workflows usually take their credentials from here rather than from
+    /// the repository itself.
+    pub org_secrets: Vec<String>,
+    /// Why the secrets list is empty, when it is empty because it could not be
+    /// read rather than because there are none.
+    pub secrets_note: String,
+    /// Why branch protection could not be told. Private repositories on the
+    /// free plan do not have the feature at all, which is not the same as an
+    /// unprotected branch.
+    pub protection_note: String,
     /// Actions minutes this month, when the token may see the bill.
     pub minutes_used: u64,
     pub minutes_included: u64,

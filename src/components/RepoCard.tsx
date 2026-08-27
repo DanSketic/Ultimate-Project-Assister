@@ -24,6 +24,17 @@ function gaps(info: RepoInfo, t: App["t"]): string[] {
   return out;
 }
 
+/**
+ * The things that could not be looked at, and why.
+ *
+ * Said in the quiet colour rather than the warning one: nothing is wrong with
+ * the project, something is closed to this token - which on a private
+ * repository is the ordinary state of branch protection.
+ */
+function unknowns(info: RepoInfo): string[] {
+  return [info.protectionNote, info.secretsNote].filter(Boolean);
+}
+
 export function RepoBody({ project, app }: { project: Project; app: App }) {
   const { t, lang } = app;
   const info = app.repoInfo[project.id];
@@ -94,11 +105,34 @@ export function RepoBody({ project, app }: { project: Project; app: App }) {
         </div>
       )}
 
+      {/* A private repository's workflows usually take their credentials from
+          the organisation rather than from the repository. */}
+      {info.orgSecrets.length > 0 && (
+        <div>
+          <div style={label}>{t.repoOrgSecrets}</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 4 }}>
+            {info.orgSecrets.map((secret) => (
+              <Pill key={secret} label={secret} />
+            ))}
+          </div>
+        </div>
+      )}
+
       {missing.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
           {missing.map((gap) => (
             <div key={gap} style={{ fontSize: 11.5, color: "var(--warnTx)" }}>
               {gap}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {unknowns(info).length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+          {unknowns(info).map((note) => (
+            <div key={note} style={{ fontSize: 11, color: "rgba(var(--trgb),.45)" }}>
+              {note}
             </div>
           ))}
         </div>

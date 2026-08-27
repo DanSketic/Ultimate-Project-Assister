@@ -59,6 +59,11 @@ pub struct Response {
     pub status: u16,
     pub etag: String,
     pub rate: Rate,
+    /// What the token may do, as GitHub reports it on every answer.
+    pub scopes: Vec<String>,
+    /// Where to authorise the token, when an organisation demands single
+    /// sign-on before it will show anything.
+    pub sso: String,
     pub body: String,
 }
 
@@ -70,6 +75,34 @@ pub enum RunAction {
     /// minutes to repeat and prove nothing.
     Rerun,
     Cancel,
+}
+
+/// The scopes this app needs, and what each is for.
+///
+/// `repo` is the one that matters for private repositories: without it a
+/// private project is not merely unreadable, it is invisible - GitHub answers
+/// 404 rather than 403, because saying "forbidden" would confirm it exists.
+pub const WANTED_SCOPES: [&str; 3] = ["repo", "read:org", "workflow"];
+
+/// Turns a refusal into a sentence that says what to do about it.
+///
+/// The four cases differ in remedy, and collapsing them - which is what "not
+/// found" does on its own - is what makes a private repository look like a
+/// missing one.
+fn explain(error: &ApiError, what: &str) -> String {
+    match error.status {
+        401 => "gh is not logged in - run: gh auth login".to_string(),
+        403 if !error.sso.is_empty() => format!(
+            "this organisation uses single sign-on; authorise the token at {}",
+            error.sso
+        ),
+        403 if error.message.contains("Upgrade to GitHub") => error.message.clone(),
+        403 => format!("{}: {}", what, error.message),
+        404 => format!(
+            "{what} is not visible to this account - a private repository needs the repo scope: gh auth refresh -h github.com -s repo"
+        ),
+        _ => error.message.clone(),
+    }
 }
 
 /// A repository, as named by a remote. Only the three parts that address the
@@ -121,6 +154,8 @@ struct Cached {
 pub struct ApiError {
     pub status: u16,
     pub message: String,
+    /// Set when the refusal was an organisation's single sign-on.
+    pub sso: String,
 }
 
 impl ApiError {
@@ -129,7 +164,7 @@ impl ApiError {
             .ok()
             .and_then(|v| v.get("message").and_then(Value::as_str).map(str::to_string))
             .unwrap_or_else(|| format!("HTTP {}", response.status));
-        Self { status: response.status, message }
+        Self { status: response.status, message, sso: response.sso.clone() }
     }
 }
 
@@ -153,6 +188,9 @@ pub struct Client {
     transport: GhCli,
     cache: Arc<Mutex<HashMap<String, Cached>>>,
     rate: Arc<Mutex<Rate>>,
+    /// What the token may do, as last reported. Kept because a refusal is
+    /// better explained by what is missing than by its status code.
+    scopes: Arc<Mutex<Vec<String>>>,
 }
 
 impl Client {
@@ -202,6 +240,19 @@ impl Client {
                 .unwrap_or_default()
                 .to_string();
         }
+
+        status.scopes = self.scopes.lock().unwrap().clone();
+        status.missing_scopes = WANTED_SCOPES
+            .iter()
+            .filter(|wanted| !status.scopes.iter().any(|have| have == *wanted))
+            .map(|wanted| wanted.to_string())
+            .collect();
+        if !status.missing_scopes.is_empty() {
+            status.fix_command = format!(
+                "gh auth refresh -h github.com -s {}",
+                status.missing_scopes.join(",")
+            );
+        }
         status
     }
 
@@ -246,10 +297,16 @@ impl Client {
                 // without them is not a failure of the first.
                 out.deployments = self.deployments(&repo).unwrap_or_default();
             }
+            // A private repository the token cannot see answers 404, the same
+            // as one with Actions switched off - so the sentence has to carry
+            // both possibilities and the way out of the first.
             Err(e) if e.status == 404 => {
-                out.error = "no Actions on this repository, or it is not visible".into();
+                out.error = format!(
+                    "no Actions here, or {}",
+                    explain(&e, "this repository").trim_start_matches("this repository ")
+                );
             }
-            Err(e) => out.error = e.message,
+            Err(e) => out.error = explain(&e, "this repository"),
         }
         out
     }
@@ -496,6 +553,7 @@ impl Client {
         let repo = Repo::parse(remote).ok_or(ApiError {
             status: 0,
             message: "this project has no GitHub remote".into(),
+            sso: String::new(),
         })?;
 
         let value = self.get(
@@ -540,46 +598,77 @@ impl Client {
             ..Default::default()
         };
 
-        info.protected_default = self.protection(&repo, &default_branch);
-        info.secrets = self.secret_names(&repo);
+        let (protected, protection_note) = self.protection(&repo, &default_branch);
+        info.protected_default = protected;
+        info.protection_note = protection_note;
+
+        let (secrets, secrets_note) = self.secret_names(&repo);
+        info.secrets = secrets;
+        info.secrets_note = secrets_note;
+
+        // A repository owned by an organisation usually takes its credentials
+        // from the organisation rather than from itself.
+        let org_owned = value
+            .get("owner")
+            .and_then(|o| o.get("type"))
+            .and_then(Value::as_str)
+            .is_some_and(|kind| kind == "Organization");
+        if org_owned {
+            info.org_secrets = self.org_secret_names(&repo);
+        }
         let (used, included) = self.minutes();
         info.minutes_used = used;
         info.minutes_included = included;
         Ok(info)
     }
 
-    /// Whether the default branch is protected; `None` when it cannot be told
-    /// apart from not being allowed to ask.
-    fn protection(&self, repo: &Repo, branch: &str) -> Option<bool> {
+    /// Whether the default branch is protected, and - when that cannot be
+    /// told - why not.
+    ///
+    /// "Not protected" and "not allowed to ask" are different answers, and on
+    /// a private repository the second is the usual one: branch protection is
+    /// a paid feature there, so GitHub refuses the question rather than
+    /// answering it.
+    fn protection(&self, repo: &Repo, branch: &str) -> (Option<bool>, String) {
         if branch.is_empty() {
-            return None;
+            return (None, String::new());
         }
         let path = format!("repos/{}/{}/branches/{branch}/protection", repo.owner, repo.name);
         match self.get(&repo.host, &path, REPO_TTL) {
-            Ok(_) => Some(true),
+            Ok(_) => (Some(true), String::new()),
             // GitHub answers "not protected" with a 404 on this endpoint.
-            Err(e) if e.status == 404 => Some(false),
-            Err(_) => None,
+            Err(e) if e.status == 404 => (Some(false), String::new()),
+            Err(e) => (None, explain(&e, "branch protection")),
         }
     }
 
-    /// The names of the repository's Actions secrets. Values are never
-    /// readable through the API, and this app has no use for them.
-    fn secret_names(&self, repo: &Repo) -> Vec<String> {
-        self.get(
+    /// The names of the repository's Actions secrets, and why there are none
+    /// when the reason is a refusal rather than an empty list.
+    ///
+    /// Values are never readable through the API, and this app has no use for
+    /// them. An empty list that means "not allowed to look" would be a lie in
+    /// the one place where the truth matters - a deploy that fails for a
+    /// missing secret.
+    fn secret_names(&self, repo: &Repo) -> (Vec<String>, String) {
+        match self.get(
             &repo.host,
             &format!("repos/{}/{}/actions/secrets?per_page=50", repo.owner, repo.name),
             REPO_TTL,
+        ) {
+            Ok(value) => (names_of(&value, "secrets"), String::new()),
+            Err(e) => (Vec::new(), explain(&e, "the secrets")),
+        }
+    }
+
+    /// Organisation-level Actions secrets, by name. Reading them takes rights
+    /// an ordinary member does not have, so this quietly comes back empty.
+    fn org_secret_names(&self, repo: &Repo) -> Vec<String> {
+        self.get(
+            &repo.host,
+            &format!("orgs/{}/actions/secrets?per_page=50", repo.owner),
+            REPO_TTL,
         )
-        .ok()
-        .and_then(|value| {
-            value.get("secrets").and_then(Value::as_array).map(|list| {
-                list.iter()
-                    .filter_map(|s| s.get("name").and_then(Value::as_str))
-                    .map(str::to_string)
-                    .collect()
-            })
-        })
+        .map(|value| names_of(&value, "secrets"))
         .unwrap_or_default()
     }
 
@@ -636,10 +725,13 @@ impl Client {
         let response = self
             .transport
             .get(host, path, etag)
-            .map_err(|message| ApiError { status: 0, message })?;
+            .map_err(|message| ApiError { status: 0, message, sso: String::new() })?;
 
         if response.rate.limit > 0 {
             *self.rate.lock().unwrap() = response.rate;
+        }
+        if !response.scopes.is_empty() {
+            *self.scopes.lock().unwrap() = response.scopes.clone();
         }
 
         match response.status {
@@ -651,7 +743,11 @@ impl Client {
                     entry.at = now();
                     return parse_body(&entry.body);
                 }
-                Err(ApiError { status: 304, message: "nothing cached to refresh".into() })
+                Err(ApiError {
+                    status: 304,
+                    message: "nothing cached to refresh".into(),
+                    sso: String::new(),
+                })
             }
             200..=299 => {
                 let value = parse_body(&response.body)?;
@@ -667,7 +763,8 @@ impl Client {
 }
 
 fn parse_body(body: &str) -> Result<Value, ApiError> {
-    serde_json::from_str(body).map_err(|e| ApiError { status: 0, message: e.to_string() })
+    serde_json::from_str(body)
+        .map_err(|e| ApiError { status: 0, message: e.to_string(), sso: String::new() })
 }
 
 /// One run, kept to the fields a list can show. `elapsed_secs` is worked out
@@ -735,6 +832,21 @@ fn deployment_from(value: &Value, environment: &str) -> Deployment {
             .unwrap_or_default()
             .to_string(),
     }
+}
+
+/// The `name` of each entry of a named list - the shape GitHub uses for
+/// secrets and variables alike.
+fn names_of(value: &Value, key: &str) -> Vec<String> {
+    value
+        .get(key)
+        .and_then(Value::as_array)
+        .map(|list| {
+            list.iter()
+                .filter_map(|item| item.get("name").and_then(Value::as_str))
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// One release, kept to what a chip and a link need.
@@ -867,6 +979,29 @@ mod tests {
             PullRequest { repo: "osszekoto/SITE-laravel-v2".into(), ..Default::default() };
         bind(&mut pull, &[project]);
         assert_eq!(pull.project, "site");
+    }
+
+    #[test]
+    fn a_refusal_says_what_to_do_about_it() {
+        let sso = ApiError {
+            status: 403,
+            message: "Resource protected by organization SAML enforcement".into(),
+            sso: "https://github.com/orgs/acme/sso".into(),
+        };
+        assert!(explain(&sso, "this repository").contains("single sign-on"));
+
+        let paid = ApiError {
+            status: 403,
+            message: "Upgrade to GitHub Pro or make this repository public".into(),
+            sso: String::new(),
+        };
+        assert!(explain(&paid, "branch protection").starts_with("Upgrade to GitHub"));
+
+        let hidden = ApiError { status: 404, message: "Not Found".into(), sso: String::new() };
+        assert!(explain(&hidden, "this repository").contains("repo scope"));
+
+        let out = ApiError { status: 401, message: "Bad credentials".into(), sso: String::new() };
+        assert!(explain(&out, "this repository").contains("gh auth login"));
     }
 
     #[test]

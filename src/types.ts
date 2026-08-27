@@ -504,6 +504,12 @@ export interface GitHubStatus {
   available: boolean;
   authenticated: boolean;
   login: string;
+  /** What the token may do, as GitHub reports it. */
+  scopes: string[];
+  /** The ones this app needs and the token lacks; empty is the usual case. */
+  missingScopes: string[];
+  /** The command that adds them, ready to run in a terminal. */
+  fixCommand: string;
   rateLimit: number;
   rateRemaining: number;
   /** Unix seconds at which the hourly allowance is refilled. */
@@ -614,6 +620,12 @@ export interface RepoInfo {
   protectedDefault: boolean | null;
   /** Names only; a secret's value is never readable through the API. */
   secrets: string[];
+  /** Organisation secrets, where the repository belongs to one. */
+  orgSecrets: string[];
+  /** Why the secrets list is empty, when it is empty for want of rights. */
+  secretsNote: string;
+  /** Why branch protection could not be told - a paid feature on a private repo. */
+  protectionNote: string;
   /** Actions minutes this month; zero when the bill is not visible. */
   minutesUsed: number;
   minutesIncluded: number;

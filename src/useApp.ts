@@ -155,6 +155,9 @@ const EMPTY_REPO: RepoInfo = {
   homepage: "",
   protectedDefault: null,
   secrets: [],
+  orgSecrets: [],
+  secretsNote: "",
+  protectionNote: "",
   minutesUsed: 0,
   minutesIncluded: 0,
   error: "",
@@ -1297,6 +1300,33 @@ export function useApp() {
     })();
   }, [projects.length, settings?.toggles.github, refreshCi]);
 
+  /**
+   * Puts the scope-widening command on the clipboard, and opens a terminal to
+   * paste it into. The command is interactive - it opens a browser and waits -
+   * so it belongs in a terminal rather than in this app's runner, and the
+   * token it refreshes stays with gh either way.
+   */
+  const copyGithubFix = useCallback(async () => {
+    const command = github?.fixCommand;
+    if (!command) return;
+    try {
+      await navigator.clipboard.writeText(command);
+      flash(t.ghCmdCopied);
+    } catch {
+      notify("error", t.runCopyFailed);
+    }
+  }, [github, flash, notify, t]);
+
+  const openHomeTerminal = useCallback(async () => {
+    const anywhere = projects[0]?.path ?? "";
+    if (!anywhere) return;
+    try {
+      await api.openTerminal(anywhere);
+    } catch (e) {
+      flash(String(e));
+    }
+  }, [projects, flash]);
+
   /** Ends the app, whatever the close button is set to do. */
   const quitApp = useCallback(async () => {
     await api.quitApp();
@@ -1879,6 +1909,9 @@ export function useApp() {
     refreshCi,
     openRun,
     quitApp,
+    refreshGithub,
+    copyGithubFix,
+    openHomeTerminal,
     // Claude Code history
     claude,
     claudeBusy,
