@@ -4,8 +4,13 @@
 // React and the Tauri bindings, and a README needs headings, lists, code,
 // tables and emphasis - not a full CommonMark implementation.
 //
-// Nothing here builds HTML from the source text; every element is a React node,
-// so a README with markup in it renders as text rather than as markup.
+// Nothing here builds HTML from the source text; every element is a React node.
+// A README does contain HTML - the centred logo and badge block at the top of
+// half the repositories on GitHub - so a small, closed subset of it is
+// understood: alignment, headings, line breaks, emphasis, links, images and
+// collapsed sections. Everything else has its tags dropped and its text kept,
+// because showing `<div align="center">` to the reader is worse than either
+// rendering it or leaving it out.
 
 import { Fragment, type CSSProperties, type ReactNode } from "react";
 
@@ -22,6 +27,7 @@ const INLINE = new RegExp(
     "(\\*\\*[^*]+\\*\\*)", // bold
     "(~~[^~]+~~)", // strikethrough
     "(\\*(?!\\s)[^*]+\\*)", // italic
+    "(\\[!\\[[^\\]]*\\]\\([^)]*\\)\\]\\([^)]*\\))", // badge: an image inside a link
     "(!?\\[[^\\]]*\\]\\([^)\\s]*[^)]*\\))", // link / image
     "(<https?://[^>]+>)", // angle autolink
     "(https?://[^\\s<>()\\[\\]]+)", // bare autolink
@@ -51,6 +57,42 @@ function Link({ text, href }: { text: string; href: string }) {
   );
 }
 
+/**
+ * Turns the inline HTML a README uses into the markdown it stands for, and
+ * drops the rest of the tags.
+ *
+ * Deliberately a rewrite into markdown rather than a parse into elements: the
+ * markdown path below is already written, already safe, and this way there is
+ * one renderer rather than two. Nothing here can produce markup - the output is
+ * text that the inline pass reads as text.
+ */
+function fromHtml(text: string): string {
+  return (
+    text
+      // A link keeps its address; anything else about the anchor is dropped.
+      .replace(/<a\s[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, "[$2]($1)")
+      .replace(/<(?:b|strong)>([\s\S]*?)<\/(?:b|strong)>/gi, "**$1**")
+      .replace(/<(?:i|em)>([\s\S]*?)<\/(?:i|em)>/gi, "*$1*")
+      .replace(/<code>([\s\S]*?)<\/code>/gi, "`$1`")
+      .replace(/<(?:del|s|strike)>([\s\S]*?)<\/(?:del|s|strike)>/gi, "~~$1~~")
+      // A line break is the one tag whose absence would be felt: without it
+      // the words on either side would run together.
+      .replace(/<br\s*\/?>/gi, " ")
+      // Everything that is left is structure this renderer does not draw. The
+      // text inside it is still the author's, so only the tags go.
+      .replace(/<\/?[a-z][^>]*>/gi, "")
+      // The entities a README actually writes. Anything rarer is left as it
+      // stands rather than half-decoded.
+      .replace(/&nbsp;/g, " ")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&amp;/g, "&")
+      .trim()
+  );
+}
+
 function inline(text: string, keyPrefix: string): ReactNode[] {
   const out: ReactNode[] = [];
   let last = 0;
@@ -63,7 +105,30 @@ function inline(text: string, keyPrefix: string): ReactNode[] {
     const key = `${keyPrefix}i${n++}`;
     const tok = m[0];
 
-    if (tok.startsWith("`")) {
+    if (tok.startsWith("[![")) {
+      // A badge: an image inside a link, which is neither a picture this can
+      // show nor a link worth following. Its label is the whole of it.
+      const alt = tok.slice(3, tok.indexOf("]("));
+      if (alt) {
+        out.push(
+          <span
+            key={key}
+            style={{
+              fontFamily: "'JetBrains Mono',monospace",
+              fontSize: "0.82em",
+              border: "1px solid rgba(var(--wrgb),.12)",
+              borderRadius: 99,
+              padding: "1px 7px",
+              marginRight: 3,
+              color: "rgba(var(--trgb),.6)",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {alt}
+          </span>,
+        );
+      }
+    } else if (tok.startsWith("`")) {
       out.push(
         <code key={key} style={code}>
           {tok.slice(1, -1)}
@@ -104,6 +169,20 @@ function inline(text: string, keyPrefix: string): ReactNode[] {
   return out;
 }
 
+/** `<img ... alt="X" ...>` -> `X`, the only part of an image that can be shown. */
+function imgAlt(tag: string): string {
+  return /alt=["']([^"']*)["']/i.exec(tag)?.[1]?.trim() ?? "";
+}
+
+/** The alignment an opening tag asks for, when it asks for one. */
+function alignOf(tag: string): CSSProperties["textAlign"] {
+  const value = /align=["']?(center|left|right)["']?/i.exec(tag)?.[1]?.toLowerCase();
+  return value === "center" || value === "right" ? value : undefined;
+}
+
+/** A line that is nothing but one HTML tag - the shape a README block takes. */
+const TAG_ONLY = /^<\/?[a-z][^>]*>$/i;
+
 const HEAD_SIZE = [17, 15, 13.5, 12.5, 12, 12];
 
 /** `| a | b |` -> `["a", "b"]`, tolerating a missing trailing pipe. */
@@ -117,17 +196,29 @@ function isDivider(row: string): boolean {
 }
 
 export function Markdown({ source }: { source: string }) {
-  const lines = source.replace(/\r\n/g, "\n").split("\n");
+  // HTML comments are not content, and a README uses them for notes to the
+  // next maintainer and for tool markers alike.
+  const lines = source
+    .replace(/\r\n/g, "\n")
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .split("\n");
   const out: ReactNode[] = [];
   let para: string[] = [];
   let n = 0;
+  /**
+   * Alignment asked for by an enclosing `<div align>` or `<p align>`, innermost
+   * last. A stack rather than a flag: the centred block at the top of a README
+   * usually holds another one.
+   */
+  const aligns: Array<CSSProperties["textAlign"]> = [];
+  const alignment = () => [...aligns].reverse().find(Boolean);
 
   const flushPara = () => {
     if (para.length === 0) return;
     const key = `p${n++}`;
     out.push(
-      <p key={key} style={{ margin: "0 0 9px" }}>
-        {inline(para.join(" "), key)}
+      <p key={key} style={{ margin: "0 0 9px", textAlign: alignment() }}>
+        {inline(fromHtml(para.join(" ")), key)}
       </p>,
     );
     para = [];
@@ -184,6 +275,93 @@ export function Markdown({ source }: { source: string }) {
       continue;
     }
 
+    // --- HTML ---------------------------------------------------------------
+    //
+    // Only the shapes a README actually uses, and only when the line is the tag
+    // itself: a `<` in the middle of a sentence is a less-than sign.
+    if (trimmed.startsWith("<")) {
+      // An image cannot be shown - the path is relative to a folder the webview
+      // does not serve, and a badge is a remote fetch this app does not make -
+      // so what is left of it is what it was labelled.
+      const img = /^<img\s[^>]*>$/i.exec(trimmed);
+      if (img) {
+        flushPara();
+        const alt = imgAlt(trimmed);
+        if (alt) {
+          out.push(
+            <div
+              key={`m${n++}`}
+              style={{
+                margin: "0 0 8px",
+                opacity: 0.55,
+                fontStyle: "italic",
+                textAlign: alignment(),
+              }}
+            >
+              {alt}
+            </div>,
+          );
+        }
+        continue;
+      }
+
+      // `<h2>Text</h2>` on one line, which is how an HTML-formatted README
+      // writes a heading inside a centred block.
+      const head = /^<h([1-6])>([\s\S]*?)<\/h[1-6]>$/i.exec(trimmed);
+      if (head) {
+        flushPara();
+        const depth = Number(head[1] ?? "1");
+        const key = `t${n++}`;
+        out.push(
+          <div
+            key={key}
+            style={{
+              fontSize: HEAD_SIZE[depth - 1],
+              fontWeight: depth <= 2 ? 650 : 600,
+              letterSpacing: "-.01em",
+              margin: out.length === 0 ? "0 0 8px" : "14px 0 7px",
+              color: "var(--t0)",
+              textAlign: alignment(),
+            }}
+          >
+            {inline(fromHtml(head[2] ?? ""), key)}
+          </div>,
+        );
+        continue;
+      }
+
+      // A collapsed section: the summary is the part worth showing, since
+      // there is nothing here to collapse it behind.
+      const summary = /^<summary>([\s\S]*?)<\/summary>$/i.exec(trimmed);
+      if (summary) {
+        flushPara();
+        const key = `s${n++}`;
+        out.push(
+          <div key={key} style={{ fontWeight: 600, margin: "8px 0 6px" }}>
+            {inline(fromHtml(summary[1] ?? ""), key)}
+          </div>,
+        );
+        continue;
+      }
+
+      if (TAG_ONLY.test(trimmed)) {
+        // An opening tag that asks for alignment starts a block; its closing
+        // tag ends one. Everything else - `<br>`, `<hr>`, `</sub>` - is
+        // structure with no text of its own, and simply goes.
+        if (!trimmed.startsWith("</")) {
+          const align = alignOf(trimmed);
+          if (/^<(?:div|p|center)\b/i.test(trimmed)) {
+            flushPara();
+            aligns.push(/^<center\b/i.test(trimmed) ? "center" : align);
+          }
+        } else if (/^<\/(?:div|p|center)>$/i.test(trimmed)) {
+          flushPara();
+          aligns.pop();
+        }
+        continue;
+      }
+    }
+
     // --- heading ----------------------------------------------------------
     const head = /^(#{1,6})\s+(.*)$/.exec(trimmed);
     if (head) {
@@ -199,9 +377,10 @@ export function Markdown({ source }: { source: string }) {
             letterSpacing: "-.01em",
             margin: out.length === 0 ? "0 0 8px" : "14px 0 7px",
             color: "var(--t0)",
+            textAlign: alignment(),
           }}
         >
-          {inline(head[2] ?? "", key)}
+          {inline(fromHtml(head[2] ?? ""), key)}
         </div>,
       );
       continue;

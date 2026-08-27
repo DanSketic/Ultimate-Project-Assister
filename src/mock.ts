@@ -294,7 +294,24 @@ function manifestsFor(stack: string, name: string): string[] {
  * renderer handles: headings, prose, a list, a fenced block, a table, a quote.
  */
 function readmeFor(name: string, stack: string, desc: string): string {
-  return `# ${name}
+  // The centred HTML header half the repositories on GitHub open with, so the
+  // browser build exercises the renderer's HTML path as well as its markdown.
+  return `<div align="center">
+
+<img src="docs/logo.png" alt="${name} logo" width="96" height="96">
+
+# ${name}
+
+**${desc}**
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-1.0.0-informational.svg)](CHANGELOG.md)
+
+<sub>Written in ${stack} · <a href="https://example.invalid">project page</a></sub>
+
+</div>
+
+---
 
 ${desc} Written in **${stack}**, and kept deliberately small.
 

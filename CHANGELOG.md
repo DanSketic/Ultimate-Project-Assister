@@ -8,6 +8,28 @@ the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 Every change is recorded here as it lands, under `Unreleased`. Version numbers
 are assigned when a release is cut — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## [Unreleased]
+
+### Fixed
+
+- **A README's HTML is rendered, not printed.** Half the repositories on GitHub
+  open with a centred block — a logo, the title, a row of badges, a line of
+  small print — and the description panel showed the markup itself: `<div
+  align="center">` as a line of text, then the `<img>` tag, then the heading.
+
+  A small, closed subset of HTML is understood now: alignment carried by `div`,
+  `p` and `center`; headings; line breaks; bold, italic, code and strikethrough;
+  links; `details`/`summary`; and comments, which are dropped. Anything else
+  loses its tags and keeps its text, because showing the markup is worse than
+  either rendering it or leaving it out. Nothing is injected as HTML — every
+  element is still a React node, so a README cannot bring markup of its own into
+  the app.
+
+  Images cannot be fetched: the paths are relative to a folder the webview does
+  not serve, and a badge is a remote request this app does not make. Both leave
+  their label behind — an image its alt text, a badge its name as a small chip —
+  which is the part that carried the meaning anyway.
+
 ## [1.9.0] - 2026-08-27
 
 ### Changed
