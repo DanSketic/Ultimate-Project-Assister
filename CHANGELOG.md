@@ -8,6 +8,22 @@ the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 Every change is recorded here as it lands, under `Unreleased`. Version numbers
 are assigned when a release is cut — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## [Unreleased]
+
+### Added
+
+- **Filters on the running processes.** The list gathered everything worth
+  knowing about — what the app started, what holds a port, what works inside a
+  watched project — and showed all of it at once, so a stray port holder from a
+  checkout that is not on the list sat next to the dev server the user came
+  here for. Two chip groups now decide what is on screen: whose process it is
+  (belonging to a watched project, or every process found) and whether it is
+  holding a port (any, holding one, holding none). It opens on the project's
+  own port holders, which is the list the question "what is on that port"
+  actually needs. The header count, the total and the sidebar badge follow the
+  filters, so the numbers and the rows below them are about the same
+  processes.
+
 ## [1.9.1] - 2026-08-27
 
 ### Fixed

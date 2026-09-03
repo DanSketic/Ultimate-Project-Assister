@@ -6,6 +6,7 @@
 
 import { useMemo } from "react";
 
+import { ChipGroup } from "../components/Chips";
 import { FolderHeader } from "../components/GroupHeader";
 import { RefreshAction } from "../components/Requirements";
 import { Stop } from "../components/Icons";
@@ -17,7 +18,9 @@ const mono = "'JetBrains Mono',monospace";
 const GRID = "minmax(190px,1fr) 128px 96px 92px 74px 86px";
 
 export function ProcessesView({ app }: { app: App }) {
-  const { t, processes } = app;
+  const { t, procFilter, procPorts } = app;
+  // The filtered list: what is shown, grouped and counted, is one and the same.
+  const processes = app.visibleProcesses;
 
   /**
    * Grouped by project, with everything that belongs to none of them last.
@@ -49,9 +52,6 @@ export function ProcessesView({ app }: { app: App }) {
   if (processes === null) {
     return <Note text={t.checking} />;
   }
-  if (processes.length === 0) {
-    return <Note text={t.noProcesses} />;
-  }
 
   return (
     <div
@@ -68,10 +68,35 @@ export function ProcessesView({ app }: { app: App }) {
           display: "flex",
           alignItems: "center",
           gap: 10,
+          // Two chip groups and a sentence: on a narrow window the sentence
+          // moves to its own line rather than squeezing the chips.
+          flexWrap: "wrap",
           padding: "0 12px 8px",
           flex: "0 0 auto",
         }}
       >
+        {/* Everything on this machine is never the answer; the narrow list is
+            the default, and the wide one is there when a stray port holder has
+            to be found. */}
+        <ChipGroup
+          items={[
+            { key: "direct", label: t.procsDirect },
+            { key: "all", label: t.procsAll },
+          ]}
+          active={procFilter}
+          onPick={app.setProcFilter}
+        />
+        {/* The other axis, and the one that answers "what is on that port":
+            whether a process is holding one at all. */}
+        <ChipGroup
+          items={[
+            { key: "any", label: t.procsPortAny },
+            { key: "ports", label: t.procsWithPort },
+            { key: "free", label: t.procsNoPort },
+          ]}
+          active={procPorts}
+          onPick={app.setProcPorts}
+        />
         {/* The count and the total are already in the page header; repeating
             them here would just be the same sentence twice. */}
         <span style={{ fontSize: 11, color: "rgba(var(--trgb),.42)" }}>{t.processesHint}</span>
@@ -102,6 +127,17 @@ export function ProcessesView({ app }: { app: App }) {
       </div>
 
       <div style={{ overflow: "auto", minHeight: 0, paddingBottom: 10 }}>
+        {groups.length === 0 && (
+          <Note
+            text={
+              procPorts !== "any"
+                ? t.noFilteredProcesses
+                : procFilter === "direct"
+                  ? t.noDirectProcesses
+                  : t.noProcesses
+            }
+          />
+        )}
         {groups.map((group) => (
           <div key={group.key}>
             {/* Processes belonging to no project start folded: they are

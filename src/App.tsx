@@ -108,8 +108,10 @@ export function App() {
     procs: {
       kicker: t.processes,
       title: t.processes,
-      meta: app.processes
-        ? `${app.processes.length} ${t.processesRunning} · ${size(app.processes.reduce((a, p) => a + p.memoryBytes, 0))}`
+      // Counted from the filtered list, so the header and the rows below it
+      // are always talking about the same processes.
+      meta: app.visibleProcesses
+        ? `${app.visibleProcesses.length} ${t.processesRunning} · ${size(app.visibleProcesses.reduce((a, p) => a + p.memoryBytes, 0))}`
         : t.checking,
     },
     claude: {

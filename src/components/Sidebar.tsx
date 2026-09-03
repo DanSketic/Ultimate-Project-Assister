@@ -189,7 +189,8 @@ export function Sidebar({ app }: { app: App }) {
         "procs",
         <Activity size={16} style={{ flex: "0 0 16px" }} />,
         t.processes,
-        <span style={mono()}>{app.processes?.length ?? ""}</span>,
+        // The filtered count, so the badge promises what the view delivers.
+        <span style={mono()}>{app.visibleProcesses?.length ?? ""}</span>,
       )}
       {item(
         "actions",

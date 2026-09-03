@@ -217,6 +217,19 @@ export function useApp() {
     conflict: PortConflict;
   } | null>(null);
   const [processes, setProcesses] = useState<ProcessInfo[] | null>(null);
+  /**
+   * Which processes the list is about: the ones belonging to a watched project
+   * or started from here, or everything the snapshot found. The narrow view is
+   * the default, because a port holder from a checkout that is not on the list
+   * is context, not something the user came here to act on.
+   */
+  const [procFilter, setProcFilter] = useState("direct");
+  /**
+   * The other axis: a port is what makes a process collide with the next one
+   * you want to start, so the port holders are what the list opens on. The
+   * other two settings are there for the rest.
+   */
+  const [procPorts, setProcPorts] = useState("ports");
   const [stopping, setStopping] = useState<Set<number>>(new Set());
 
   // --- Claude Code history -------------------------------------------------
@@ -947,6 +960,17 @@ export function useApp() {
   }, [selectedRows, selectedBytes, settings, patchSettings, notify, t]);
 
   // --- running processes ----------------------------------------------------
+  /** The rows the view actually shows, and what the header counts. */
+  const visibleProcesses = useMemo(() => {
+    if (!processes) return processes;
+    return processes.filter((p) => {
+      if (procFilter === "direct" && !p.projectId && !p.commandKey) return false;
+      if (procPorts === "ports" && p.ports.length === 0) return false;
+      if (procPorts === "free" && p.ports.length > 0) return false;
+      return true;
+    });
+  }, [processes, procFilter, procPorts]);
+
   const refreshProcesses = useCallback(async () => {
     try {
       setProcesses(await api.runningProcesses());
@@ -1877,6 +1901,11 @@ export function useApp() {
     setLogTab,
     closeLog,
     processes,
+    visibleProcesses,
+    procFilter,
+    setProcFilter,
+    procPorts,
+    setProcPorts,
     refreshProcesses,
     stopProcess,
     stopping,
