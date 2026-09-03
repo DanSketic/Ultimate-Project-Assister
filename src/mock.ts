@@ -56,37 +56,37 @@ type Row = [
 ];
 
 const ROWS: Row[] = [
-  ["ultimate-project-assister", "D:\\dev\\rust\\ultimate-project-assister", "Rust", ["Rust 74", "TypeScript 21", "CSS 5"], 812, 1940, 1420, "0.4.2", "v0.4.2", "main", 7, 2, 0, 0, "Ez az app: projekt radar, takarító, célok és board egy helyen."],
-  ["pixelforge", "D:\\dev\\rust\\pixelforge", "Rust", ["Rust 96", "Shell 4"], 1204, 3180, 2610, "1.2.0", "v1.2.0", "feat/gpu-blur", 3, 4, 2, 2, "GPU-s képfeldolgozó pipeline wgpu-val, batch exporttal."],
-  ["tauri-notes", "D:\\dev\\rust\\tauri-notes", "Rust", ["Rust 58", "TypeScript 36", "CSS 6"], 640, 1520, 1180, "0.9.1", "v0.9.0", "main", 0, 0, 0, 12, "Offline jegyzetelő Tauri + SQLite alapon."],
-  ["csv-magic", "D:\\dev\\rust\\csv-magic", "Rust", ["Rust 100"], 96, 720, 640, "2.3.1", "v2.3.1", "main", 1, 1, 0, 5, "CLI nagy CSV-k streamelt átalakításához."],
-  ["sqlite-bench", "D:\\dev\\rust\\sqlite-bench", "Rust", ["Rust 91", "Python 9"], 158, 980, 910, "0.2.0", "v0.2.0", "bench/wal", 12, 0, 0, 41, "SQLite írási módok összehasonlítása terhelés alatt."],
-  ["photo-organizer", "D:\\dev\\rust\\photo-organizer", "Rust", ["Rust 88", "Shell 12"], 402, 2240, 1960, "0.6.4", "v0.6.3", "main", 2, 3, 1, 3, "EXIF alapú rendszerező, duplikátum szűréssel."],
-  ["wasm-viewer", "D:\\dev\\rust\\wasm-viewer", "Rust", ["Rust 70", "TypeScript 25", "HTML 5"], 288, 1310, 1090, "0.3.0", "v0.3.0", "main", 0, 0, 0, 27, "3D modell néző WASM-ben, böngészőben fut."],
-  ["embedded-blinky", "D:\\dev\\rust\\embedded-blinky", "Rust", ["Rust 100"], 64, 410, 360, "0.1.2", "v0.1.2", "main", 0, 0, 0, 96, "no_std kísérlet STM32-re, embassy runtime-mal."],
-  ["shopflow-web", "D:\\dev\\web\\shopflow-web", "TypeScript", ["TypeScript 82", "CSS 13", "MDX 5"], 2860, 4120, 3540, "3.4.0", "v3.4.0", "release/3.4", 14, 0, 3, 1, "Webshop front-end, a fő kliens projekt."],
-  ["dashboard-kit", "D:\\dev\\web\\dashboard-kit", "TypeScript", ["TypeScript 88", "CSS 12"], 1640, 2380, 2050, "1.9.2", "v1.9.2", "main", 5, 1, 0, 4, "Belső komponens könyvtár riportokhoz."],
-  ["static-portfolio", "D:\\dev\\web\\static-portfolio", "Astro", ["Astro 54", "TypeScript 30", "CSS 16"], 420, 940, 810, "1.0.3", "v1.0.3", "main", 0, 0, 0, 63, "Saját portfólió oldal, statikusan generált."],
-  ["chat-relay", "D:\\dev\\web\\chat-relay", "Node", ["JavaScript 94", "Dockerfile 6"], 780, 1480, 1310, "0.8.0", "—", "main", 22, 0, 0, 18, "WebSocket relay szerver, sok félbehagyott branch."],
-  ["mail-templater", "D:\\dev\\web\\mail-templater", "TypeScript", ["TypeScript 76", "MJML 24"], 320, 810, 700, "0.7.1", "v0.7.1", "main", 0, 0, 0, 30, "Tranzakciós email sablonok MJML-ből."],
-  ["api-gateway", "D:\\dev\\go\\api-gateway", "Go", ["Go 93", "Dockerfile 7"], 340, 1120, 780, "2.1.0", "v2.1.0", "main", 4, 0, 0, 2, "Rate limitelő és auth proxy a szolgáltatások előtt."],
-  ["auth-service", "D:\\dev\\go\\auth-service", "Go", ["Go 95", "SQL 5"], 268, 640, 420, "1.4.3", "v1.4.3", "fix/jwt-refresh", 9, 2, 0, 6, "JWT kiadás és refresh, Postgres tárolással."],
-  ["ml-playground", "D:\\dev\\py\\ml-playground", "Python", ["Python 96", "Notebook 4"], 1180, 6840, 5920, "—", "—", "main", 31, 0, 0, 9, "Kísérletek, checkpointok — a legnagyobb szemétgyár."],
-  ["scraper-suite", "D:\\dev\\py\\scraper-suite", "Python", ["Python 98", "YAML 2"], 460, 1960, 1720, "1.1.0", "v1.1.0", "main", 3, 0, 0, 22, "Ütemezett adatgyűjtők, playwright alapon."],
-  ["hu-nyelvtan-api", "D:\\dev\\py\\hu-nyelvtan-api", "Python", ["Python 97", "Dockerfile 3"], 214, 1480, 1220, "0.4.0", "v0.4.0", "main", 0, 0, 0, 35, "Magyar morfológiai elemző FastAPI-ban."],
-  ["old-thesis-tools", "D:\\dev\\archive\\old-thesis-tools", "Python", ["MATLAB 61", "Python 39"], 328, 2110, 1880, "—", "—", "master", 0, 0, 0, 712, "Szakdolgozat scriptek, archívum — takarítható."],
-  ["docker-lab", "D:\\dev\\ops\\docker-lab", "Docker", ["Shell 62", "Dockerfile 38"], 96, 5240, 4980, "—", "—", "main", 2, 0, 0, 15, "Compose stackek próbája — a cache elszállt."],
-  ["k8s-manifests", "D:\\dev\\ops\\k8s-manifests", "YAML", ["YAML 100"], 142, 24, 0, "1.0.0", "v1.0.0", "main", 1, 0, 0, 8, "Éles és staging manifestek, kustomize overlay-ekkel."],
-  ["crm-mobile", "D:\\dev\\mobile\\crm-mobile", "Dart", ["Dart 92", "Kotlin 5", "Swift 3"], 890, 3460, 2980, "2.0.1", "v2.0.1", "main", 6, 0, 1, 11, "Flutter kliens a CRM-hez, offline sync-kel."],
-  ["game-of-life", "D:\\dev\\misc\\game-of-life", "C++", ["C++ 100"], 48, 320, 290, "1.0.0", "v1.0.0", "main", 0, 0, 0, 158, "Hétvégi projekt, SDL2-vel rajzolva."],
-  ["blog-engine", "D:\\dev\\misc\\blog-engine", "Elixir", ["Elixir 89", "HEEx 11"], 512, 860, 690, "0.5.0", "v0.5.0", "main", 0, 0, 2, 74, "Phoenix blog motor, félbehagyott kísérlet."],
-  ["legacy-invoicer", "D:\\dev\\archive\\legacy-invoicer", "PHP", ["PHP 86", "Twig 14"], 1420, 1180, 640, "4.2.7", "v4.2.7", "master", 0, 0, 0, 402, "Régi számlázó, még fut egy kliensnél."],
+  ["ultimate-project-assister", "D:\\dev\\rust\\ultimate-project-assister", "Rust", ["Rust 74", "TypeScript 21", "CSS 5"], 812, 1940, 1420, "0.4.2", "v0.4.2", "main", 7, 2, 0, 0, "This app: project radar, cleaner, goals and board in one place."],
+  ["pixelforge", "D:\\dev\\rust\\pixelforge", "Rust", ["Rust 96", "Shell 4"], 1204, 3180, 2610, "1.2.0", "v1.2.0", "feat/gpu-blur", 3, 4, 2, 2, "GPU image pipeline on wgpu, with batch export."],
+  ["tauri-notes", "D:\\dev\\rust\\tauri-notes", "Rust", ["Rust 58", "TypeScript 36", "CSS 6"], 640, 1520, 1180, "0.9.1", "v0.9.0", "main", 0, 0, 0, 12, "Offline note taking on Tauri and SQLite."],
+  ["csv-magic", "D:\\dev\\rust\\csv-magic", "Rust", ["Rust 100"], 96, 720, 640, "2.3.1", "v2.3.1", "main", 1, 1, 0, 5, "CLI for streamed conversion of large CSVs."],
+  ["sqlite-bench", "D:\\dev\\rust\\sqlite-bench", "Rust", ["Rust 91", "Python 9"], 158, 980, 910, "0.2.0", "v0.2.0", "bench/wal", 12, 0, 0, 41, "SQLite write modes compared under load."],
+  ["photo-organizer", "D:\\dev\\rust\\photo-organizer", "Rust", ["Rust 88", "Shell 12"], 402, 2240, 1960, "0.6.4", "v0.6.3", "main", 2, 3, 1, 3, "EXIF-based organiser, with duplicate filtering."],
+  ["wasm-viewer", "D:\\dev\\rust\\wasm-viewer", "Rust", ["Rust 70", "TypeScript 25", "HTML 5"], 288, 1310, 1090, "0.3.0", "v0.3.0", "main", 0, 0, 0, 27, "3D model viewer in WASM, runs in the browser."],
+  ["embedded-blinky", "D:\\dev\\rust\\embedded-blinky", "Rust", ["Rust 100"], 64, 410, 360, "0.1.2", "v0.1.2", "main", 0, 0, 0, 96, "no_std experiment on STM32, with the embassy runtime."],
+  ["shopflow-web", "D:\\dev\\web\\shopflow-web", "TypeScript", ["TypeScript 82", "CSS 13", "MDX 5"], 2860, 4120, 3540, "3.4.0", "v3.4.0", "release/3.4", 14, 0, 3, 1, "Web shop front end, the main client project."],
+  ["dashboard-kit", "D:\\dev\\web\\dashboard-kit", "TypeScript", ["TypeScript 88", "CSS 12"], 1640, 2380, 2050, "1.9.2", "v1.9.2", "main", 5, 1, 0, 4, "Internal component library for reports."],
+  ["static-portfolio", "D:\\dev\\web\\static-portfolio", "Astro", ["Astro 54", "TypeScript 30", "CSS 16"], 420, 940, 810, "1.0.3", "v1.0.3", "main", 0, 0, 0, 63, "Own portfolio site, statically generated."],
+  ["chat-relay", "D:\\dev\\web\\chat-relay", "Node", ["JavaScript 94", "Dockerfile 6"], 780, 1480, 1310, "0.8.0", "—", "main", 22, 0, 0, 18, "WebSocket relay server, with many abandoned branches."],
+  ["mail-templater", "D:\\dev\\web\\mail-templater", "TypeScript", ["TypeScript 76", "MJML 24"], 320, 810, 700, "0.7.1", "v0.7.1", "main", 0, 0, 0, 30, "Transactional email templates from MJML."],
+  ["api-gateway", "D:\\dev\\go\\api-gateway", "Go", ["Go 93", "Dockerfile 7"], 340, 1120, 780, "2.1.0", "v2.1.0", "main", 4, 0, 0, 2, "Rate limiting and auth proxy in front of the services."],
+  ["auth-service", "D:\\dev\\go\\auth-service", "Go", ["Go 95", "SQL 5"], 268, 640, 420, "1.4.3", "v1.4.3", "fix/jwt-refresh", 9, 2, 0, 6, "JWT issuing and refresh, stored in Postgres."],
+  ["ml-playground", "D:\\dev\\py\\ml-playground", "Python", ["Python 96", "Notebook 4"], 1180, 6840, 5920, "—", "—", "main", 31, 0, 0, 9, "Experiments and checkpoints — the biggest junk factory."],
+  ["scraper-suite", "D:\\dev\\py\\scraper-suite", "Python", ["Python 98", "YAML 2"], 460, 1960, 1720, "1.1.0", "v1.1.0", "main", 3, 0, 0, 22, "Scheduled scrapers, built on playwright."],
+  ["hu-nyelvtan-api", "D:\\dev\\py\\hu-nyelvtan-api", "Python", ["Python 97", "Dockerfile 3"], 214, 1480, 1220, "0.4.0", "v0.4.0", "main", 0, 0, 0, 35, "Hungarian morphology analyser in FastAPI."],
+  ["old-thesis-tools", "D:\\dev\\archive\\old-thesis-tools", "Python", ["MATLAB 61", "Python 39"], 328, 2110, 1880, "—", "—", "master", 0, 0, 0, 712, "Thesis scripts, archived — safe to clean."],
+  ["docker-lab", "D:\\dev\\ops\\docker-lab", "Docker", ["Shell 62", "Dockerfile 38"], 96, 5240, 4980, "—", "—", "main", 2, 0, 0, 15, "Compose stacks being tried out — the cache ran away."],
+  ["k8s-manifests", "D:\\dev\\ops\\k8s-manifests", "YAML", ["YAML 100"], 142, 24, 0, "1.0.0", "v1.0.0", "main", 1, 0, 0, 8, "Production and staging manifests, with kustomize overlays."],
+  ["crm-mobile", "D:\\dev\\mobile\\crm-mobile", "Dart", ["Dart 92", "Kotlin 5", "Swift 3"], 890, 3460, 2980, "2.0.1", "v2.0.1", "main", 6, 0, 1, 11, "Flutter client for the CRM, with offline sync."],
+  ["game-of-life", "D:\\dev\\misc\\game-of-life", "C++", ["C++ 100"], 48, 320, 290, "1.0.0", "v1.0.0", "main", 0, 0, 0, 158, "Weekend project, drawn with SDL2."],
+  ["blog-engine", "D:\\dev\\misc\\blog-engine", "Elixir", ["Elixir 89", "HEEx 11"], 512, 860, 690, "0.5.0", "v0.5.0", "main", 0, 0, 2, 74, "Phoenix blog engine, an abandoned experiment."],
+  ["legacy-invoicer", "D:\\dev\\archive\\legacy-invoicer", "PHP", ["PHP 86", "Twig 14"], 1420, 1180, 640, "4.2.7", "v4.2.7", "master", 0, 0, 0, 402, "Old invoicer, still running at one client."],
   // Two stacks that each hold a `clients` and a `server`. Names collide across
   // folders on purpose - selecting one must never light up the other.
-  ["clients", "D:\\dev\\apps\\browser-tools\\clients", "TypeScript", ["TypeScript 92", "CSS 8"], 180, 640, 520, "0.3.0", "v0.3.0", "main", 2, 0, 0, 6, "Böngésző oldali kliens a browser-tools stackhez."],
+  ["clients", "D:\\dev\\apps\\browser-tools\\clients", "TypeScript", ["TypeScript 92", "CSS 8"], 180, 640, 520, "0.3.0", "v0.3.0", "main", 2, 0, 0, 6, "Browser-side client for the browser-tools stack."],
   ["server", "D:\\dev\\apps\\browser-tools\\server", "Node", ["JavaScript 96", "Dockerfile 4"], 210, 720, 610, "0.3.0", "v0.3.0", "main", 1, 0, 0, 6, "API szerver a browser-tools stackhez."],
-  ["clients", "D:\\dev\\apps\\reflow\\clients", "TypeScript", ["TypeScript 90", "CSS 10"], 160, 580, 470, "1.1.0", "v1.1.0", "main", 0, 0, 0, 19, "Reflow kliens felület."],
-  ["server", "D:\\dev\\apps\\reflow\\server", "Node", ["JavaScript 97", "SQL 3"], 190, 660, 550, "1.1.0", "v1.1.0", "main", 3, 1, 0, 19, "Reflow háttérszolgáltatás."],
+  ["clients", "D:\\dev\\apps\\reflow\\clients", "TypeScript", ["TypeScript 90", "CSS 10"], 160, 580, 470, "1.1.0", "v1.1.0", "main", 0, 0, 0, 19, "Reflow client interface."],
+  ["server", "D:\\dev\\apps\\reflow\\server", "Node", ["JavaScript 97", "SQL 3"], 190, 660, 550, "1.1.0", "v1.1.0", "main", 3, 1, 0, 19, "Reflow back-end service."],
 ];
 
 const MSG = [
@@ -516,38 +516,38 @@ export function settings(): Settings {
 
 export function goals(): Goal[] {
   const raw: Array<[string, string, string, Array<[string, boolean, string]>]> = [
-    ["ultimate-project-assister", "0.5 — Cleaner engine", "Takarító motor teljes lefedéssel", [
-      ["Dry-run preview minden kategóriára", true, "2d"],
-      ["Kategória szabályok + kizárások", true, "1d"],
-      ["Docker cache és dangling image-ek", false, "3d"],
-      ["Ütemezett heti takarítás", false, "2d"],
+    ["ultimate-project-assister", "0.5 — Cleaner engine", "Cleaner engine with full coverage", [
+      ["Dry-run preview for every category", true, "2d"],
+      ["Category rules and exclusions", true, "1d"],
+      ["Docker cache and dangling images", false, "3d"],
+      ["Scheduled weekly cleanup", false, "2d"],
     ]],
-    ["ultimate-project-assister", "0.6 — Board & goals", "Cetlik, célok, határidők", [
-      ["Szabad canvas, húzható cetlik", true, "3d"],
-      ["Projekt tag és szűrő", true, "1d"],
-      ["Határidő értesítés a tálcán", false, "2d"],
-      ["Markdown a note törzsében", false, "1d"],
+    ["ultimate-project-assister", "0.6 — Board & goals", "Notes, goals, deadlines", [
+      ["Free canvas, draggable notes", true, "3d"],
+      ["Project tag and filter", true, "1d"],
+      ["Deadline notice in the tray", false, "2d"],
+      ["Markdown in the note body", false, "1d"],
     ]],
-    ["ultimate-project-assister", "1.0 — Windows release", "Telepíthető, aláírt build", [
+    ["ultimate-project-assister", "1.0 — Windows release", "An installable, signed build", [
       ["MSI installer (wix)", false, "3d"],
-      ["Auto-update csatorna", false, "4d"],
-      ["Ikon és branding", false, "1d"],
-      ["Kézikönyv HU/EN", false, "2d"],
+      ["Auto-update channel", false, "4d"],
+      ["Icon and branding", false, "1d"],
+      ["Manual in HU and EN", false, "2d"],
     ]],
-    ["shopflow-web", "Checkout rework", "Konverzió növelés a fizetésnél", [
-      ["Egylépéses fizetés", true, "5d"],
-      ["Kosár mentés eszközök között", true, "2d"],
+    ["shopflow-web", "Checkout rework", "Higher conversion at payment", [
+      ["One-step checkout", true, "5d"],
+      ["Cart kept across devices", true, "2d"],
       ["Apple Pay / Google Pay", false, "3d"],
     ]],
     ["pixelforge", "GPU pipeline", "wgpu compute utak", [
       ["Compute blur shader", true, "4d"],
       ["Multi-pass render graph", false, "5d"],
-      ["Batch export CLI-ből", false, "2d"],
+      ["Batch export from the CLI", false, "2d"],
     ]],
-    ["ml-playground", "Kísérlet rendszerezés", "Reprodukálható futások", [
+    ["ml-playground", "Experiment housekeeping", "Reproducible runs", [
       ["Notebook → script", true, "2d"],
-      ["MLflow bekötés", false, "3d"],
-      ["Checkpoint takarítás automata", false, "1d"],
+      ["MLflow wired in", false, "3d"],
+      ["Automatic checkpoint cleanup", false, "1d"],
     ]],
   ];
 
@@ -562,15 +562,15 @@ export function goals(): Goal[] {
 
 export function notes(): Note[] {
   const raw: Array<[number, number, string, string, string, Note["color"]]> = [
-    [40, 32, "sqlite-bench", "Fix the WAL benchmark — 8 szál felett deadlock. Repro: bench/wal branch.", "2026-08-11", "paper"],
-    [324, 60, "ultimate-project-assister", "MSI installer + code signing tanúsítvány megvenni (EV vs OV?).", "2026-08-20", "accent"],
-    [616, 28, "shopflow-web", "Checkout A/B eredmény kiértékelése a klienssel — dia kell.", "2026-08-07", "paper"],
-    [60, 300, "ml-playground", "5.9 GB szemét: wandb/ + checkpoints kitakarítása, előtte 3 futás mentése.", "2026-08-04", "accent"],
-    [384, 330, "docker-lab", "Dangling image-ek 4.9 GB — prune, majd compose fájlok átnézése.", "2026-08-09", "ink"],
-    [708, 300, "api-gateway", "2.1 release notes + changelog összefésülés a tagekből.", "2026-08-14", "paper"],
-    [120, 572, "auth-service", "JWT refresh PR review Bencének, utána merge fix/jwt-refresh.", "2026-08-08", "paper"],
-    [444, 604, "ultimate-project-assister", "Ötlet: cetlikhez kódrészlet blokk + link a commitra.", "", "ink"],
-    [796, 592, "static-portfolio", "Portfólió frissítés — 2 új projekt, régi képek cseréje.", "", "paper"],
+    [40, 32, "sqlite-bench", "Fix the WAL benchmark — deadlock above 8 threads. Repro: bench/wal branch.", "2026-08-11", "paper"],
+    [324, 60, "ultimate-project-assister", "MSI installer + buy a code signing certificate (EV or OV?).", "2026-08-20", "accent"],
+    [616, 28, "shopflow-web", "Go through the checkout A/B results with the client — slides needed.", "2026-08-07", "paper"],
+    [60, 300, "ml-playground", "5.9 GB of junk: clear out wandb/ and checkpoints, keep 3 runs first.", "2026-08-04", "accent"],
+    [384, 330, "docker-lab", "4.9 GB of dangling images — prune, then go through the compose files.", "2026-08-09", "ink"],
+    [708, 300, "api-gateway", "2.1 release notes + merge the changelog from the tags.", "2026-08-14", "paper"],
+    [120, 572, "auth-service", "Review Bence's JWT refresh PR, then merge fix/jwt-refresh.", "2026-08-08", "paper"],
+    [444, 604, "ultimate-project-assister", "Idea: a code block on notes, and a link to the commit.", "", "ink"],
+    [796, 592, "static-portfolio", "Portfolio refresh — 2 new projects, old images replaced.", "", "paper"],
   ];
 
   return raw.map(([x, y, project, text, due, color], i) => ({
@@ -1108,14 +1108,14 @@ export function claudeStats(): ClaudeStats {
     new Date(Date.now() - back * 864e5 - (23 - hour) * 36e5).toISOString();
 
   const seeds: Array<[project: string, title: string, back: number, msgs: number, tools: number]> = [
-    ["ultimate-project-assister", "Claude előzmények nézet", 0, 46, 128],
-    ["ultimate-project-assister", "Ablakszélesség igazítás", 1, 22, 61],
-    ["shopflow-web", "Kosár összesítő újraírása", 1, 31, 74],
-    ["api-gateway", "Rate limit hibakeresés", 3, 18, 40],
-    ["shopflow-web", "Checkout teszt lefedettség", 4, 27, 66],
-    ["ultimate-project-assister", "Git sync párbeszéd", 6, 39, 96],
-    ["ml-playground", "Notebook takarítás", 9, 12, 21],
-    ["shopflow-web", "MDX oldalak migrálása", 12, 24, 58],
+    ["ultimate-project-assister", "Claude history view", 0, 46, 128],
+    ["ultimate-project-assister", "Window width tuning", 1, 22, 61],
+    ["shopflow-web", "Cart summary rewrite", 1, 31, 74],
+    ["api-gateway", "Rate limit debugging", 3, 18, 40],
+    ["shopflow-web", "Checkout test coverage", 4, 27, 66],
+    ["ultimate-project-assister", "Git sync dialog", 6, 39, 96],
+    ["ml-playground", "Notebook cleanup", 9, 12, 21],
+    ["shopflow-web", "Migrating the MDX pages", 12, 24, 58],
   ];
 
   const sessions: ClaudeSession[] = seeds.map(([name, title, back, msgs, tools], i) => {
@@ -1165,13 +1165,13 @@ export async function claudeSession(id: string): Promise<ClaudeMessage[]> {
   });
 
   return [
-    turn({ role: "user", time: at(0), text: `Nézzük meg a ${id} munkamenetet: mi kell a nézethez?` }),
-    turn({ role: "assistant", time: at(1), text: "Megnézem, mit olvas most a nézet.", thinking: true, tools: ["Read", "Grep"] }),
-    turn({ role: "assistant", time: at(3), text: "A statisztikát a naplókból számoljuk, nem a beszélgetésből — így egy hosszú munkamenet is olcsó marad." }),
-    turn({ role: "user", time: at(5), text: "Jó. A költség legyen becslés, ne számla." }),
-    turn({ role: "assistant", time: at(6), text: "Beírom a jelzést a kártyára is.", tools: ["Edit"] }),
+    turn({ role: "user", time: at(0), text: `Let's look at session ${id}: what does the view need?` }),
+    turn({ role: "assistant", time: at(1), text: "Checking what the view reads at the moment.", thinking: true, tools: ["Read", "Grep"] }),
+    turn({ role: "assistant", time: at(3), text: "The stats come from the logs, not from the conversation — so a long session stays cheap to read." }),
+    turn({ role: "user", time: at(5), text: "Good. Keep the cost an estimate, not an invoice." }),
+    turn({ role: "assistant", time: at(6), text: "Putting that note on the card as well.", tools: ["Edit"] }),
     turn({ role: "user", time: at(7), text: "", error: true }),
-    turn({ role: "assistant", time: at(8), text: "A teszt elhasalt egy útvonal-elválasztón; javítom.", tools: ["Edit", "Bash"] }),
+    turn({ role: "assistant", time: at(8), text: "The test tripped on a path separator; fixing it.", tools: ["Edit", "Bash"] }),
   ];
 }
 
@@ -1273,9 +1273,9 @@ export function githubPulls(): PullRequest[] {
   const of = (name: string) => all.find((p) => p.name === name);
 
   const rows: Array<[project: string, number: number, title: string, mine: boolean, draft: boolean, mins: number, comments: number]> = [
-    ["shopflow-web", 412, "feat: kosár összesítő újraírása", false, false, 26, 4],
-    ["api-gateway", 88, "fix: rate limit ablak a proxy mögött", true, false, 190, 1],
-    ["dashboard-kit", 57, "refactor: chart tengelyek egységesítése", true, true, 1450, 0],
+    ["shopflow-web", 412, "feat: rewrite the cart summary", false, false, 26, 4],
+    ["api-gateway", 88, "fix: rate limit window behind the proxy", true, false, 190, 1],
+    ["dashboard-kit", 57, "refactor: unify the chart axes", true, true, 1450, 0],
   ];
 
   return rows.map(([name, number, title, mine, draft, mins, comments]) => {

@@ -24,6 +24,15 @@ are assigned when a release is cut — see [CONTRIBUTING.md](CONTRIBUTING.md).
   filters, so the numbers and the rows below them are about the same
   processes.
 
+### Changed
+
+- **The browser build's sample data reads in English.** The demo dataset behind
+  `npm run dev:vite` — project descriptions, goals, board notes, Claude session
+  titles and the sample conversation — was written in Hungarian, so the
+  screenshots in the README showed an English interface wrapped around
+  Hungarian content. It is English now, the way the interface around it is.
+  Only the team's names stay as they were; a name is not translated.
+
 ## [1.9.1] - 2026-08-27
 
 ### Fixed
