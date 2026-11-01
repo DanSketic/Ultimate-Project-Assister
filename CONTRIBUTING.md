@@ -86,10 +86,12 @@ npm run dev:vite
 node scripts/shoot.mjs
 ```
 
-`scripts/shoot.mjs` drives headless Edge or Chrome over `?view=<name>&lang=en`.
-Those two query parameters seed the initial view and language when the UI runs
-in a browser; a packaged app is loaded without a query string, so they have no
-effect in production.
+`scripts/shoot.mjs` drives headless Edge or Chrome over
+`?view=<name>&lang=en&theme=light`. Those query parameters seed the initial
+view, language and theme when the UI runs in a browser; a packaged app is
+loaded without a query string, so they have no effect in production. The theme
+is pinned because `auto` follows the machine the capture runs on, which once
+turned an evening's run into a dark set of screenshots.
 
 ## Documentation language
 

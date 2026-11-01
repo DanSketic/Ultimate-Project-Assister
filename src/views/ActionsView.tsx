@@ -19,10 +19,53 @@ import type { PullRequest, RepoCi, WorkflowRun } from "../types";
 const mono = "'JetBrains Mono',monospace";
 const GRID = "minmax(240px,1fr) 150px 104px 96px 78px 148px";
 
+type Sort = "state" | "recent" | "name" | "length";
+
+/** How far back each window reaches, in milliseconds; 0 is "all of it". */
+const WINDOW: Record<string, number> = { any: 0, day: 864e5, week: 7 * 864e5 };
+
+const newest = (a: WorkflowRun, b: WorkflowRun) => b.startedAt.localeCompare(a.startedAt);
+const live = (run: WorkflowRun) => (run.status !== "completed" ? 0 : 1);
+const broken = (run: WorkflowRun) => (runFailed(run) ? 0 : 1);
+
+/**
+ * Runs inside one project. Only two of the orders say anything about a single
+ * run; under `name` the project's own order is what moved, so its runs stay
+ * newest first, the way they arrive.
+ */
+const RUN_SORTERS: Record<Sort, (a: WorkflowRun, b: WorkflowRun) => number> = {
+  state: (a, b) => live(a) - live(b) || broken(a) - broken(b) || newest(a, b),
+  recent: newest,
+  name: newest,
+  length: (a, b) => b.elapsedSecs - a.elapsedSecs || newest(a, b),
+};
+
+/** The projects themselves, ordered by the same measure as the rows in them. */
+const GROUP_SORTERS: Record<Sort, (a: RepoCi, b: RepoCi) => number> = {
+  // What is still going is what you came to look at, then what broke.
+  state: (a, b) =>
+    Math.min(...a.runs.map(live), 1) - Math.min(...b.runs.map(live), 1) ||
+    Math.min(...a.runs.map(broken), 1) - Math.min(...b.runs.map(broken), 1) ||
+    (b.runs[0]?.startedAt ?? "").localeCompare(a.runs[0]?.startedAt ?? ""),
+  recent: (a, b) => (b.runs[0]?.startedAt ?? "").localeCompare(a.runs[0]?.startedAt ?? ""),
+  name: (a, b) => a.project.localeCompare(b.project),
+  length: (a, b) =>
+    Math.max(...b.runs.map((r) => r.elapsedSecs), 0) -
+    Math.max(...a.runs.map((r) => r.elapsedSecs), 0),
+};
+
 export function ActionsView({ app }: { app: App }) {
   const { t, lang, ci, github } = app;
 
   const rows: RepoCi[] = useMemo(() => ci ?? [], [ci]);
+
+  /** Inside the window, so the four numbers count the runs on screen. */
+  const inWindow = useMemo(() => {
+    const span = WINDOW[app.actionsWhen] ?? 0;
+    if (!span) return (_run: WorkflowRun) => true;
+    const from = Date.now() - span;
+    return (run: WorkflowRun) => new Date(run.startedAt).getTime() >= from;
+  }, [app.actionsWhen]);
 
   const counts = useMemo(() => {
     let running = 0;
@@ -30,36 +73,36 @@ export function ActionsView({ app }: { app: App }) {
     let passed = 0;
     for (const row of rows) {
       for (const run of row.runs) {
+        if (!inWindow(run)) continue;
         if (run.status !== "completed") running += 1;
         else if (runFailed(run)) failed += 1;
         else if (run.conclusion === "success") passed += 1;
       }
     }
     return { running, failed, passed, repos: rows.filter((r) => r.available).length };
-  }, [rows]);
+  }, [rows, inWindow]);
 
-  /** The filter narrows the runs, not the projects: an empty group drops out. */
+  /** The filters narrow the runs, not the projects: an empty group drops out. */
   const groups = useMemo(() => {
+    const sort = (app.actionsSort as Sort) in RUN_SORTERS ? (app.actionsSort as Sort) : "state";
     const keep = (run: WorkflowRun) => {
+      if (!inWindow(run)) return false;
       if (app.actionsFilter === "running") return run.status !== "completed";
       if (app.actionsFilter === "failed") return runFailed(run);
       return true;
     };
 
     return rows
-      .map((row) => ({ ...row, runs: row.runs.filter(keep) }))
-      .filter((row) => row.runs.length > 0 || (app.actionsFilter === "all" && row.error))
-      .sort((a, b) => {
-        // Whatever is running is what you came to look at.
-        const live = (row: RepoCi) => (row.runs.some((r) => r.status !== "completed") ? 0 : 1);
-        const broken = (row: RepoCi) => (row.runs.some(runFailed) ? 0 : 1);
-        return (
-          live(a) - live(b) ||
-          broken(a) - broken(b) ||
-          (b.runs[0]?.startedAt ?? "").localeCompare(a.runs[0]?.startedAt ?? "")
-        );
-      });
-  }, [rows, app.actionsFilter]);
+      .map((row) => ({ ...row, runs: [...row.runs.filter(keep)].sort(RUN_SORTERS[sort]) }))
+      .filter(
+        (row) =>
+          row.runs.length > 0 ||
+          // A repository that could not be read has nothing to date, so it is
+          // only worth a row while nothing is being narrowed away.
+          (app.actionsFilter === "all" && app.actionsWhen === "any" && row.error),
+      )
+      .sort(GROUP_SORTERS[sort]);
+  }, [rows, app.actionsFilter, app.actionsSort, app.actionsWhen, inWindow]);
 
   if (github && !github.available) return <Note text={t.actionsNoGh} />;
   if (github && !github.authenticated) return <Note text={github.error || t.actionsNoAuth} />;
@@ -90,6 +133,38 @@ export function ActionsView({ app }: { app: App }) {
           ]}
           active={app.actionsFilter}
           onPick={app.setActionsFilter}
+        />
+        {/* How far back to look. A build from last month is history; the two
+            short windows are the ones a working day asks about. */}
+        <ChipGroup
+          items={[
+            { key: "any", label: t.whenAny },
+            { key: "day", label: t.whenDay },
+            { key: "week", label: t.whenWeek },
+          ]}
+          active={app.actionsWhen}
+          onPick={app.setActionsWhen}
+        />
+        {/* The same ordering the projects list offers, on the axes a run has. */}
+        <span
+          style={{
+            fontSize: 10.5,
+            letterSpacing: ".08em",
+            textTransform: "uppercase",
+            color: "rgba(var(--trgb),.52)",
+          }}
+        >
+          {t.sort}
+        </span>
+        <ChipGroup
+          items={[
+            { key: "state", label: t.sState },
+            { key: "recent", label: t.sRecent },
+            { key: "name", label: t.sName },
+            { key: "length", label: t.sLength },
+          ]}
+          active={app.actionsSort}
+          onPick={app.setActionsSort}
         />
         <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
           {github?.login && (

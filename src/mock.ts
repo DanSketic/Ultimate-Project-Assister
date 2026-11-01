@@ -1204,6 +1204,10 @@ export function githubCi(projectIds: string[]): RepoCi[] {
     ["ultimate-project-assister", "Release", "completed", "success", 180],
     ["auth-service", "CI", "completed", "success", 400],
     ["crm-mobile", "CI", "completed", "cancelled", 900],
+    // Older than a day and older than a week, so both windows have something
+    // to leave out.
+    ["dashboard-kit", "CI", "completed", "success", 3 * 1440],
+    ["ml-playground", "CI", "completed", "failure", 12 * 1440],
   ];
 
   const byProject = new Map<string, WorkflowRun[]>();

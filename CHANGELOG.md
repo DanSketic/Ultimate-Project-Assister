@@ -8,6 +8,28 @@ the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 Every change is recorded here as it lands, under `Unreleased`. Version numbers
 are assigned when a release is cut — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## [Unreleased]
+
+### Added
+
+- **Ordering and a time window on the Actions view.** The runs arrived in one
+  fixed order — what is going, then what broke, then the rest by date — and
+  every run the API returned was on screen, however old. The list now offers
+  the same ordering the projects list does, on the axes a run has: state,
+  recency, project name, or how long it took. Beside it, a window: any time,
+  the last day, or the last week. The four counters above the list follow the
+  window, so what they say and what is below them agree. The browser build's
+  sample data gained two older runs, so both windows have something to leave
+  out.
+
+### Fixed
+
+- **The documentation screenshots no longer depend on the time of day.**
+  `scripts/shoot.mjs` loaded each view with the theme left on `auto`, which
+  follows the machine the capture runs on, so a set taken after dark came out
+  dark while the rest of the README was light. The capture URL pins the theme
+  now, the same way it already pinned the view and the language.
+
 ## [1.10.0] - 2026-09-03
 
 ### Added

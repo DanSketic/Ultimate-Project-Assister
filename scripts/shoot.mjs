@@ -3,9 +3,11 @@
 //   npm run dev:vite      # in one terminal
 //   node scripts/shoot.mjs
 //
-// Each view is loaded with `?view=<name>&lang=en`, which seeds the initial view
-// and language when the UI runs in a browser. Rendering happens in headless
-// Edge or Chrome at 2x, so the images stay crisp on high-DPI displays.
+// Each view is loaded with `?view=<name>&lang=en&theme=light`, which seeds the
+// initial view, language and theme when the UI runs in a browser. The theme is
+// pinned because `auto` follows the machine: the same script run after dark
+// otherwise produces a dark set. Rendering happens in headless Edge or Chrome
+// at 2x, so the images stay crisp on high-DPI displays.
 
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
@@ -81,7 +83,7 @@ for (const [view, [width, height]] of Object.entries(VIEWS)) {
         // Give React, the fonts and the mock scan time to settle.
         "--virtual-time-budget=6000",
         `--screenshot=${file}`,
-        `${URL_BASE}/?view=${view}&lang=en`,
+        `${URL_BASE}/?view=${view}&lang=en&theme=light`,
       ],
       { stdio: "ignore", timeout: 60_000 },
     );

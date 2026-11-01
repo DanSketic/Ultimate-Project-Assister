@@ -84,10 +84,10 @@ function widthFor(view: View, navOpen: boolean, settings: Settings | null): numb
 
 /**
  * Startup overrides read from the query string, used when the UI is opened in a
- * browser: `?view=clean&lang=en`. They only seed the initial state and are
- * never written back to the settings file. A packaged app is loaded without a
- * query string, so this is inert in production - it exists so the documentation
- * screenshots can be regenerated without hand-driving the app.
+ * browser: `?view=clean&lang=en&theme=light`. They only seed the initial state
+ * and are never written back to the settings file. A packaged app is loaded
+ * without a query string, so this is inert in production - it exists so the
+ * documentation screenshots can be regenerated without hand-driving the app.
  */
 function startupParam(name: string): string | null {
   if (typeof location === "undefined") return null;
@@ -252,6 +252,14 @@ export function useApp() {
   const [ci, setCi] = useState<RepoCi[] | null>(null);
   const [ciBusy, setCiBusy] = useState(false);
   const [actionsFilter, setActionsFilter] = useState("all");
+  /**
+   * How the runs are ordered. The default keeps what the view has always
+   * opened on - what is still going, then what broke - and the other three are
+   * the same axes the projects list offers.
+   */
+  const [actionsSort, setActionsSort] = useState("state");
+  /** How far back the runs are worth looking at: everything, a day, a week. */
+  const [actionsWhen, setActionsWhen] = useState("any");
   /** Null until the list has been asked for once. */
   const [pulls, setPulls] = useState<PullRequest[] | null>(null);
   /** Runs whose re-run or cancel has been sent and not yet answered. */
@@ -358,8 +366,16 @@ export function useApp() {
       setMaxed(loaded.window.maximized);
 
       const langParam = startupParam("lang");
-      const seeded: Settings =
-        langParam === "en" || langParam === "hu" ? { ...loaded, lang: langParam } : loaded;
+      // The theme too, because "auto" follows the machine the capture runs on:
+      // the same script at night produced a dark set of screenshots.
+      const themeParam = startupParam("theme");
+      const seeded: Settings = {
+        ...loaded,
+        ...(langParam === "en" || langParam === "hu" ? { lang: langParam } : {}),
+        ...(themeParam === "light" || themeParam === "dark" || themeParam === "auto"
+          ? { theme: themeParam }
+          : {}),
+      };
 
       setSettings(seeded);
       setGoals(loadedGoals);
@@ -1919,6 +1935,10 @@ export function useApp() {
     anyRunning,
     actionsFilter,
     setActionsFilter,
+    actionsSort,
+    setActionsSort,
+    actionsWhen,
+    setActionsWhen,
     pulls,
     refreshPulls,
     noteFromPull,

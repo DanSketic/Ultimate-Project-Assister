@@ -120,6 +120,11 @@ whatever is going at the top and the failures next; environments as pills, so
 what is live where reads at a glance; and a filter that swaps the body for the
 pull requests waiting on you.
 
+The list can be ordered the way the projects list can — by state, by how recent
+a run is, by project name or by how long it took — and narrowed to the last day
+or the last week, because a build from last month is history rather than news.
+The four counters above it follow the window.
+
 A red run offers two things: the tail of its failed jobs' log, and one button
 that puts the failure on the clipboard as a message worth pasting — which
 project, which run, which branch, then the log. Re-running the failed jobs and
