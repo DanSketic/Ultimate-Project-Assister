@@ -17,12 +17,20 @@ are assigned when a release is cut — see [CONTRIBUTING.md](CONTRIBUTING.md).
   every run the API returned was on screen, however old. The list now offers
   the same ordering the projects list does, on the axes a run has: state,
   recency, project name, or how long it took. Beside it, a window: any time,
-  the last day, or the last week. The four counters above the list follow the
-  window, so what they say and what is below them agree. The browser build's
-  sample data gained two older runs, so both windows have something to leave
-  out.
+  the last day, or the last week. The running, failed and passed counters above
+  the list follow the window, so what they say and what is below them agree;
+  the repository count, the header line and the sidebar badge stay on every run
+  fetched. The browser build's sample data gained two older runs, so both
+  windows have something to leave out.
 
 ### Fixed
+
+- **Port holders are found again on recent Windows builds.** The list of who
+  holds which port came from `netstat`, and on Windows build 26300 the OS reports
+  listening sockets with a state `netstat` leaves out, so every port looked
+  unclaimed: the processes view had no port holders to show, and a taken port
+  could not name what held it. The listeners are read from the system's TCP
+  table now, for IPv4 and IPv6, without starting a process to do it.
 
 - **The documentation screenshots no longer depend on the time of day.**
   `scripts/shoot.mjs` loaded each view with the theme left on `auto`, which

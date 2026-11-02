@@ -380,38 +380,86 @@ pub const NEVER_KILL: &[&str] = &[
 /// overview so the two can never disagree about who has what.
 #[cfg(windows)]
 pub fn listening_map() -> BTreeMap<u32, BTreeSet<u16>> {
-    use std::os::windows::process::CommandExt;
+    use std::ptr::addr_of;
+    use windows_sys::Win32::NetworkManagement::IpHelper::{
+        MIB_TCP6ROW_OWNER_PID, MIB_TCP6TABLE_OWNER_PID, MIB_TCPROW_OWNER_PID,
+        MIB_TCPTABLE_OWNER_PID,
+    };
+    use windows_sys::Win32::Networking::WinSock::{AF_INET, AF_INET6};
 
     let mut out: BTreeMap<u32, BTreeSet<u16>> = BTreeMap::new();
-    let mut cmd = Command::new("netstat");
-    // No `-p TCP`: on Windows that means IPv4 only, and a dev server listening
-    // on `[::1]` would not appear at all. Unfiltered output carries both
-    // families, with the protocol in the first column.
-    cmd.args(["-ano"]);
-    cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
-
-    let Ok(result) = cmd.output() else { return out };
-    let text = String::from_utf8_lossy(&result.stdout);
-
-    for line in text.lines() {
-        let fields: Vec<&str> = line.split_whitespace().collect();
-        // Proto, local address, foreign address, [state], pid. The state word
-        // is translated on a localised Windows, so it is never matched on: a
-        // wildcard foreign address is what marks a listening socket, in every
-        // language.
-        if fields.len() < 5 || !fields[0].eq_ignore_ascii_case("TCP") {
-            continue;
-        }
-        if !matches!(fields[2], "0.0.0.0:0" | "[::]:0" | "*:*") {
-            continue;
-        }
-        let Some(port) = local_port(fields[1]) else { continue };
-        let Ok(pid) = fields[fields.len() - 1].parse::<u32>() else { continue };
+    let mut add = |pid: u32, local_port: u32| {
+        // The table keeps the port in network byte order, in the low 16 bits.
+        let port = u16::from_be(local_port as u16);
         if pid > 4 && port >= MIN_PORT {
             out.entry(pid).or_default().insert(port);
         }
+    };
+
+    // Both families: a dev server listening on `[::1]` is only in the second.
+    if let Some(buffer) = listener_table(AF_INET as u32) {
+        let table = buffer.as_ptr().cast::<MIB_TCPTABLE_OWNER_PID>();
+        // SAFETY: the call succeeded, so the buffer holds a table whose header
+        // counts the rows that follow it, and a `Vec<u32>` is aligned for both.
+        let rows = unsafe {
+            std::slice::from_raw_parts(
+                addr_of!((*table).table).cast::<MIB_TCPROW_OWNER_PID>(),
+                (*table).dwNumEntries as usize,
+            )
+        };
+        rows.iter().for_each(|row| add(row.dwOwningPid, row.dwLocalPort));
+    }
+    if let Some(buffer) = listener_table(AF_INET6 as u32) {
+        let table = buffer.as_ptr().cast::<MIB_TCP6TABLE_OWNER_PID>();
+        // SAFETY: as above.
+        let rows = unsafe {
+            std::slice::from_raw_parts(
+                addr_of!((*table).table).cast::<MIB_TCP6ROW_OWNER_PID>(),
+                (*table).dwNumEntries as usize,
+            )
+        };
+        rows.iter().for_each(|row| add(row.dwOwningPid, row.dwLocalPort));
     }
     out
+}
+
+/// The listening sockets of one address family, as the OS lays the table out.
+///
+/// Asked for by table class, because neither `netstat` nor the row's state can
+/// be relied on: Windows builds around 26300 report listeners with a state that
+/// is not `LISTEN`, and `netstat` drops those rows altogether. The listener
+/// class returns the right rows whatever their state field says.
+#[cfg(windows)]
+fn listener_table(family: u32) -> Option<Vec<u32>> {
+    use windows_sys::Win32::Foundation::{ERROR_INSUFFICIENT_BUFFER, NO_ERROR};
+    use windows_sys::Win32::NetworkManagement::IpHelper::{
+        GetExtendedTcpTable, TCP_TABLE_OWNER_PID_LISTENER,
+    };
+
+    let mut size = 0u32;
+    // The first pass only learns the size, and the table can grow before the
+    // next one reads it.
+    for _ in 0..4 {
+        let mut buffer = vec![0u32; (size as usize).div_ceil(4)];
+        // SAFETY: `size` is the buffer's length in bytes, and the call writes
+        // no further than that.
+        let result = unsafe {
+            GetExtendedTcpTable(
+                buffer.as_mut_ptr().cast(),
+                &mut size,
+                0,
+                family,
+                TCP_TABLE_OWNER_PID_LISTENER,
+                0,
+            )
+        };
+        match result {
+            NO_ERROR => return Some(buffer),
+            ERROR_INSUFFICIENT_BUFFER => continue,
+            _ => return None,
+        }
+    }
+    None
 }
 
 #[cfg(not(windows))]
@@ -441,6 +489,7 @@ pub fn listening_map() -> BTreeMap<u32, BTreeSet<u16>> {
 }
 
 /// `127.0.0.1:1420`, `[::1]:1420` and `*:1420` all yield 1420.
+#[cfg(not(windows))]
 fn local_port(address: &str) -> Option<u16> {
     address.rsplit(':').next()?.parse().ok()
 }

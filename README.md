@@ -123,7 +123,9 @@ pull requests waiting on you.
 The list can be ordered the way the projects list can — by state, by how recent
 a run is, by project name or by how long it took — and narrowed to the last day
 or the last week, because a build from last month is history rather than news.
-The four counters above it follow the window.
+The running, failed and passed counters above it follow the window; the
+repository count, the header line and the sidebar badge stay on every run
+fetched, so a failure outside the window still shows there.
 
 A red run offers two things: the tail of its failed jobs' log, and one button
 that puts the failure on the clipboard as a message worth pasting — which

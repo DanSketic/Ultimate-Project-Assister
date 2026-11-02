@@ -567,7 +567,7 @@ pub async fn running_processes(state: State<'_, AppState>) -> Result<Vec<Process
     let projects = state.projects.lock().unwrap().clone();
     let ours = state.runner.spawned();
 
-    // Reading the whole process table is not instant, and neither is netstat.
+    // Reading the whole process table is not instant, and neither is the port table.
     tauri::async_runtime::spawn_blocking(move || procs::snapshot(&projects, &ours))
         .await
         .map_err(|e| e.to_string())
