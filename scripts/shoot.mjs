@@ -10,7 +10,7 @@
 // at 2x, so the images stay crisp on high-DPI displays.
 
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -69,24 +69,46 @@ for (const [view, [width, height]] of Object.entries(VIEWS)) {
   const profile = mkdtempSync(join(tmpdir(), "upa-shot-"));
 
   try {
-    execFileSync(
-      browser,
-      [
-        "--headless=new",
-        "--disable-gpu",
-        "--hide-scrollbars",
-        "--no-first-run",
-        "--no-default-browser-check",
-        "--force-device-scale-factor=2",
-        `--user-data-dir=${profile}`,
-        `--window-size=${width},${height}`,
-        // Give React, the fonts and the mock scan time to settle.
-        "--virtual-time-budget=6000",
-        `--screenshot=${file}`,
-        `${URL_BASE}/?view=${view}&lang=en&theme=light`,
-      ],
-      { stdio: "ignore", timeout: 60_000 },
-    );
+    // The launcher can return before the image is on disk - Edge hands the
+    // work to a child and exits - so a capture used to be reported while last
+    // time's file was still in place. Each one is waited for, checked against
+    // the clock and retried; one that never lands fails the run.
+    const started = Date.now();
+    const capture = () =>
+      execFileSync(
+        browser,
+        [
+          "--headless=new",
+          "--disable-gpu",
+          "--hide-scrollbars",
+          "--no-first-run",
+          "--no-default-browser-check",
+          "--force-device-scale-factor=2",
+          `--user-data-dir=${profile}`,
+          `--window-size=${width},${height}`,
+          // Give React, the fonts and the mock scan time to settle.
+          "--virtual-time-budget=6000",
+          `--screenshot=${file}`,
+          `${URL_BASE}/?view=${view}&lang=en&theme=light`,
+        ],
+        { stdio: "ignore", timeout: 60_000 },
+      );
+    const fresh = () => existsSync(file) && statSync(file).mtimeMs >= started;
+    const landed = () => {
+      for (let waited = 0; waited < 10_000 && !fresh(); waited += 250) {
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 250);
+      }
+      return fresh();
+    };
+    for (let attempt = 0; attempt < 3; attempt++) {
+      capture();
+      if (landed()) break;
+    }
+    if (!fresh()) {
+      console.error(`docs/screenshots/${view}.png was not written`);
+      process.exitCode = 1;
+      continue;
+    }
     console.log(`docs/screenshots/${view}.png  ${width}x${height} @2x`);
   } finally {
     // Windows releases the browser's handles on the profile a moment after the

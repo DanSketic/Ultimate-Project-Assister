@@ -48,6 +48,11 @@ are assigned when a release is cut — see [CONTRIBUTING.md](CONTRIBUTING.md).
   `C:\dev\shop`, because the match did not have to end on a directory
   boundary. The test that covered this asserted the wrong answer, and has been
   corrected along with it.
+- **A screenshot run no longer reports images it did not take.** Edge's launcher
+  can exit before the image is on disk, so `scripts/shoot.mjs` printed a capture
+  while last time's file was still in place — the cause of the stale images seen
+  before. Each capture is now waited for and checked against the clock, retried
+  up to three times, and a view that never lands fails the run.
 
 ## [1.11.0] - 2026-11-02
 
