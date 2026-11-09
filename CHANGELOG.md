@@ -10,6 +10,8 @@ are assigned when a release is cut — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## [Unreleased]
 
+## [1.12.0] - 2026-11-09
+
 ### Added
 
 - **Docker containers in the running view, under their projects.** The list
@@ -768,6 +770,7 @@ Hungarian interface, light and dark themes, per-view window sizing, project
 scanning with git analysis, guarded cleanup, and a process runner with live log
 streaming. Never published.
 
+[1.12.0]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v1.12.0
 [1.11.0]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v1.11.0
 [1.10.0]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v1.10.0
 [1.9.1]: https://github.com/DanSketic/Ultimate-Project-Assister/releases/tag/v1.9.1
