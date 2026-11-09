@@ -259,14 +259,46 @@ pub struct DockerStatus {
     pub containers_running: u32,
     pub containers_total: u32,
     pub images: u32,
+    /// What each kind would give back to a prune, as `docker system df` puts it.
     pub images_bytes: u64,
     pub build_cache_bytes: u64,
     pub volumes_bytes: u64,
+    pub containers_bytes: u64,
+    /// Everything Docker is holding, reclaimable or not.
+    pub used_bytes: u64,
+    /// Docker Desktop's virtual disk, and how large the file is on the host.
+    /// The file grows and never shrinks on its own, so the gap between this
+    /// and `used_bytes` is space that only a compaction gives back. Empty and
+    /// zero where there is no such file - outside Windows, or without Desktop.
+    pub disk_path: String,
+    pub disk_bytes: u64,
     /// Why the daemon could not be reached; empty when it could.
     pub error: String,
 }
 
-/// One container of a project's compose stack.
+/// What a prune gave back, and what it could not do.
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PruneReport {
+    pub freed_bytes: u64,
+    /// The targets that ran, in the order they ran.
+    pub done: Vec<String>,
+    pub errors: Vec<String>,
+}
+
+/// The disk file before and after a compaction.
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CompactReport {
+    pub before_bytes: u64,
+    pub after_bytes: u64,
+    /// `fstrim`'s own account of what it released inside the disk.
+    pub trimmed: String,
+    /// Set when Docker Desktop could not be started again afterwards.
+    pub restart_error: String,
+}
+
+/// One container, and the project it belongs to when it belongs to one.
 #[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Container {
@@ -280,6 +312,12 @@ pub struct Container {
     pub ports: String,
     /// Compose service name, when the container came from a compose file.
     pub service: String,
+    /// Host ports it publishes.
+    pub host_ports: Vec<u16>,
+    /// Seconds since it started; zero when it is not running.
+    pub run_secs: u64,
+    pub project_id: String,
+    pub project: String,
 }
 
 /// A command this app started that already holds the port.

@@ -25,14 +25,24 @@ pub fn is_system(name: &str) -> bool {
 
 /// The project whose directory contains this path, longest match first so a
 /// package inside a monorepo does not lose to the repository root.
-fn owning_project(path: &str, projects: &[Project]) -> Option<(String, String)> {
+///
+/// The match has to end on a separator: `C:\dev\shop-old` is not inside
+/// `C:\dev\shop`.
+pub(crate) fn owning_project(path: &str, projects: &[Project]) -> Option<(String, String)> {
     if path.is_empty() {
         return None;
     }
     let needle = path.to_lowercase();
     projects
         .iter()
-        .filter(|p| !p.path.is_empty() && needle.starts_with(&p.path.to_lowercase()))
+        .filter(|p| {
+            let root = p.path.to_lowercase();
+            !root.is_empty()
+                && needle.starts_with(&root)
+                && (needle.len() == root.len()
+                    || root.ends_with(['\\', '/'])
+                    || needle[root.len()..].starts_with(['\\', '/']))
+        })
         .max_by_key(|p| p.path.len())
         .map(|p| (p.id.clone(), p.name.clone()))
 }
@@ -208,7 +218,7 @@ mod tests {
         assert!(owning_project("D:\\somewhere\\else", &projects).is_none());
         assert!(owning_project("", &projects).is_none());
         // A prefix that is not a directory boundary must not match either way.
-        assert!(owning_project("D:\\dev\\alpha-old\\src", &projects).is_some());
+        assert!(owning_project("D:\\dev\\alpha-old\\src", &projects).is_none());
     }
 
     #[test]

@@ -15,6 +15,8 @@ import type {
   WorkflowRun,
   CleanProgress,
   CommandDef,
+  CompactReport,
+  CompactStep,
   Container,
   DockerStatus,
   Feature,
@@ -26,6 +28,8 @@ import type {
   PortConflict,
   ProcessInfo,
   Project,
+  PruneReport,
+  PruneTarget,
   RebaseReport,
   Settings,
   SyncStatus,
@@ -33,6 +37,27 @@ import type {
   ToolStatus,
   View,
 } from "./types";
+
+/**
+ * The Docker dialog: a prune or a compaction, from the question through the
+ * work to what it gave back.
+ */
+export interface DockerTask {
+  mode: "prune" | "compact";
+  phase: "ask" | "busy" | "done";
+  /** The compaction step under way. */
+  step?: CompactStep;
+  prune?: PruneReport;
+  compact?: CompactReport;
+  error?: string;
+}
+
+/**
+ * What a prune starts with ticked: the two that cost nothing - dangling images
+ * and the build cache. Stopped containers, every unused image and anonymous
+ * volumes all take something somebody may still want, so they are opt-in.
+ */
+const PRUNE_DEFAULT: PruneTarget[] = ["images", "cache"];
 
 /** Default width each view asks for, before the sidebar is added. */
 const VIEW_WIDTH: Record<View, number> = {
@@ -231,6 +256,11 @@ export function useApp() {
    */
   const [procPorts, setProcPorts] = useState("ports");
   const [stopping, setStopping] = useState<Set<number>>(new Set());
+  /** Running containers, each with its project; null until Docker has answered once. */
+  const [dockers, setDockers] = useState<Container[] | null>(null);
+  const [stoppingContainers, setStoppingContainers] = useState<Set<string>>(new Set());
+  const [dockerTask, setDockerTask] = useState<DockerTask | null>(null);
+  const [pruneTargets, setPruneTargets] = useState<Set<PruneTarget>>(new Set(PRUNE_DEFAULT));
 
   // --- Claude Code history -------------------------------------------------
   /** Null until the logs have been read once, so the view can say so. */
@@ -987,9 +1017,29 @@ export function useApp() {
     });
   }, [processes, procFilter, procPorts]);
 
+  /**
+   * The containers, through the same two filters: one belongs to a project when
+   * its compose directory, dev container folder or a bind mount is inside one,
+   * and it holds a port when it publishes one on the host.
+   */
+  const visibleContainers = useMemo(() => {
+    if (!dockers) return dockers;
+    return dockers.filter((c) => {
+      if (procFilter === "direct" && !c.projectId) return false;
+      if (procPorts === "ports" && c.hostPorts.length === 0) return false;
+      if (procPorts === "free" && c.hostPorts.length > 0) return false;
+      return true;
+    });
+  }, [dockers, procFilter, procPorts]);
+
   const refreshProcesses = useCallback(async () => {
     try {
-      setProcesses(await api.runningProcesses());
+      const [found, boxes] = await Promise.all([
+        api.runningProcesses(),
+        api.runningContainers().catch(() => []),
+      ]);
+      setProcesses(found);
+      setDockers(boxes);
     } catch (e) {
       flash(String(e));
     }
@@ -1005,8 +1055,15 @@ export function useApp() {
     let alive = true;
 
     const tick = async () => {
-      const found = await api.runningProcesses().catch(() => null);
-      if (alive && found) setProcesses(found);
+      // Docker is asked alongside, not after: with the daemon down the answer
+      // comes back at once, and with it up it should not hold the list back.
+      const [found, boxes] = await Promise.all([
+        api.runningProcesses().catch(() => null),
+        api.runningContainers().catch(() => null),
+      ]);
+      if (!alive) return;
+      if (found) setProcesses(found);
+      if (boxes) setDockers(boxes);
     };
     void tick();
     const id = window.setInterval(tick, 4000);
@@ -1050,6 +1107,72 @@ export function useApp() {
     },
     [flash, t, refreshProcesses],
   );
+
+  const stopContainer = useCallback(
+    async (container: Container) => {
+      setStoppingContainers((prev) => new Set(prev).add(container.id));
+      try {
+        const name = await api.stopContainer(container.id);
+        flash(`${name} — ${t.stopped}`);
+      } catch (e) {
+        flash(String(e));
+      } finally {
+        setStoppingContainers((prev) => {
+          const next = new Set(prev);
+          next.delete(container.id);
+          return next;
+        });
+        await refreshProcesses();
+      }
+    },
+    [flash, t, refreshProcesses],
+  );
+
+  // --- Docker disk ------------------------------------------------------------
+  const openDockerTask = useCallback((mode: DockerTask["mode"]) => {
+    setDockerTask({ mode, phase: "ask" });
+  }, []);
+
+  /** Closing is refused while the work runs: there is nothing to cancel it with. */
+  const closeDockerTask = useCallback(() => {
+    setDockerTask((task) => (task?.phase === "busy" ? task : null));
+  }, []);
+
+  const togglePruneTarget = useCallback((target: PruneTarget) => {
+    setPruneTargets((prev) => {
+      const next = new Set(prev);
+      if (next.has(target)) next.delete(target);
+      else next.add(target);
+      return next;
+    });
+  }, []);
+
+  const runPrune = useCallback(async () => {
+    setDockerTask({ mode: "prune", phase: "busy" });
+    try {
+      const report = await api.dockerPrune([...pruneTargets]);
+      setDockerTask({ mode: "prune", phase: "done", prune: report });
+    } catch (e) {
+      setDockerTask({ mode: "prune", phase: "done", error: String(e) });
+    }
+    await refreshDocker();
+  }, [pruneTargets, refreshDocker]);
+
+  const runCompact = useCallback(async () => {
+    setDockerTask({ mode: "compact", phase: "busy", step: "trim" });
+    const stop = await api.onDockerCompact((step) =>
+      setDockerTask((task) => (task?.phase === "busy" ? { ...task, step } : task)),
+    );
+    try {
+      const report = await api.dockerCompact();
+      setDockerTask({ mode: "compact", phase: "done", compact: report });
+    } catch (e) {
+      setDockerTask({ mode: "compact", phase: "done", error: String(e) });
+    } finally {
+      stop();
+    }
+    await refreshDocker();
+  }, [refreshDocker]);
 
   // --- GitHub ---------------------------------------------------------------
   /**
@@ -1925,6 +2048,16 @@ export function useApp() {
     refreshProcesses,
     stopProcess,
     stopping,
+    visibleContainers,
+    stopContainer,
+    stoppingContainers,
+    dockerTask,
+    openDockerTask,
+    closeDockerTask,
+    pruneTargets,
+    togglePruneTarget,
+    runPrune,
+    runCompact,
     portAsk,
     dismissPortAsk: () => setPortAsk(null),
     // GitHub

@@ -247,14 +247,48 @@ export interface DockerStatus {
   containersRunning: number;
   containersTotal: number;
   images: number;
+  /** What each kind would give back to a prune, as `docker system df` puts it. */
   imagesBytes: number;
   buildCacheBytes: number;
   volumesBytes: number;
+  containersBytes: number;
+  /** Everything Docker is holding, reclaimable or not. */
+  usedBytes: number;
+  /**
+   * Docker Desktop's virtual disk and its size on the host. The file grows and
+   * never shrinks on its own, so the gap to `usedBytes` is space only a
+   * compaction gives back. Empty and zero where there is no such file.
+   */
+  diskPath: string;
+  diskBytes: number;
   /** Why the daemon could not be reached; empty when it could. */
   error: string;
 }
 
-/** One container of a project's compose stack. */
+/** What a prune gave back, and what it could not do. */
+export interface PruneReport {
+  freedBytes: number;
+  done: string[];
+  errors: string[];
+}
+
+/** The disk file before and after a compaction. */
+export interface CompactReport {
+  beforeBytes: number;
+  afterBytes: number;
+  /** `fstrim`'s own account of what it released inside the disk. */
+  trimmed: string;
+  /** Set when Docker Desktop could not be started again afterwards. */
+  restartError: string;
+}
+
+/** What the Docker dialog can prune; the backend owns what each one runs. */
+export type PruneTarget = "containers" | "images" | "images-all" | "cache" | "volumes";
+
+/** The steps of a compaction, in order. */
+export type CompactStep = "trim" | "stop" | "detach" | "compact" | "start";
+
+/** One container, and the project it belongs to when it belongs to one. */
 export interface Container {
   id: string;
   name: string;
@@ -265,6 +299,12 @@ export interface Container {
   status: string;
   ports: string;
   service: string;
+  /** Host ports it publishes. */
+  hostPorts: number[];
+  /** Seconds since it started; zero when it is not running. */
+  runSecs: number;
+  projectId: string;
+  project: string;
 }
 
 /** A command this app started that already holds the port. */

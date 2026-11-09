@@ -66,6 +66,107 @@ function FilterToggle({
   );
 }
 
+/**
+ * Docker's share of the disk, which the directory list cannot see: what a
+ * prune would free, and - on Windows - how far Docker Desktop's disk file has
+ * outgrown what is actually in it.
+ */
+function DockerCard({ app }: { app: App }) {
+  const { t, docker } = app;
+  // Nothing to say on a machine without Docker.
+  if (docker && !docker.installed && docker.diskBytes === 0) return null;
+
+  const up = !!docker?.daemonRunning;
+  const pruneable = docker
+    ? docker.imagesBytes + docker.buildCacheBytes + docker.containersBytes + docker.volumesBytes
+    : 0;
+  // Only meaningful with the daemon up: without it there is no usage figure.
+  const slack = docker && up ? Math.max(0, docker.diskBytes - docker.usedBytes) : 0;
+
+  const line = (label: string, value: string, accent = false) => (
+    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, padding: "3px 0" }}>
+      <span style={{ color: "rgba(var(--trgb),.45)" }}>{label}</span>
+      <span
+        style={{
+          fontFamily: "'JetBrains Mono',monospace",
+          fontWeight: accent ? 650 : 500,
+          color: accent ? "var(--warnTx)" : undefined,
+        }}
+      >
+        {value}
+      </span>
+    </div>
+  );
+  const button = (label: string, onClick: () => void, enabled: boolean) => (
+    <button
+      type="button"
+      className="h-ghost"
+      disabled={!enabled}
+      onClick={onClick}
+      style={{
+        flex: 1,
+        border: "1px solid rgba(var(--wrgb),.12)",
+        borderRadius: 9,
+        background: "rgba(var(--wrgb),.04)",
+        color: "rgba(var(--trgb),.8)",
+        padding: "6px 10px",
+        cursor: enabled ? "pointer" : "default",
+        fontSize: 11.5,
+        fontWeight: 500,
+        opacity: enabled ? 1 : 0.45,
+      }}
+    >
+      {label}
+    </button>
+  );
+
+  return (
+    <div
+      style={{
+        border: "1px solid rgba(var(--wrgb),.08)",
+        borderRadius: 14,
+        background: "rgba(var(--wrgb),.022)",
+        padding: "15px 16px",
+      }}
+    >
+      <div
+        style={{
+          fontSize: 10.5,
+          letterSpacing: ".09em",
+          textTransform: "uppercase",
+          color: "rgba(var(--trgb),.56)",
+          marginBottom: 6,
+        }}
+      >
+        {t.dockerDisk}
+      </div>
+
+      {!docker ? (
+        <div style={{ fontSize: 11.5, color: "rgba(var(--trgb),.45)" }}>{t.dockerBusy}</div>
+      ) : (
+        <>
+          {docker.diskBytes > 0 && line(t.dockerDiskFile, size(docker.diskBytes))}
+          {up && docker.diskBytes > 0 && line(t.dockerDiskUsed, size(docker.usedBytes))}
+          {slack > 0 && line(t.dockerDiskSlack, size(slack), true)}
+          {up && line(t.dockerPruneable, size(pruneable))}
+          {!up && (
+            <div style={{ fontSize: 11, color: "rgba(var(--trgb),.5)", lineHeight: 1.45, marginTop: 4 }}>
+              {t.dockerDiskOff}
+            </div>
+          )}
+
+          <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+            {button(t.dockerPruneBtn, () => app.openDockerTask("prune"), up)}
+            {/* Compacting starts with a trim run through Docker, so it needs the
+                daemon as much as a prune does. */}
+            {docker.diskBytes > 0 && button(t.dockerCompactBtn, () => app.openDockerTask("compact"), up)}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 const pickButton = {
   border: 0,
   background: "transparent",
@@ -543,22 +644,9 @@ export function CleanView({ app }: { app: App }) {
             </span>
           </div>
 
-          {app.docker?.daemonRunning && (
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                fontSize: 11.5,
-                marginTop: 6,
-              }}
-            >
-              <span style={{ color: "rgba(var(--trgb),.45)" }}>{t.dockerReclaim}</span>
-              <span style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 500 }}>
-                {size(app.docker.imagesBytes + app.docker.buildCacheBytes)}
-              </span>
-            </div>
-          )}
         </div>
+
+        <DockerCard app={app} />
 
         <div
           style={{

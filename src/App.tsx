@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 
 import { ConfirmDialog } from "./components/ConfirmDialog";
+import { DockerDialog } from "./components/DockerDialog";
 import { PortDialog } from "./components/PortDialog";
 import { SyncDialog } from "./components/SyncDialog";
 import { Sidebar } from "./components/Sidebar";
@@ -111,7 +112,14 @@ export function App() {
       // Counted from the filtered list, so the header and the rows below it
       // are always talking about the same processes.
       meta: app.visibleProcesses
-        ? `${app.visibleProcesses.length} ${t.processesRunning} · ${size(app.visibleProcesses.reduce((a, p) => a + p.memoryBytes, 0))}`
+        ? [
+            `${app.visibleProcesses.length} ${t.processesRunning}`,
+            // Only once there is something to count: most machines run none.
+            app.visibleContainers?.length ? `${app.visibleContainers.length} ${t.containersRunning}` : "",
+            size(app.visibleProcesses.reduce((a, p) => a + p.memoryBytes, 0)),
+          ]
+            .filter(Boolean)
+            .join(" · ")
         : t.checking,
     },
     claude: {
@@ -252,6 +260,7 @@ export function App() {
 
       <ConfirmDialog app={app} />
       <PortDialog app={app} />
+      <DockerDialog app={app} />
       <SyncDialog app={app} />
       <Notifications notices={app.notices} onDismiss={app.dismissNotice} />
     </div>

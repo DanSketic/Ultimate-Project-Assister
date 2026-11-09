@@ -11,9 +11,10 @@ use std::time::Instant;
 use tauri::{AppHandle, Emitter, State};
 
 use crate::model::{
-    ClaudeMessage, ClaudeStats, CleanProgress, Container, DeleteReport, DockerStatus,
+    ClaudeMessage, ClaudeStats, CleanProgress, CompactReport, Container, DeleteReport, DockerStatus,
     GitHubRelease, GitHubStatus,
-    PortConflict, PortUser, ProcessInfo, Project, PullRequest, RebaseReport, RepoCi, RepoInfo,
+    PortConflict, PortUser, ProcessInfo, Project, PruneReport, PullRequest, RebaseReport, RepoCi,
+    RepoInfo,
     ScanProgress, ScanResult, SyncStatus, SysStats, ToolStatus,
 };
 use crate::store::{Goal, Note, Settings, Store};
@@ -25,6 +26,9 @@ use crate::{
 pub const SCAN_PROGRESS: &str = "upa://scan-progress";
 pub const SCAN_DONE: &str = "upa://scan-done";
 pub const CLEAN_PROGRESS: &str = "upa://clean-progress";
+/// The step a Docker disk compaction has reached: `trim`, `stop`, `detach`,
+/// `compact`, `start`.
+pub const DOCKER_COMPACT: &str = "upa://docker-compact";
 /// Reuses `ScanProgress`: "this many of that many, currently on X" is the
 /// same report, and the status bar renders it the same way.
 pub const SYNC_PROGRESS: &str = "upa://sync-progress";
@@ -363,22 +367,56 @@ pub async fn docker_status() -> Result<DockerStatus, String> {
         .map_err(|e| e.to_string())
 }
 
-/// The containers of one project's compose stack, running or not.
+/// The containers belonging to one project, running or not.
 #[tauri::command]
 pub async fn project_containers(
     state: State<'_, AppState>,
     project_id: String,
 ) -> Result<Vec<Container>, String> {
-    let Some(project) = state.project_by_id(&project_id) else { return Ok(Vec::new()) };
-    // Compose names the stack after the directory, not after our display name.
-    let dir = Path::new(&project.path)
-        .file_name()
-        .map(|n| n.to_string_lossy().to_string())
-        .unwrap_or(project.name);
+    let projects = state.projects.lock().unwrap().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut list = docker::containers(&projects, true);
+        list.retain(|c| c.project_id == project_id);
+        list
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
 
-    tauri::async_runtime::spawn_blocking(move || docker::containers_for(&dir))
+/// Every running container, each with the project it belongs to.
+#[tauri::command]
+pub async fn running_containers(state: State<'_, AppState>) -> Result<Vec<Container>, String> {
+    let projects = state.projects.lock().unwrap().clone();
+    tauri::async_runtime::spawn_blocking(move || docker::containers(&projects, false))
         .await
         .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn stop_container(id: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || docker::stop(&id))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// Runs the asked-for prunes; the backend owns what each one runs.
+#[tauri::command]
+pub async fn docker_prune(targets: Vec<String>) -> Result<PruneReport, String> {
+    tauri::async_runtime::spawn_blocking(move || docker::prune(&targets))
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Shrinks Docker Desktop's disk file, reporting each step as it begins.
+#[tauri::command]
+pub async fn docker_compact(app: AppHandle) -> Result<CompactReport, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        docker::compact(|step| {
+            let _ = app.emit(DOCKER_COMPACT, step);
+        })
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]

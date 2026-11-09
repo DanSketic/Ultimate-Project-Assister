@@ -10,6 +10,45 @@ are assigned when a release is cut — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## [Unreleased]
 
+### Added
+
+- **Docker containers in the running view, under their projects.** The list
+  showed processes only, so a project's database or queue running in Docker
+  was nowhere next to its dev server. Running containers now sit in the same
+  project groups, with their published ports, uptime and a stop button, and the
+  same two filters apply: belonging to a project, and holding a port. A
+  container is placed by the directory its compose file was started from, the
+  folder a dev container was opened on, or a bind mount; a compose file kept
+  deep inside a project still lands on that project. Only a container with no
+  path at all falls back to its compose project name, and only when exactly one
+  project fits it. The project detail's stack uses the same matching, so a
+  stack named unlike its directory is found there too.
+- **Docker's disk on the cleanup view.** A card beside the totals says how large
+  Docker Desktop's disk file is, how much of it Docker actually uses, what only
+  a compaction gives back, and what a prune would free. Two actions go with it.
+  *Prune* deletes what Docker no longer uses, picked per kind: dangling images
+  and the build cache by default; stopped containers, every unused image and
+  anonymous volumes on request — named volumes, where databases keep their data,
+  are never touched. *Compact* gives the space back to the machine: Docker
+  Desktop mounts its data disk without `discard`, so the file never shrinks on
+  its own. It trims the free blocks inside Docker's VM, stops Docker Desktop,
+  compacts the file with `diskpart` behind a Windows administrator prompt, and
+  starts Docker Desktop again whatever the compaction did — and with it the
+  containers that were running, since one without a restart policy would
+  otherwise stay down. A `docker desktop stop` that gives up on its timeout
+  while the shutdown is still finishing does not end the run: what counts is
+  the disk being let go. WSL is shut down
+  only if it is still holding the disk, and the dialog says so before anything
+  starts.
+
+### Fixed
+
+- **A project no longer claims a sibling directory that starts with its name.**
+  A process working in `C:\dev\shop-old` was filed under the project at
+  `C:\dev\shop`, because the match did not have to end on a directory
+  boundary. The test that covered this asserted the wrong answer, and has been
+  corrected along with it.
+
 ## [1.11.0] - 2026-11-02
 
 ### Added

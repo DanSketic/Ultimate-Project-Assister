@@ -3,6 +3,9 @@
 // Not a task manager: only processes this app started, processes holding a
 // port, and processes working inside a known project. Everything else on the
 // machine is somebody else's problem while you are looking at your projects.
+//
+// Running Docker containers sit in the same groups: a project's database in a
+// container is as much a part of what it is running as its dev server.
 
 import { useMemo } from "react";
 
@@ -12,7 +15,7 @@ import { RefreshAction } from "../components/Requirements";
 import { Stop } from "../components/Icons";
 import { duration, size } from "../format";
 import type { App } from "../useApp";
-import type { ProcessInfo } from "../types";
+import type { Container, ProcessInfo } from "../types";
 
 const mono = "'JetBrains Mono',monospace";
 const GRID = "minmax(190px,1fr) 128px 96px 92px 74px 86px";
@@ -21,6 +24,7 @@ export function ProcessesView({ app }: { app: App }) {
   const { t, procFilter, procPorts } = app;
   // The filtered list: what is shown, grouped and counted, is one and the same.
   const processes = app.visibleProcesses;
+  const containers = app.visibleContainers;
 
   /**
    * Grouped by project, with everything that belongs to none of them last.
@@ -29,25 +33,29 @@ export function ProcessesView({ app }: { app: App }) {
    */
   const groups = useMemo(() => {
     if (!processes) return [];
-    const byProject = new Map<string, ProcessInfo[]>();
-    for (const p of processes) {
-      const key = p.projectId || "";
-      const list = byProject.get(key);
-      if (list) list.push(p);
-      else byProject.set(key, [p]);
-    }
+    const byProject = new Map<string, { label: string; items: ProcessInfo[]; boxes: Container[] }>();
+    const slot = (key: string, label: string) => {
+      let group = byProject.get(key);
+      if (!group) byProject.set(key, (group = { label, items: [], boxes: [] }));
+      return group;
+    };
+    for (const p of processes) slot(p.projectId || "", p.project).items.push(p);
+    for (const c of containers ?? []) slot(c.projectId || "", c.project).boxes.push(c);
 
     return [...byProject.entries()]
-      .map(([key, items]) => ({
+      .map(([key, { label, items, boxes }]) => ({
         key: key || "__other__",
-        label: items[0]?.project || t.otherProcesses,
+        label: label || t.otherProcesses,
         orphan: !key,
         items,
+        boxes,
+        // Docker does not say what a container costs without a slow `stats`
+        // call, so the total is the processes' alone.
         memory: items.reduce((total, p) => total + p.memoryBytes, 0),
-        ports: items.flatMap((p) => p.ports),
+        ports: [...items.flatMap((p) => p.ports), ...boxes.flatMap((c) => c.hostPorts)],
       }))
       .sort((a, b) => Number(a.orphan) - Number(b.orphan) || b.memory - a.memory);
-  }, [processes, t.otherProcesses]);
+  }, [processes, containers, t.otherProcesses]);
 
   if (processes === null) {
     return <Note text={t.checking} />;
@@ -156,8 +164,16 @@ export function ProcessesView({ app }: { app: App }) {
               </span>
             </FolderHeader>
 
-            {!app.isCollapsed("procs", group.key, group.orphan) &&
-              group.items.map((p) => <Row key={p.pid} process={p} app={app} />)}
+            {!app.isCollapsed("procs", group.key, group.orphan) && (
+              <>
+                {group.items.map((p) => (
+                  <Row key={p.pid} process={p} app={app} />
+                ))}
+                {group.boxes.map((c) => (
+                  <ContainerRow key={c.id} container={c} app={app} />
+                ))}
+              </>
+            )}
           </div>
         ))}
       </div>
@@ -287,6 +303,154 @@ function Row({ process: p, app }: { process: ProcessInfo; app: App }) {
           // A system process is listed for context and nothing else.
           <span style={{ fontSize: 9.5, color: "rgba(var(--trgb),.35)" }}>{t.systemProcess}</span>
         )}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * A running container, in the same columns as a process: its ports, how long
+ * it has been up, and its id where a process has its PID. Memory is left
+ * blank rather than guessed.
+ */
+function ContainerRow({ container: c, app }: { container: Container; app: App }) {
+  const { t } = app;
+  const busy = app.stoppingContainers.has(c.id);
+
+  return (
+    <div
+      className="h-soft"
+      style={{
+        display: "grid",
+        gridTemplateColumns: GRID,
+        gap: 10,
+        alignItems: "center",
+        padding: "8px 12px",
+        borderRadius: 10,
+        borderTop: "1px solid rgba(var(--wrgb),.05)",
+      }}
+      title={`${c.image} · ${c.status}`}
+    >
+      <span style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 8 }}>
+        {/* Square rather than round: a container, not a process. */}
+        <span
+          style={{
+            width: 6,
+            height: 6,
+            flex: "0 0 6px",
+            borderRadius: 2,
+            background: "rgba(var(--coolrgb),.8)",
+          }}
+        />
+        <span style={{ minWidth: 0 }}>
+          <span
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              fontSize: 12.5,
+              fontWeight: 500,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+            }}
+          >
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</span>
+            <span
+              style={{
+                flex: "0 0 auto",
+                fontSize: 9,
+                fontWeight: 600,
+                letterSpacing: ".04em",
+                textTransform: "uppercase",
+                color: "rgba(var(--trgb),.5)",
+                border: "1px solid rgba(var(--coolrgb),.3)",
+                borderRadius: 5,
+                padding: "0 5px",
+              }}
+            >
+              {t.containerL}
+            </span>
+          </span>
+          <span
+            style={{
+              display: "block",
+              fontFamily: mono,
+              fontSize: 9.5,
+              color: "rgba(var(--trgb),.44)",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {c.service ? `${c.image} · ${c.service}` : c.image}
+          </span>
+        </span>
+      </span>
+
+      <span style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+        {c.hostPorts.map((port) => (
+          <span
+            key={port}
+            style={{
+              fontFamily: mono,
+              fontSize: 9.5,
+              fontWeight: 500,
+              border: "1px solid rgba(var(--coolrgb),.35)",
+              background: "rgba(var(--coolrgb),.12)",
+              color: "rgba(var(--trgb),.75)",
+              borderRadius: 99,
+              padding: "1px 7px",
+            }}
+          >
+            :{port}
+          </span>
+        ))}
+      </span>
+
+      <span style={{ textAlign: "right", fontFamily: mono, fontSize: 11.5, color: "rgba(var(--trgb),.35)" }}>
+        —
+      </span>
+      <span style={{ textAlign: "right", fontFamily: mono, fontSize: 10.5, color: "rgba(var(--trgb),.55)" }}>
+        {c.runSecs ? duration(c.runSecs, app.lang) : c.state}
+      </span>
+      <span
+        style={{
+          textAlign: "right",
+          fontFamily: mono,
+          fontSize: 10,
+          color: "rgba(var(--trgb),.42)",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+        }}
+      >
+        {c.id}
+      </span>
+
+      <span style={{ display: "flex", justifyContent: "flex-end" }}>
+        <button
+          type="button"
+          className="h-danger"
+          disabled={busy}
+          onClick={() => void app.stopContainer(c)}
+          title={`${t.stop} ${c.name}`}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 5,
+            border: "1px solid rgba(var(--danrgb),.4)",
+            borderRadius: 8,
+            background: "rgba(var(--danrgb),.1)",
+            color: "var(--danTx2)",
+            padding: "4px 9px",
+            cursor: busy ? "default" : "pointer",
+            fontSize: 10.5,
+            fontWeight: 600,
+            opacity: busy ? 0.55 : 1,
+          }}
+        >
+          <Stop size={7} />
+          {t.stop}
+        </button>
       </span>
     </div>
   );

@@ -14,6 +14,8 @@ import type {
   RepoCi,
   RepoInfo,
   CleanProgress,
+  CompactReport,
+  CompactStep,
   Container,
   DeleteReport,
   DockerStatus,
@@ -23,6 +25,8 @@ import type {
   PortConflict,
   ProcessInfo,
   Project,
+  PruneReport,
+  PruneTarget,
   RebaseReport,
   ScanProgress,
   ScanResult,
@@ -119,6 +123,29 @@ export async function dockerStatus(): Promise<DockerStatus> {
 export async function projectContainers(projectId: string): Promise<Container[]> {
   if (!IS_TAURI) return mock.containers(projectId);
   return call<Container[]>("project_containers", { projectId });
+}
+
+/** Every running container, each with the project it belongs to. */
+export async function runningContainers(): Promise<Container[]> {
+  if (!IS_TAURI) return mock.runningContainers();
+  return call<Container[]>("running_containers");
+}
+
+/** Stops a container by id; resolves to its name. */
+export async function stopContainer(id: string): Promise<string> {
+  if (!IS_TAURI) return mock.stopContainer(id);
+  return call<string>("stop_container", { id });
+}
+
+export async function dockerPrune(targets: PruneTarget[]): Promise<PruneReport> {
+  if (!IS_TAURI) return mock.dockerPrune(targets);
+  return call<PruneReport>("docker_prune", { targets });
+}
+
+/** Shrinks Docker Desktop's disk; the steps arrive through `onDockerCompact`. */
+export async function dockerCompact(): Promise<CompactReport> {
+  if (!IS_TAURI) return mock.dockerCompact();
+  return call<CompactReport>("docker_compact");
 }
 
 export async function projectRequirements(projectId: string): Promise<ToolStatus[]> {
@@ -411,6 +438,10 @@ export const onCleanProgress = (h: (p: CleanProgress) => void): Promise<Unlisten
   IS_TAURI
     ? on<CleanProgress>("upa://clean-progress", h)
     : Promise.resolve(mock.onCleanProgress(h));
+export const onDockerCompact = (h: (step: CompactStep) => void): Promise<Unlisten> =>
+  IS_TAURI
+    ? on<CompactStep>("upa://docker-compact", h)
+    : Promise.resolve(mock.onDockerCompact(h));
 export const onScanProgress = (h: (p: ScanProgress) => void) =>
   on<ScanProgress>("upa://scan-progress", h);
 export const onSyncProgress = (h: (p: ScanProgress) => void) =>

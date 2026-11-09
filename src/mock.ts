@@ -18,6 +18,8 @@ import type {
   ClaudeStats,
   CleanProgress,
   CleanTarget,
+  CompactReport,
+  CompactStep,
   CommandDef,
   Commit,
   Container,
@@ -29,6 +31,8 @@ import type {
   PortConflict,
   ProcessInfo,
   Project,
+  PruneReport,
+  PruneTarget,
   RebaseReport,
   Settings,
   SyncStatus,
@@ -846,6 +850,12 @@ export function dockerStatus(): DockerStatus {
     imagesBytes: 18.4 * MB * 1024,
     buildCacheBytes: 6.1 * MB * 1024,
     volumesBytes: 2.3 * MB * 1024,
+    containersBytes: 0.4 * MB * 1024,
+    usedBytes: 41.7 * MB * 1024,
+    // A disk twice the size of what is in it - the shape it takes after a few
+    // months of pulling and deleting images.
+    diskPath: "C:\\Users\\demo\\AppData\\Local\\Docker\\wsl\\disk\\docker_data.vhdx",
+    diskBytes: 87.4 * MB * 1024,
     error: "",
   };
 }
@@ -855,14 +865,76 @@ export function containers(projectId: string): Container[] {
   const project = projects().find((p) => p.id === projectId);
   if (!project || !project.manifests.some((m) => m.startsWith("docker-compose"))) return [];
 
+  return stack(project).filter((c) => c.state !== "removed");
+}
+
+/** A compose stack the way it would come back for one project. */
+function stack(project: Project): Container[] {
+  const owned = { projectId: project.id, project: project.name };
   return [
     { id: "a1b2c3d4e5f6", name: `${project.name}-db-1`, image: "postgres:16", state: "running",
-      status: "Up 3 hours (healthy)", ports: "0.0.0.0:5432->5432/tcp", service: "db" },
+      status: "Up 3 hours (healthy)", ports: "0.0.0.0:5432->5432/tcp", service: "db",
+      hostPorts: [5432], runSecs: 3 * 3600 + 420, ...owned },
     { id: "b2c3d4e5f6a1", name: `${project.name}-redis-1`, image: "redis:7-alpine", state: "running",
-      status: "Up 3 hours", ports: "0.0.0.0:6379->6379/tcp", service: "redis" },
+      status: "Up 3 hours", ports: "0.0.0.0:6379->6379/tcp", service: "redis",
+      hostPorts: [6379], runSecs: 3 * 3600 + 410, ...owned },
     { id: "c3d4e5f6a1b2", name: `${project.name}-worker-1`, image: "node:22-slim", state: "exited",
-      status: "Exited (0) 12 minutes ago", ports: "", service: "worker" },
+      status: "Exited (0) 12 minutes ago", ports: "", service: "worker",
+      hostPorts: [], runSecs: 0, ...owned },
   ];
+}
+
+/** Running containers across the machine: one project's stack, and one that is nobody's. */
+export function runningContainers(): Container[] {
+  const compose = projects().find((p) => p.manifests.some((m) => m.startsWith("docker-compose")));
+  const own = compose ? stack(compose).filter((c) => c.state === "running") : [];
+  return [
+    ...own,
+    { id: "d4e5f6a1b2c3", name: "mailpit", image: "axllent/mailpit:latest", state: "running",
+      status: "Up 2 days", ports: "0.0.0.0:8025->8025/tcp", service: "", hostPorts: [8025],
+      runSecs: 2 * 86400 + 3600, projectId: "", project: "" },
+  ];
+}
+
+export async function stopContainer(id: string): Promise<string> {
+  await pause(420);
+  return runningContainers().find((c) => c.id === id)?.name ?? id;
+}
+
+export async function dockerPrune(targets: PruneTarget[]): Promise<PruneReport> {
+  await pause(900);
+  const status = dockerStatus();
+  const bytes: Record<PruneTarget, number> = {
+    containers: status.containersBytes,
+    images: status.imagesBytes / 3,
+    "images-all": status.imagesBytes,
+    cache: status.buildCacheBytes,
+    volumes: status.volumesBytes,
+  };
+  const run = targets.filter((t) => !(t === "images" && targets.includes("images-all")));
+  return { freedBytes: run.reduce((sum, t) => sum + bytes[t], 0), done: run, errors: [] };
+}
+
+const compactListeners = new Set<(step: CompactStep) => void>();
+
+export function onDockerCompact(handler: (step: CompactStep) => void): () => void {
+  compactListeners.add(handler);
+  return () => compactListeners.delete(handler);
+}
+
+/** Walks the same steps as the real one, without touching anything. */
+export async function dockerCompact(): Promise<CompactReport> {
+  for (const step of ["trim", "stop", "detach", "compact", "start"] as CompactStep[]) {
+    compactListeners.forEach((l) => l(step));
+    await pause(700);
+  }
+  const status = dockerStatus();
+  return {
+    beforeBytes: status.diskBytes,
+    afterBytes: status.usedBytes * 1.04,
+    trimmed: "/var/lib: 43.1 GiB (46277591040 bytes) trimmed",
+    restartError: "",
+  };
 }
 
 /** One missing tool, so the install path is reachable in the browser build. */
