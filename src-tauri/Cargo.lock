@@ -4234,7 +4234,7 @@ dependencies = [
 
 [[package]]
 name = "ultimate-project-assister"
-version = "1.12.0"
+version = "1.13.0"
 dependencies = [
  "anyhow",
  "chrono",
