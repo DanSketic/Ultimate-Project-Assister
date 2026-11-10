@@ -18,6 +18,7 @@ import type {
   CompactReport,
   CompactStep,
   Container,
+  ContainerAction,
   DockerStatus,
   Feature,
   Goal,
@@ -68,6 +69,7 @@ const VIEW_WIDTH: Record<View, number> = {
   board: 1740,
   cmd: 1120,
   procs: 1120,
+  containers: 1180,
   claude: 1240,
   actions: 1240,
   set: 840,
@@ -260,6 +262,16 @@ export function useApp() {
   const [dockers, setDockers] = useState<Container[] | null>(null);
   const [stoppingContainers, setStoppingContainers] = useState<Set<string>>(new Set());
   const [dockerTask, setDockerTask] = useState<DockerTask | null>(null);
+  /** Every container, for the containers view; null until Docker has answered. */
+  const [boxes, setBoxes] = useState<Container[] | null>(null);
+  /** `all`, `running`, `problem`, `stopped`. */
+  const [boxFilter, setBoxFilter] = useState("all");
+  /** Container ids with an action under way. */
+  const [boxBusy, setBoxBusy] = useState<Set<string>>(new Set());
+  /** Log tails that are open, by container id; null while one loads. */
+  const [boxLogs, setBoxLogs] = useState<Record<string, string | null>>({});
+  /** A removal waiting for its confirmation. */
+  const [boxRemove, setBoxRemove] = useState<{ ids: string[]; label: string } | null>(null);
   const [pruneTargets, setPruneTargets] = useState<Set<PruneTarget>>(new Set(PRUNE_DEFAULT));
 
   // --- Claude Code history -------------------------------------------------
@@ -561,7 +573,7 @@ export function useApp() {
   }, []);
 
   useEffect(() => {
-    if (view !== "detail" && view !== "cmd" && view !== "clean") return;
+    if (view !== "detail" && view !== "cmd" && view !== "clean" && view !== "containers") return;
     let alive = true;
     void api.dockerStatus().then((s) => alive && setDocker(s));
     return () => {
@@ -1127,6 +1139,88 @@ export function useApp() {
     },
     [flash, t, refreshProcesses],
   );
+
+  // --- containers -------------------------------------------------------------
+  const refreshBoxes = useCallback(async () => {
+    setBoxes(await api.allContainers().catch(() => []));
+  }, []);
+
+  // Once at start, so the sidebar can flag a failing container before the view
+  // is ever opened.
+  useEffect(() => {
+    void refreshBoxes();
+  }, [refreshBoxes]);
+
+  /** Polled while the view is open: a crash loop changes state every few seconds. */
+  useEffect(() => {
+    if (view !== "containers") return;
+    let alive = true;
+    const tick = async () => {
+      const found = await api.allContainers().catch(() => null);
+      if (alive && found) setBoxes(found);
+    };
+    void tick();
+    const id = window.setInterval(tick, 5000);
+    return () => {
+      alive = false;
+      window.clearInterval(id);
+    };
+  }, [view]);
+
+  /**
+   * One action on one container or a whole stack. A removal is never run from
+   * here directly: it is asked first, through `askRemove`.
+   */
+  const boxAct = useCallback(
+    async (ids: string[], action: ContainerAction) => {
+      setBoxBusy((prev) => new Set([...prev, ...ids]));
+      try {
+        await api.containerAction(ids, action);
+      } catch (e) {
+        flash(String(e));
+      } finally {
+        setBoxBusy((prev) => {
+          const next = new Set(prev);
+          ids.forEach((id) => next.delete(id));
+          return next;
+        });
+        await refreshBoxes();
+      }
+    },
+    [flash, refreshBoxes],
+  );
+
+  const askRemove = useCallback((ids: string[], label: string) => setBoxRemove({ ids, label }), []);
+  const cancelRemove = useCallback(() => setBoxRemove(null), []);
+  const confirmRemove = useCallback(async () => {
+    const ask = boxRemove;
+    setBoxRemove(null);
+    if (ask) await boxAct(ask.ids, "remove");
+  }, [boxRemove, boxAct]);
+
+  /** Opens a log tail, or closes it when it is open. */
+  const toggleBoxLogs = useCallback(
+    async (id: string) => {
+      if (id in boxLogs) {
+        setBoxLogs((prev) => {
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
+        return;
+      }
+      setBoxLogs((prev) => ({ ...prev, [id]: null }));
+      const text = await api.containerLogs(id).catch((e) => String(e));
+      setBoxLogs((prev) => (id in prev ? { ...prev, [id]: text } : prev));
+    },
+    [boxLogs],
+  );
+
+  const reloadBoxLogs = useCallback(async (id: string) => {
+    setBoxLogs((prev) => ({ ...prev, [id]: null }));
+    const text = await api.containerLogs(id).catch((e) => String(e));
+    setBoxLogs((prev) => (id in prev ? { ...prev, [id]: text } : prev));
+  }, []);
 
   // --- Docker disk ------------------------------------------------------------
   const openDockerTask = useCallback((mode: DockerTask["mode"]) => {
@@ -2049,6 +2143,19 @@ export function useApp() {
     stopProcess,
     stopping,
     visibleContainers,
+    boxes,
+    boxFilter,
+    setBoxFilter,
+    boxBusy,
+    boxAct,
+    boxLogs,
+    toggleBoxLogs,
+    reloadBoxLogs,
+    boxRemove,
+    askRemove,
+    cancelRemove,
+    confirmRemove,
+    refreshBoxes,
     stopContainer,
     stoppingContainers,
     dockerTask,

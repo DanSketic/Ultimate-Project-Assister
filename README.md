@@ -43,6 +43,7 @@ the pinned ones in a block of their own above the folders.</sub>
 | **Board** | A free canvas of draggable notes with a project tag, a deadline and three colours. Opened from a project, new notes take that project; opened on its own, it asks which project a note belongs to. |
 | **Commands** | Runnable commands read out of the manifests — every npm/pnpm/yarn/bun script, Makefile targets, cargo, compose — grouped by the file each came from. The ones that start, build or check a project lead their group; any command can be pinned. Every run gets its own log tab, and a port that is already taken is raised before the process starts rather than after it dies. |
 | **Running** | What is actually running, under Commands: which project each process belongs to, the ports it holds, its memory and uptime, and a stop button — and the running Docker containers, in the same project groups. Filterable by project and by whether a port is held, opening on the project's own port holders. Not a task manager — a process earns a row by being started from here, listening on a port, or working inside a watched project. |
+| **Containers** | Every Docker container, running or not, under the project it belongs to — or its compose stack, when no project claims it. State, restart count, health, ports and the tail of the log per container; start, stop, restart and remove one, or a whole stack at once. A stop lasts: Docker's `always` policy no longer brings it back. |
 | **GitHub** | Build state, deployments and pull requests for the projects that have a GitHub remote — private ones included — spoken through the `gh` CLI so no token is ever held here. A dot per project in the lists, an Actions view for the runs and environments, the pull requests waiting on you, the repository's own housekeeping, and the tail of a failed build with a prompt to take away. Requests are conditional, so refreshing barely touches the hourly allowance. See [docs/github-integration.md](docs/github-integration.md). |
 | **Claude** | Every Claude Code session held in these projects, read from the logs under `~/.claude/projects`: how many sessions and messages, what they spent in tokens, an estimated cost against published API rates, thirty days of activity, and which models and tools did the work. Sessions are grouped by the project they were run in, and any one of them opens as a readable transcript. |
 | **Git sync** | Whether a project has fallen behind the branch it tracks, which only a fetch can answer — so there is one button that fetches every remote, and a badge on the projects that have moved. Opening one says who pushed what, and offers the single operation that fits: a fast-forward when nothing of yours is in the way, a rebase when both sides have moved. Uncommitted work is stashed and put back; a rebase that stops on a conflict says which files, and can be undone in one click. |
@@ -132,6 +133,31 @@ published port like a held one. Their memory is left blank — Docker only says
 that through `docker stats`, which is too slow to poll.
 
 ![The running processes view](docs/screenshots/procs.png)
+
+### Containers
+
+Every container Docker knows of, grouped by project, then by compose stack for
+the ones no project claims, then whatever is left on its own. Failing stacks
+come first: a container caught in a restart loop shows how many times it has
+been restarted, and the tail of its log — stdout and stderr merged back into
+the order they were written — usually says why in its last line. Filters narrow
+the list to running, failing or stopped containers; groups with nothing running
+start folded.
+
+Each container can be started, stopped, restarted or removed, and the group
+header does the same for the whole stack. Two things make that more than a
+front for the Docker CLI:
+
+- **A stop lasts.** A container with the `always` restart policy is brought
+  back every time Docker starts, stopped or not — which is how a stack with a
+  dead database fails on start a thousand times over, after every reboot. Such
+  a container is switched to `unless-stopped` before it is stopped.
+- **A removal goes through.** It is `docker rm -f`, so a restarting container
+  is removed too, which a plain `rm` refuses. Volumes are kept, so a database
+  keeps its data; the stack's networks are removed once nothing uses them. It
+  is always confirmed first.
+
+![The containers view](docs/screenshots/containers.png)
 
 ### Commands
 
@@ -305,7 +331,7 @@ src/                     TypeScript + React frontend
   format.ts              size, date and rule formatting
   theme.css              design tokens, light and dark
   components/            title bar, sidebar, status bar, dialog, icons
-  views/                 the seven views
+  views/                 one file per view
 src-tauri/               Rust backend
   scan.rs                project discovery, measurement, language stats
   git.rs                 branch, dirty state, tags and changelog via git2

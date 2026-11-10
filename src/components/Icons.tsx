@@ -57,6 +57,14 @@ export const Activity = (p: IconProps) => (
   </Svg>
 );
 
+export const Box = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M21 8 12 3 3 8v8l9 5 9-5V8Z" />
+    <path d="m3 8 9 5 9-5" />
+    <path d="M12 13v8" />
+  </Svg>
+);
+
 export const Monitor = (p: IconProps) => (
   <Svg strokeWidth={1.9} {...p}>
     <rect x="2.5" y="4" width="19" height="12.5" rx="2.5" />

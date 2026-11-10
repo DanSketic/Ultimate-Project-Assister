@@ -10,6 +10,29 @@ are assigned when a release is cut — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## [Unreleased]
 
+### Added
+
+- **A containers view.** Docker Desktop lists containers by stack, and a stack
+  whose database has died just keeps going round: the rest of it fails on
+  start, the `always` policy brings it back, and it does so again after every
+  reboot — a thousand restarts and counting, with nothing in Docker Desktop
+  able to make it stop. The new view lists every container, running or not,
+  under the project it belongs to, or under its compose stack when no project
+  claims it. Each row shows its state, how many times it has been restarted,
+  its health and restart policy, its ports, and the tail of its log, stdout
+  and stderr merged back into order. A container, or a whole stack at once,
+  can be started, stopped, restarted or removed. A stop is made to last: a
+  container with the `always` policy is switched to `unless-stopped` first, so
+  Docker no longer brings it back on its next start. A removal is
+  `docker rm -f`, so a restarting container goes too; volumes are kept, and
+  the stack's networks go once nothing uses them. Failing stacks come first,
+  a filter narrows to running, failing or stopped, and the sidebar shows the
+  failing count in red.
+
+### Changed
+
+- **Stopping a container from the running view uses the same lasting stop.**
+
 ## [1.12.0] - 2026-11-09
 
 ### Added

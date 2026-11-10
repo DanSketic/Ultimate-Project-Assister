@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { isOverdue, size } from "../format";
 import {
   Activity,
+  Box,
   Folder,
   PanelLeft,
   Refresh,
@@ -15,6 +16,7 @@ import {
   Workflow,
 } from "./Icons";
 import type { App } from "../useApp";
+import { isFailing } from "../views/ContainersView";
 import type { View } from "../types";
 
 export function Sidebar({ app }: { app: App }) {
@@ -193,6 +195,17 @@ export function Sidebar({ app }: { app: App }) {
         <span style={mono()}>
           {app.visibleProcesses ? app.visibleProcesses.length + (app.visibleContainers?.length ?? 0) : ""}
         </span>,
+      )}
+      {item(
+        "containers",
+        <Box size={16} style={{ flex: "0 0 16px" }} />,
+        t.navContainers,
+        // What needs looking at: the failing ones, in red; otherwise what runs.
+        app.boxes && app.boxes.some(isFailing) ? (
+          <span style={mono("var(--danTx)", 500)}>{app.boxes.filter(isFailing).length}</span>
+        ) : (
+          <span style={mono()}>{app.boxes ? app.boxes.filter((c) => c.state === "running").length : ""}</span>
+        ),
       )}
       {item(
         "actions",

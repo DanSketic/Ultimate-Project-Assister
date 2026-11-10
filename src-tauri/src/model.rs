@@ -316,6 +316,18 @@ pub struct Container {
     pub host_ports: Vec<u16>,
     /// Seconds since it started; zero when it is not running.
     pub run_secs: u64,
+    /// Seconds since it last stopped; zero while it runs, or if it never has.
+    pub stopped_secs: u64,
+    pub exit_code: i64,
+    /// How many times Docker has restarted it. A four-digit number here is a
+    /// container failing on start, over and over.
+    pub restart_count: u64,
+    /// `no`, `always`, `unless-stopped`, `on-failure`.
+    pub restart_policy: String,
+    /// `healthy`, `unhealthy`, `starting`; empty without a health check.
+    pub health: String,
+    /// The compose stack it was started as part of, by compose's own name.
+    pub stack: String,
     pub project_id: String,
     pub project: String,
 }

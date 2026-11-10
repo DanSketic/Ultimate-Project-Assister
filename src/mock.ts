@@ -23,6 +23,7 @@ import type {
   CommandDef,
   Commit,
   Container,
+  ContainerAction,
   DeleteReport,
   DockerStatus,
   Goal,
@@ -868,9 +869,14 @@ export function containers(projectId: string): Container[] {
   return stack(project).filter((c) => c.state !== "removed");
 }
 
+/** What every sample container has unless it says otherwise. */
+const BOX = {
+  stoppedSecs: 0, exitCode: 0, restartCount: 0, restartPolicy: "unless-stopped", health: "",
+};
+
 /** A compose stack the way it would come back for one project. */
 function stack(project: Project): Container[] {
-  const owned = { projectId: project.id, project: project.name };
+  const owned = { ...BOX, stack: project.name, projectId: project.id, project: project.name };
   return [
     { id: "a1b2c3d4e5f6", name: `${project.name}-db-1`, image: "postgres:16", state: "running",
       status: "Up 3 hours (healthy)", ports: "0.0.0.0:5432->5432/tcp", service: "db",
@@ -880,7 +886,7 @@ function stack(project: Project): Container[] {
       hostPorts: [6379], runSecs: 3 * 3600 + 410, ...owned },
     { id: "c3d4e5f6a1b2", name: `${project.name}-worker-1`, image: "node:22-slim", state: "exited",
       status: "Exited (0) 12 minutes ago", ports: "", service: "worker",
-      hostPorts: [], runSecs: 0, ...owned },
+      hostPorts: [], runSecs: 0, ...owned, stoppedSecs: 720 },
   ];
 }
 
@@ -892,8 +898,69 @@ export function runningContainers(): Container[] {
     ...own,
     { id: "d4e5f6a1b2c3", name: "mailpit", image: "axllent/mailpit:latest", state: "running",
       status: "Up 2 days", ports: "0.0.0.0:8025->8025/tcp", service: "", hostPorts: [8025],
-      runSecs: 2 * 86400 + 3600, projectId: "", project: "" },
+      runSecs: 2 * 86400 + 3600, ...BOX, stack: "", projectId: "", project: "" },
   ];
+}
+
+/** Containers the sample session has stopped or removed, by id. */
+const boxChanges = new Map<string, "stopped" | "removed" | "running">();
+
+/**
+ * Everything on the sample machine: a project's stack, a stray container, and
+ * a Supabase stack whose database is gone - the rest of it failing on start
+ * over and over, the way it looks on a real machine.
+ */
+export function allContainers(): Container[] {
+  const compose = projects().find((p) => p.manifests.some((m) => m.startsWith("docker-compose")));
+  const loop = (id: string, service: string, restarts: number, image: string): Container => ({
+    id, name: `supabase_${service}_browseline`, image, state: "restarting",
+    status: "Restarting (1) 8 seconds ago", ports: "", service, hostPorts: [], runSecs: 0,
+    ...BOX, stoppedSecs: 8, exitCode: 1, restartCount: restarts, restartPolicy: "always",
+    health: "unhealthy", stack: "browseline", projectId: "", project: "",
+  });
+  const all: Container[] = [
+    ...(compose ? stack(compose) : []),
+    ...runningContainers().filter((c) => !c.projectId),
+    { id: "e5f6a1b2c3d4", name: "supabase_db_browseline", image: "supabase/postgres:15.8",
+      state: "exited", status: "Exited (137) 2 months ago", ports: "", service: "db", hostPorts: [],
+      runSecs: 0, ...BOX, stoppedSecs: 61 * 86400, exitCode: 137, restartPolicy: "always",
+      stack: "browseline", projectId: "", project: "" },
+    loop("f6a1b2c3d4e5", "auth", 1269, "supabase/gotrue:v2.177"),
+    loop("a1b2c3d4e5f7", "storage", 1284, "supabase/storage-api:v1.25"),
+    loop("b2c3d4e5f6a2", "realtime", 1286, "supabase/realtime:v2.51"),
+    { id: "c3d4e5f6a1b3", name: "supabase_kong_browseline", image: "kong:2.8.1", state: "running",
+      status: "Up 22 hours (healthy)", ports: "0.0.0.0:55321->8000/tcp", service: "kong",
+      hostPorts: [55321], runSecs: 22 * 3600, ...BOX, restartPolicy: "always", health: "healthy",
+      stack: "browseline", projectId: "", project: "" },
+  ];
+  return all
+    .filter((c) => boxChanges.get(c.id) !== "removed")
+    .map((c) => {
+      const change = boxChanges.get(c.id);
+      if (change === "stopped") return { ...c, state: "exited", runSecs: 0, stoppedSecs: 2, health: "" };
+      if (change === "running") return { ...c, state: "running", runSecs: 2, stoppedSecs: 0 };
+      return c;
+    });
+}
+
+export async function containerAction(ids: string[], action: ContainerAction): Promise<void> {
+  await pause(500);
+  const next = action === "remove" ? "removed" : action === "stop" ? "stopped" : "running";
+  for (const id of ids) boxChanges.set(id, next);
+}
+
+export async function containerLogs(id: string): Promise<string> {
+  await pause(200);
+  const box = allContainers().find((c) => c.id === id);
+  if (box?.state === "restarting") {
+    return [
+      "2026-11-10T08:57:37Z Go runtime metrics collection started",
+      '2026-11-10T08:57:42Z {"level":"fatal","msg":"running db migrations: failed to connect to `host=supabase_db_browseline`: hostname resolving error (lookup supabase_db_browseline: no such host)"}',
+      "2026-11-10T08:58:42Z Go runtime metrics collection started",
+      '2026-11-10T08:58:47Z {"level":"fatal","msg":"running db migrations: failed to connect to `host=supabase_db_browseline`: hostname resolving error (lookup supabase_db_browseline: no such host)"}',
+    ].join("\n");
+  }
+  return "2026-11-10T06:00:01Z listening on 0.0.0.0\n2026-11-10T06:00:02Z ready to accept connections";
 }
 
 export async function stopContainer(id: string): Promise<string> {

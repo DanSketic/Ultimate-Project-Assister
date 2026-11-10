@@ -17,6 +17,7 @@ import type {
   CompactReport,
   CompactStep,
   Container,
+  ContainerAction,
   DeleteReport,
   DockerStatus,
   Goal,
@@ -129,6 +130,23 @@ export async function projectContainers(projectId: string): Promise<Container[]>
 export async function runningContainers(): Promise<Container[]> {
   if (!IS_TAURI) return mock.runningContainers();
   return call<Container[]>("running_containers");
+}
+
+/** Every container, running or not, each with its project and stack. */
+export async function allContainers(): Promise<Container[]> {
+  if (!IS_TAURI) return mock.allContainers();
+  return call<Container[]>("all_containers");
+}
+
+export async function containerAction(ids: string[], action: ContainerAction): Promise<void> {
+  if (!IS_TAURI) return mock.containerAction(ids, action);
+  return call<void>("container_action", { ids, action });
+}
+
+/** The last lines a container wrote, stdout and stderr together. */
+export async function containerLogs(id: string): Promise<string> {
+  if (!IS_TAURI) return mock.containerLogs(id);
+  return call<string>("container_logs", { id });
 }
 
 /** Stops a container by id; resolves to its name. */

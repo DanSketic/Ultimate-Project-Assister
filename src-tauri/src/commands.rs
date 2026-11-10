@@ -392,6 +392,30 @@ pub async fn running_containers(state: State<'_, AppState>) -> Result<Vec<Contai
         .map_err(|e| e.to_string())
 }
 
+/// Every container, running or not, each with its project and stack.
+#[tauri::command]
+pub async fn all_containers(state: State<'_, AppState>) -> Result<Vec<Container>, String> {
+    let projects = state.projects.lock().unwrap().clone();
+    tauri::async_runtime::spawn_blocking(move || docker::containers(&projects, true))
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// `start`, `stop`, `restart` or `remove`, on one container or a stack.
+#[tauri::command]
+pub async fn container_action(ids: Vec<String>, action: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || docker::act(&ids, &action))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn container_logs(id: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || docker::logs(&id))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
 #[tauri::command]
 pub async fn stop_container(id: String) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || docker::stop(&id))

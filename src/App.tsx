@@ -15,6 +15,7 @@ import { ActionsView } from "./views/ActionsView";
 import { ClaudeView } from "./views/ClaudeView";
 import { CommandsView } from "./views/CommandsView";
 import { ProcessesView } from "./views/ProcessesView";
+import { ContainersView, isFailing } from "./views/ContainersView";
 import { DetailView } from "./views/DetailView";
 import { GoalsView } from "./views/GoalsView";
 import { ProjectsView } from "./views/ProjectsView";
@@ -120,6 +121,17 @@ export function App() {
           ]
             .filter(Boolean)
             .join(" · ")
+        : t.checking,
+    },
+    containers: {
+      kicker: t.navContainers,
+      title: t.ctTitle,
+      meta: app.boxes
+        ? [
+            `${app.boxes.length} ${t.containersRunning}`,
+            `${app.boxes.filter((c) => c.state === "running").length} ${t.ctRunning.toLowerCase()}`,
+            `${app.boxes.filter(isFailing).length} ${t.ctProblem.toLowerCase()}`,
+          ].join(" · ")
         : t.checking,
     },
     claude: {
@@ -247,6 +259,7 @@ export function App() {
             {view === "board" && <BoardView app={app} />}
             {view === "cmd" && <CommandsView app={app} />}
             {view === "procs" && <ProcessesView app={app} />}
+            {view === "containers" && <ContainersView app={app} />}
             {view === "claude" && <ClaudeView app={app} />}
             {view === "actions" && <ActionsView app={app} />}
             {view === "set" && <SettingsView app={app} />}

@@ -26,6 +26,15 @@ const SEP: char = '\t';
 /// Runs a program without a console window, keeping stderr for the error -
 /// the reason something failed is the useful part of a failure.
 fn run(program: &str, args: &[&str]) -> Result<String, String> {
+    let out = command(program, args).output().map_err(|e| e.to_string())?;
+    if out.status.success() {
+        return Ok(String::from_utf8_lossy(&out.stdout).to_string());
+    }
+    let err = String::from_utf8_lossy(&out.stderr).to_string();
+    Err(if err.trim().is_empty() { String::from_utf8_lossy(&out.stdout).to_string() } else { err })
+}
+
+fn command(program: &str, args: &[&str]) -> Command {
     let mut cmd = Command::new(program);
     cmd.args(args);
     #[cfg(windows)]
@@ -33,13 +42,7 @@ fn run(program: &str, args: &[&str]) -> Result<String, String> {
         use std::os::windows::process::CommandExt;
         cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
     }
-
-    let out = cmd.output().map_err(|e| e.to_string())?;
-    if out.status.success() {
-        return Ok(String::from_utf8_lossy(&out.stdout).to_string());
-    }
-    let err = String::from_utf8_lossy(&out.stderr).to_string();
-    Err(if err.trim().is_empty() { String::from_utf8_lossy(&out.stdout).to_string() } else { err })
+    cmd
 }
 
 fn docker(args: &[&str]) -> Option<String> {
@@ -201,15 +204,28 @@ pub fn containers(projects: &[Project], all: bool) -> Vec<Container> {
         .collect();
 
     let now = chrono::Utc::now();
+    // Docker writes `0001-01-01T00:00:00Z` for a moment that never happened.
+    let since = |stamp: &str| {
+        chrono::DateTime::parse_from_rfc3339(stamp)
+            .ok()
+            .filter(|t| chrono::Datelike::year(t) > 1)
+            .map(|t| (now - t.with_timezone(&chrono::Utc)).num_seconds().max(0) as u64)
+            .unwrap_or(0)
+    };
     for c in &mut list {
         let Some(d) = details.get(&c.id) else { continue };
         let facts = Facts::of(d);
         c.host_ports = facts.ports;
         if c.state == "running" {
-            c.run_secs = chrono::DateTime::parse_from_rfc3339(&facts.started)
-                .map(|t| (now - t.with_timezone(&chrono::Utc)).num_seconds().max(0) as u64)
-                .unwrap_or(0);
+            c.run_secs = since(&facts.started);
+        } else {
+            c.stopped_secs = since(d["State"]["FinishedAt"].as_str().unwrap_or(""));
         }
+        c.exit_code = d["State"]["ExitCode"].as_i64().unwrap_or(0);
+        c.restart_count = d["RestartCount"].as_u64().unwrap_or(0);
+        c.restart_policy = d["HostConfig"]["RestartPolicy"]["Name"].as_str().unwrap_or("").to_string();
+        c.health = d["State"]["Health"]["Status"].as_str().unwrap_or("").to_string();
+        c.stack = stack_of(&facts.labels);
         if let Some((id, name)) = owner(&facts.labels, &facts.binds, projects) {
             c.project_id = id;
             c.project = name;
@@ -267,6 +283,16 @@ impl Facts {
             started: d["State"]["StartedAt"].as_str().unwrap_or("").to_string(),
         }
     }
+}
+
+/// The stack a container was started as part of. The Supabase CLI labels its
+/// containers both ways; anything else uses compose's own label.
+fn stack_of(labels: &HashMap<String, String>) -> String {
+    labels
+        .get("com.docker.compose.project")
+        .or_else(|| labels.get("com.supabase.cli.project"))
+        .cloned()
+        .unwrap_or_default()
 }
 
 /// The project a container belongs to.
@@ -347,17 +373,132 @@ fn parse_container(line: &str) -> Option<Container> {
     })
 }
 
-/// Stops one container and says which. Only an id is accepted, so nothing but
-/// a container can be named here.
+/// Stops one container and says which.
 pub fn stop(id: &str) -> Result<String, String> {
-    if id.len() < 12 || !id.chars().all(|c| c.is_ascii_hexdigit()) {
-        return Err("not a container id".into());
-    }
+    check_ids(&[id.to_string()])?;
     let name = docker(&["inspect", "--format", "{{.Name}}", id])
         .map(|n| n.trim().trim_start_matches('/').to_string())
         .unwrap_or_else(|| id.to_string());
-    docker_err(&["stop", id]).map_err(|e| first_meaningful_line(&e))?;
+    act(&[id.to_string()], "stop")?;
     Ok(name)
+}
+
+/// Only container ids are accepted, so nothing but a container can be named.
+fn check_ids(ids: &[String]) -> Result<(), String> {
+    let bad = |id: &String| id.len() < 12 || !id.chars().all(|c| c.is_ascii_hexdigit());
+    if ids.is_empty() || ids.iter().any(bad) {
+        return Err("not a container id".into());
+    }
+    Ok(())
+}
+
+/// Starts, stops, restarts or removes containers - one, or a whole stack.
+///
+/// A stop is made to last. A container with the `always` policy is brought
+/// back every time Docker starts, stopped or not, which is how a stack with a
+/// dead database ends up failing on start a thousand times over, and keeps
+/// doing it after every reboot. Such a container is switched to
+/// `unless-stopped` first: it still comes back on its own if it was running,
+/// but a stop now means stopped.
+///
+/// A removal is `docker rm -f`: a container that is restarting or running goes
+/// too, which a plain `rm` refuses. Volumes are kept - that is where the data
+/// is. The stack's networks are removed once nothing is left on them.
+pub fn act(ids: &[String], action: &str) -> Result<(), String> {
+    if !["start", "stop", "restart", "remove"].contains(&action) {
+        return Err(format!("unknown action: {action}"));
+    }
+    check_ids(ids)?;
+    let ids: Vec<&str> = ids.iter().map(String::as_str).collect();
+    let run_on = |verb: &[&str], targets: &[&str]| {
+        let mut args = verb.to_vec();
+        args.extend_from_slice(targets);
+        docker_err(&args).map(|_| ()).map_err(|e| first_meaningful_line(&e))
+    };
+
+    match action {
+        "start" => run_on(&["start"], &ids),
+        "restart" => run_on(&["restart"], &ids),
+        "stop" => {
+            let details = described(&ids);
+            let always: Vec<&str> = details
+                .iter()
+                .filter(|d| d.policy == "always")
+                .map(|d| d.id.as_str())
+                .collect();
+            if !always.is_empty() {
+                run_on(&["update", "--restart", "unless-stopped"], &always)?;
+            }
+            run_on(&["stop"], &ids)
+        }
+        _ => {
+            let stacks: BTreeSet<String> =
+                described(&ids).into_iter().map(|d| d.stack).filter(|s| !s.is_empty()).collect();
+            run_on(&["rm", "-f"], &ids)?;
+            for stack in stacks {
+                let filter = format!("label=com.docker.compose.project={stack}");
+                let Some(nets) = docker(&["network", "ls", "-q", "--filter", &filter]) else { continue };
+                let nets: Vec<&str> = nets.split_whitespace().collect();
+                if !nets.is_empty() {
+                    // Refused while another container still uses it, which is
+                    // exactly when it should stay.
+                    let _ = run_on(&["network", "rm"], &nets);
+                }
+            }
+            Ok(())
+        }
+    }
+}
+
+struct Described {
+    id: String,
+    policy: String,
+    stack: String,
+}
+
+/// Restart policy and stack of each container, in one call.
+fn described(ids: &[&str]) -> Vec<Described> {
+    let mut args = vec![
+        "inspect",
+        "--format",
+        "{{.Id}}\t{{.HostConfig.RestartPolicy.Name}}\t{{index .Config.Labels \"com.docker.compose.project\"}}",
+    ];
+    args.extend_from_slice(ids);
+    docker(&args)
+        .unwrap_or_default()
+        .lines()
+        .filter_map(|line| {
+            let mut f = line.split(SEP);
+            Some(Described {
+                id: f.next()?.trim().to_string(),
+                policy: f.next().unwrap_or("").trim().to_string(),
+                stack: f.next().unwrap_or("").trim().replace("<no value>", ""),
+            })
+        })
+        .filter(|d| !d.id.is_empty())
+        .collect()
+}
+
+/// The last lines a container wrote, stdout and stderr together, oldest first.
+pub fn logs(id: &str) -> Result<String, String> {
+    check_ids(&[id.to_string()])?;
+    let out = command("docker", &["logs", "--tail", "300", "--timestamps", id])
+        .output()
+        .map_err(|e| e.to_string())?;
+    if !out.status.success() && out.stdout.is_empty() {
+        return Err(first_meaningful_line(&String::from_utf8_lossy(&out.stderr)));
+    }
+    Ok(merge_logs(&String::from_utf8_lossy(&out.stdout), &String::from_utf8_lossy(&out.stderr)))
+}
+
+/// Docker hands the two streams back separately. Every line starts with an
+/// RFC 3339 timestamp in UTC, which sorts as text, so the two can be put back
+/// in the order they were written - and only the last 300 kept.
+fn merge_logs(stdout: &str, stderr: &str) -> String {
+    let mut lines: Vec<&str> = stdout.lines().chain(stderr.lines()).filter(|l| !l.is_empty()).collect();
+    lines.sort_by(|a, b| a.split(' ').next().cmp(&b.split(' ').next()));
+    let skip = lines.len().saturating_sub(300);
+    lines[skip..].join("\n")
 }
 
 // ---------------------------------------------------------------------------
@@ -767,9 +908,39 @@ mod tests {
     }
 
     #[test]
+    fn the_stack_comes_from_compose_or_from_the_supabase_cli() {
+        assert_eq!(stack_of(&labels(&[("com.docker.compose.project", "shop")])), "shop");
+        assert_eq!(stack_of(&labels(&[("com.supabase.cli.project", "browseline-server")])), "browseline-server");
+        assert_eq!(stack_of(&HashMap::new()), "");
+    }
+
+    #[test]
+    fn nothing_but_a_container_id_is_acted_on() {
+        // Refused before Docker is ever called: a flag, a name, or nothing.
+        for ids in [vec![], vec!["--all".to_string()], vec!["shop-db-1".to_string()], vec!["abc".to_string()]] {
+            assert!(act(&ids, "remove").is_err(), "{ids:?}");
+        }
+        assert!(act(&["a1b2c3d4e5f6".to_string()], "exec").is_err(), "only the four actions exist");
+        assert!(logs("; rm -rf /").is_err());
+    }
+
+    #[test]
+    fn the_two_log_streams_are_put_back_in_order() {
+        let out = "2026-11-10T08:00:01Z start\n2026-11-10T08:00:03Z ready\n";
+        let err = "2026-11-10T08:00:02Z warning\n";
+
+        assert_eq!(
+            merge_logs(out, err),
+            "2026-11-10T08:00:01Z start\n2026-11-10T08:00:02Z warning\n2026-11-10T08:00:03Z ready"
+        );
+    }
+
+    #[test]
     fn only_known_prune_targets_ever_run() {
         // Nothing listed means nothing runs - not even a call to Docker.
         let report = prune(&["rm -rf /".to_string(), "system".to_string()]);
         assert!(report.done.is_empty() && report.errors.is_empty());
     }
 }
+
+

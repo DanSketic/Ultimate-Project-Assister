@@ -28,6 +28,7 @@ const VIEWS = {
   board: [1600, 900],
   cmd: [1440, 900],
   procs: [1440, 900],
+  containers: [1440, 900],
   claude: [1440, 980],
   actions: [1440, 900],
 };

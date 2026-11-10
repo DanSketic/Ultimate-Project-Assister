@@ -8,6 +8,7 @@ export type View =
   | "board"
   | "cmd"
   | "procs"
+  | "containers"
   | "claude"
   | "actions"
   | "set";
@@ -303,9 +304,23 @@ export interface Container {
   hostPorts: number[];
   /** Seconds since it started; zero when it is not running. */
   runSecs: number;
+  /** Seconds since it last stopped; zero while it runs, or if it never has. */
+  stoppedSecs: number;
+  exitCode: number;
+  /** How many times Docker has restarted it; a large number is a crash loop. */
+  restartCount: number;
+  /** `no`, `always`, `unless-stopped`, `on-failure`. */
+  restartPolicy: string;
+  /** `healthy`, `unhealthy`, `starting`; empty without a health check. */
+  health: string;
+  /** The compose stack it was started as part of. */
+  stack: string;
   projectId: string;
   project: string;
 }
+
+/** What can be done to containers; the backend refuses anything else. */
+export type ContainerAction = "start" | "stop" | "restart" | "remove";
 
 /** A command this app started that already holds the port. */
 export interface PortUser {
